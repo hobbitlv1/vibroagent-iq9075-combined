@@ -23,14 +23,30 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+MODE=live
+WANT_QAIRT=0
+for arg in "$@"; do
+    case "$arg" in
+        --offline) MODE=offline ;;
+        --qairt)   WANT_QAIRT=1 ;;
+        *) echo "unknown option: $arg (supported: --offline --qairt)" >&2; exit 2 ;;
+    esac
+done
+echo "$MODE" > "$REPO/.vibro_mode"
+echo "==== data-source mode: $MODE (persisted in .vibro_mode) ===="
+
 if ! command -v uv >/dev/null 2>&1; then
     echo "==== installing uv (https://astral.sh/uv) ===="
     curl -LsSf https://astral.sh/uv/install.sh | sh
     export PATH="$HOME/.local/bin:$PATH"
 fi
 
-echo "==== [1/6] Linux USB prerequisites (libusb, udev rules, hsdatalog group) ===="
-"$REPO/setup_usb.sh"
+if [ "$MODE" = "offline" ]; then
+    echo "==== [1/6] Linux USB prerequisites — SKIPPED (offline mode, no boards) ===="
+else
+    echo "==== [1/6] Linux USB prerequisites (libusb, udev rules, hsdatalog group) ===="
+    "$REPO/setup_usb.sh"
+fi
 
 echo "==== [2/6] STDATALOG-PYSDK (stock v1.3.0 + patches) ===="
 "$REPO/setup_sdk.sh"
@@ -80,18 +96,28 @@ echo "==== [5/6] GenieX runtime + base-model autodownload ===="
 echo "==== [6/6] fine-tuned codes_v3 GGUF (hash-verified) ===="
 "$REPO/setup_models.sh"
 
-if [ "${1:-}" = "--qairt" ]; then
+if [ "$WANT_QAIRT" = "1" ]; then
     echo "==== [optional] QAIRT Community SDK (legacy genie backend) ===="
     "$REPO/setup_qairt.sh"
 fi
 
 echo
 echo "==== setup complete ===="
-echo "Next steps:"
-echo "  1. If setup_usb.sh just added you to the hsdatalog group, log out and"
-echo "     back in (or reboot) so the membership applies."
-echo "  2. Start the stack:   ./vibroagent.sh start"
-echo "  3. Open the webchat:  http://<board-lan-ip>:7860"
+echo "Next steps (mode: $MODE):"
+if [ "$MODE" = "offline" ]; then
+    echo "  1. Start the stack:   ./vibroagent.sh start"
+    echo "     (the replay logger streams the recorded examples/ acquisitions in"
+    echo "      real time; the USB logger stays down — no boards needed)"
+    echo "  2. Open the webchat:  http://<board-lan-ip>:7860 — graphs, chat and"
+    echo "     monitor popups reproduce the recording at its original moments."
+    echo "  To switch to live boards later:  ./setup.sh   (reruns USB setup)"
+else
+    echo "  1. If setup_usb.sh just added you to the hsdatalog group, log out and"
+    echo "     back in (or reboot) so the membership applies."
+    echo "  2. Start the stack:   ./vibroagent.sh start"
+    echo "  3. Open the webchat:  http://<board-lan-ip>:7860"
+    echo "  For the board-free demo instead:  ./setup.sh --offline"
+fi
 echo
 echo "No board? Run the recorded-data demo instead:"
 echo "  $CODEC_VENV/bin/python examples/selftest.py"

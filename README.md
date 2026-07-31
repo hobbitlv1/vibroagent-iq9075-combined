@@ -58,6 +58,37 @@ optionally runs the pass per axis and combines by max severity.
 The earlier descriptor path (PSD/FFT metrics → LLM) remains available as the
 legacy comparison mode (`VIBRO_STACK=genie`).
 
+## Offline mode (full stack on recorded data — no boards)
+
+The data-source mode is fixed **at setup time** and persisted in
+`.vibro_mode`, because the two producers are mutually exclusive: every USB
+logger start truncates the acquisition `.dat` files, so in offline mode the
+USB logger **never starts** — `stdatalog_examples/vibroagent_replay_logger.py`
+runs in its place:
+
+```bash
+./setup.sh --offline        # persists mode; skips USB/udev setup entirely
+./vibroagent.sh start       # NPU model server + webchat + REPLAY logger
+```
+
+The replay logger re-creates each live acquisition folder (metadata verbatim)
+and appends the recorded STDatalog frames to `iis3dwb_acc.dat` at the
+ORIGINAL real-time cadence (~37.5 ms per frame), looping over the 60 s
+recordings. Everything downstream is byte- and time-faithful and completely
+unaware of the replay — the webchat, monitor, and codec worker read the same
+folders through the same code paths as with live boards:
+
+- the **live-readings graphs** redraw the recorded waveforms as they
+  "arrive";
+- the **chat/agent** analyses the recorded data instead of live streams;
+- the **codes monitor** cuts its 10 s windows at the same relative moments
+  as during the recording, and — greedy decoding being deterministic —
+  verdicts and **popups reproduce at the same registered moments** with the
+  same content as they had live.
+
+Switch back to live boards with a plain `./setup.sh` (reruns USB setup and
+persists `live`).
+
 ## Try it without any hardware
 
 `examples/` contains real recorded acquisitions from all six sensors
@@ -273,6 +304,8 @@ stdatalog_examples/           Only the project-owned live-acquisition artifacts:
 │                             is written here at runtime and is git-ignored)
 ├── vibroagent_live_devices.json / vibrodiag_live_devices.json   Board serial → role maps
 ├── vibroagent_two_vibrometer_logger.py   The production logger (native callback mode)
+├── vibroagent_replay_logger.py           OFFLINE-mode producer: replays examples/ into the
+│                                         live folders at original cadence (looping)
 ├── vibroagent_hsd_native_probe.py        Native HSDv2 connectivity probe
 └── vibroagent_polling_logger_legacy.py   Superseded polling-based logger, kept for reference
 PSD/                          Standalone Jupyter notebook comparing PSD estimators (Welch,

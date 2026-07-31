@@ -64,7 +64,14 @@ QAIRT_SDK_ROOT="${QAIRT_SDK_ROOT:-$REPO/v2.46.0.260424/qairt/2.46.0.260424}"
 GENIE_CONFIG="${GENIE_CONFIG:-$REPO/models/merged_4k_6000s/merged_6000_ctx4096_calib1-genie-w4a16-qualcomm_qcs9075/genie_config.json}"
 BASELINE_SERIAL="003F003D3530500820323641"
 LOGGER_PY="$EX/vibroagent_two_vibrometer_logger.py"
+REPLAY_PY="$EX/vibroagent_replay_logger.py"
 NATIVE_PROBE_PY="$EX/vibroagent_hsd_native_probe.py"
+# Data-source mode is fixed at SETUP time (./setup.sh --offline writes it):
+# "live"    = USB logger drives real STWIN.box boards (default)
+# "offline" = the replay logger streams the recorded examples/ acquisitions;
+#             the USB logger NEVER starts (it would overwrite the replayed
+#             .dat files), so no boards and no USB permissions are needed.
+VIBRO_MODE="$(cat "$REPO/.vibro_mode" 2>/dev/null || echo live)"
 EXPECTED_BOARDS="${EXPECTED_BOARDS:-6}"
 GENIE_TIMEOUT_S="${GENIE_TIMEOUT_S:-300}"
 GENIE_READY_WAIT_S="${GENIE_READY_WAIT_S:-360}"
@@ -80,7 +87,7 @@ err() { printf '%s%s%s\n' "$c_red" "$*" "$c_off"; }
 
 port_listening() { ss -ltn 2>/dev/null | grep -q ":$1 "; }
 port_pid()       { ss -ltnp 2>/dev/null | grep ":$1 " | grep -oP 'pid=\K[0-9]+' | head -1; }
-logger_pid()     { pgrep -f "vibroagent_two_vibrometer_logger\.py" 2>/dev/null | head -1; }
+logger_pid()     { pgrep -f "vibroagent_(two_vibrometer|replay)_logger\.py" 2>/dev/null | head -1; }
 
 wait_for_port() { # port, timeout_s
   local p="$1" t="${2:-60}" i=0
@@ -200,6 +207,28 @@ start_webchat() {
 
 start_logger() {
   if [ -n "$(logger_pid)" ]; then warn "Logger already running (pid $(logger_pid)) — skipping"; return 0; fi
+  if [ "$VIBRO_MODE" = "offline" ]; then
+    say "OFFLINE mode (set at setup): replaying recorded acquisitions — USB logger stays down."
+    ( cd "$REPO" || exit 1
+      PYTHONUNBUFFERED=1 nohup python3 -u \
+        "$REPLAY_PY" --output-root "$EX" --source-root "$REPO/examples" --stats-s 5 \
+        > "$RUN_DIR/logger.log" 2>&1 &
+      echo $! > "$RUN_DIR/logger.pid" )
+    local i=0
+    while [ "$i" -lt 15 ]; do
+      [ "$(grep -c 'Replay started' "$RUN_DIR/logger.log" 2>/dev/null)" -ge 1 ] && break
+      grep -qiE 'Traceback|SystemExit' "$RUN_DIR/logger.log" 2>/dev/null && break
+      sleep 1; i=$((i+1))
+    done
+    if [ "$(grep -c 'Replay started' "$RUN_DIR/logger.log" 2>/dev/null)" -ge 1 ]; then
+      ok "  Replay logger up: $(grep -c 'Replay started' "$RUN_DIR/logger.log") recorded acquisitions streaming in real time (looping)."
+    else
+      err "  Replay logger failed — see $RUN_DIR/logger.log"
+      tail -20 "$RUN_DIR/logger.log" 2>/dev/null | sed 's/^/  /'
+      return 1
+    fi
+    return 0
+  fi
   local n; n="$(board_count)"
   if ! baseline_present || [ "$n" -lt 2 ]; then
     err "  Skipping logger: need baseline + >=1 target, but found $n board(s) and baseline_present=$(baseline_present && echo yes || echo no)."

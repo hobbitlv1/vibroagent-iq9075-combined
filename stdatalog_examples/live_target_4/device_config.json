@@ -1,6 +1,6 @@
 {
     "schema_version": "2.2.0",
-    "uuid": "6fa7232b-5e63-49a4-9e5c-adb40397e279",
+    "uuid": "368612f3-17c7-4a78-b827-5c8719ad5645",
     "devices": [
         {
             "board_id": 14,
@@ -132,7 +132,7 @@
                 },
                 {
                     "log_controller": {
-                        "log_status": true,
+                        "log_status": false,
                         "sd_mounted": false,
                         "sd_failed": false,
                         "controller_type": 0,
@@ -383,8 +383,8 @@
                         "enable": true,
                         "samples_per_ts": 1000,
                         "dim": 3,
-                        "ioffset": 0.019611282274127007,
-                        "measodr": 26664.72265625,
+                        "ioffset": 0.01959492638707161,
+                        "measodr": 26700.755859375,
                         "usb_dps": 7000,
                         "sd_dps": 53248,
                         "sensitivity": 0.0004879999905824661,
