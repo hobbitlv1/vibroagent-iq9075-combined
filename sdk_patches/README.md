@@ -86,3 +86,15 @@ patch -p1 < sdk_patches/stdatalog-pysdk-v1.3.0-to-vibroagent.diff
 # or simply:
 cp -r sdk_patches/overlay/. .
 ```
+
+
+## Runtime-cached ST device templates (added 2026-07-31)
+
+`overlay/stdatalog_pnpl/.../appconfig/steval_stwinbx1/` additionally carries
+six **unmodified** ST device-template JSONs (notably
+`FP_SNS_DATALOG2_Datalog2-10.json`, the template the STWIN.box fleet resolves
+to under FP-SNS-DATALOG2 v3.2.0). Stock v1.3.0 does not ship them;
+`DeviceCatalogManager` normally downloads them from ST's catalog on first
+board contact and caches them into the DTDL tree. Shipping the cache makes a
+fresh clone work without that first online round-trip. They are ST content
+under the same BSD-3-Clause license as the rest of the overlay.

@@ -209,8 +209,10 @@ vibroagent.sh                 Primary launcher: start|stop|restart|status for al
 vibroagent_direct.sh          Alternative launcher: per-service subcommands, 127.0.0.1 only.
 setup.sh                      One-command bootstrap: runs setup_sdk.sh, creates the app venv
                               (./vibroagent-venv), runs setup_geniex.sh; --qairt adds setup_qairt.sh.
+setup_usb.sh                  Linux USB prerequisites: libusb, hsdatalog udev rules + group
+                              (verbatim from the production board).
 setup_sdk.sh                  Fetches stock STDATALOG-PYSDK v1.3.0 (pinned commits) and applies
-                              the sdk_patches/ overlay.
+                              the sdk_patches/ overlay (incl. cached STWIN.box device templates).
 setup_geniex.sh               Installs the GenieX runtime (PyPI) into ~/geniex-venv (via uv).
 setup_models.sh               Downloads the fine-tuned codes_v3 GGUF from the private HF
                               weights repo (HF_TOKEN) and verifies its pinned sha256.
@@ -302,6 +304,10 @@ One command, run from the repository root, bootstraps everything:
 `setup.sh` downloads and installs **everything** automatically (all
 environments are created with **uv**, which it also installs if missing):
 
+0. **Linux USB prerequisites** — libusb-1.0, the `30-hsdatalog.rules` udev
+   rules (ST vendor `0483`, DATALOG2 products `5743`/`5744` → group
+   `hsdatalog`) and the `hsdatalog` group membership, exactly as on the
+   production board (`setup_usb.sh`; needs sudo; log out/in once afterwards);
 1. **stdatalog-pysdk** — stock v1.3.0 at the pinned commits + the
    `sdk_patches/` overlay (`setup_sdk.sh`);
 2. the **app virtualenv** at `./vibroagent-venv` with an editable install of
@@ -326,11 +332,11 @@ For the legacy genie backend, add the QAIRT SDK download (1.8 GB):
 The genie backend also needs its compiled model bundle (see "Model backends").
 
 The individual steps remain available as `setup_sdk.sh`, `setup_geniex.sh`,
-`setup_qairt.sh`, `setup_models.sh`.
+`setup_qairt.sh`, `setup_models.sh`, `setup_usb.sh`.
 
-Remaining manual step — USB permissions for the STWIN.box boards (ST udev
-rules / `hsdatalog` group): follow the `linux_setup` instructions from ST's
-stdatalog-pysdk repo.
+USB permissions are handled by `setup_usb.sh` (step 0 above). After the
+first run, log out and back in so the new `hsdatalog` group membership
+applies to your session.
 
 After setup, the app venv imports the patched SDK directly (a
 `vibroagent_sdk.pth` file adds the four source trees to its `sys.path`):
