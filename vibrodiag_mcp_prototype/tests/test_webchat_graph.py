@@ -7,7 +7,6 @@ import numpy as np
 import pytest
 
 from vibroagent_mcp import webchat_server
-from vibroagent_mcp.model_client import ModelCallResult
 from vibroagent_mcp.schemas import OUT_OF_DOMAIN_COMPONENT_TERMS, find_out_of_domain_component_terms
 from vibroagent_mcp.sdk_vibrometer import SdkVibrometerWindow
 
@@ -739,7 +738,7 @@ def test_agent_monitor_payload_builds_popup_for_network_anomaly(monkeypatch, tmp
             },
         }
 
-    def fake_apply_monitor_llm_decision(result, **kwargs):
+    def fake_apply_codes_monitor_decision(result, **kwargs):
         llm_calls.append(kwargs)
         updated = dict(result)
         updated["model_metadata"] = {
@@ -751,7 +750,7 @@ def test_agent_monitor_payload_builds_popup_for_network_anomaly(monkeypatch, tmp
         return updated
 
     monkeypatch.setattr(webchat_server, "run_building_vibration_agent_pipeline_service", fake_pipeline)
-    monkeypatch.setattr(webchat_server, "_apply_monitor_llm_decision", fake_apply_monitor_llm_decision)
+    monkeypatch.setattr(webchat_server, "_apply_codes_monitor_decision", fake_apply_codes_monitor_decision)
 
     payload = webchat_server._agent_monitor_payload(
         {
@@ -774,7 +773,7 @@ def test_agent_monitor_payload_builds_popup_for_network_anomaly(monkeypatch, tmp
     assert captured["require_current"] is True
     assert captured["use_model_agents"] is False
     assert llm_calls
-    assert llm_calls[0]["model_timeout_s"] == 5.0
+    assert llm_calls[0]["model_timeout_s"] == 60.0
 
 
 def test_agent_monitor_payload_registers_anomaly_window(monkeypatch, tmp_path):
@@ -890,7 +889,7 @@ def test_agent_monitor_payload_does_not_popup_for_normal_network(monkeypatch):
 
     monkeypatch.setattr(webchat_server, "run_building_vibration_agent_pipeline_service", fake_pipeline)
 
-    payload = webchat_server._agent_monitor_payload({})
+    payload = webchat_server._agent_monitor_payload({"require_llm": ["0"], "use_llm": ["0"]})
 
     assert payload["ok"] is True
     assert payload["anomaly"] is False
@@ -975,7 +974,7 @@ def test_agent_monitor_payload_requires_llm_by_default(monkeypatch):
             },
         }
 
-    def fake_apply_monitor_llm_decision(result, **kwargs):
+    def fake_apply_codes_monitor_decision(result, **kwargs):
         updated = dict(result)
         updated["model_metadata"] = {
             **dict(updated.get("model_metadata") or {}),
@@ -986,7 +985,7 @@ def test_agent_monitor_payload_requires_llm_by_default(monkeypatch):
         return updated
 
     monkeypatch.setattr(webchat_server, "run_building_vibration_agent_pipeline_service", fake_pipeline)
-    monkeypatch.setattr(webchat_server, "_apply_monitor_llm_decision", fake_apply_monitor_llm_decision)
+    monkeypatch.setattr(webchat_server, "_apply_codes_monitor_decision", fake_apply_codes_monitor_decision)
 
     payload = webchat_server._agent_monitor_payload({})
 
@@ -1028,11 +1027,7 @@ def test_agent_monitor_payload_can_skip_llm_and_still_popup(monkeypatch):
             },
         }
 
-    def fail_model_select(**kwargs):
-        raise AssertionError("model selection should be skipped when use_llm=0")
-
     monkeypatch.setattr(webchat_server, "run_building_vibration_agent_pipeline_service", fake_pipeline)
-    monkeypatch.setattr(webchat_server, "_auto_select_agent_model", fail_model_select)
 
     payload = webchat_server._agent_monitor_payload({"require_llm": ["0"], "use_llm": ["0"]})
 
@@ -1042,218 +1037,6 @@ def test_agent_monitor_payload_can_skip_llm_and_still_popup(monkeypatch):
     assert payload["popup"]["affected_sensor_ids"] == ["target_2"]
     assert payload["agent"]["llm_agent_active"] is False
     assert payload["result"]["model_metadata"]["monitor_llm_skipped"] is True
-
-
-@pytest.fixture(autouse=True)
-def _reset_monitor_decision_state(monkeypatch):
-    # The monitor keeps module-level episode state (previous descriptor, vote
-    # tally); reset it per test so decision tests cannot pollute each other —
-    # a leaked prev-block once pushed another test's prompt over budget.
-    monkeypatch.setattr(
-        webchat_server,
-        "_MONITOR_PREV_DECISION",
-        {"extent": None, "character": None, "polls": 0, "hx": None},
-    )
-    monkeypatch.setattr(webchat_server, "_MONITOR_VOTE_STATE", {"label": None, "votes": []})
-
-
-class _CannedMonitorModelClient:
-    def __init__(self, data):
-        self._data = data
-
-    def call_json_model(self, prompt, allowed_labels=None, extra_body=None):
-        return ModelCallResult(
-            ok=True,
-            used_model=True,
-            data=self._data,
-            text=json.dumps(self._data),
-            error=None,
-            metadata={
-                "role": "qwen_autonomous_monitor",
-                "model_used": True,
-                "provider": "openai_compatible",
-                "model": "fake",
-                "endpoint_configured": True,
-                "fallback_reason": None,
-            },
-        )
-
-
-def _minimal_monitor_result():
-    return {
-        "network_assessment": {
-            "network_label": "normal_relative_to_reference_sensor",
-            "affected_sensor_ids": [],
-            "quality_flags": [],
-            "explanation": "Deterministic prepass text.",
-        },
-        "sensor_agent_reports": [],
-        "model_metadata": {},
-    }
-
-
-def test_monitor_llm_missing_affected_is_a_model_failure_not_rule_substitution(monkeypatch):
-    # LLM-only policy: an out-of-vocabulary model descriptor must be reported as
-    # a model failure; the deterministic prepass label must not be silently
-    # promoted to "the LLM's decision".
-    data = {
-        "character": "amplitude",
-        "persistence": "transient",
-        "data": "ok",
-        "confidence": 0.9,
-        "summary": "Looks fine to me.",
-    }
-    monkeypatch.setattr(webchat_server, "ModelClient", lambda **kwargs: _CannedMonitorModelClient(data))
-
-    updated = webchat_server._apply_monitor_llm_decision(
-        _minimal_monitor_result(),
-        model_base_url="http://127.0.0.1:8910/v1",
-        model_api_key="EMPTY",
-        model="fake",
-        model_timeout_s=5.0,
-    )
-
-    metadata = updated["model_metadata"]
-    assert metadata["monitor_llm_model_used"] is False
-    assert metadata["monitor_llm_fallback_reason"] == "model_output_missing_affected"
-    assert "qwen_autonomous_monitor:model_output_missing_affected" in metadata["fallbacks_used"]
-    # The prepass label survives as data, but it is not marked model-decided.
-    assert updated["network_assessment"]["network_label"] == "normal_relative_to_reference_sensor"
-
-
-def test_monitor_llm_placeholder_summary_is_a_model_failure(monkeypatch):
-    # A placeholder/empty model summary used to be silently replaced with the
-    # deterministic prepass explanation while still claiming an LLM decision.
-    data = {
-        "affected": [],
-        "character": "amplitude",
-        "persistence": "transient",
-        "data": "ok",
-        "confidence": 0.9,
-        "summary": "n/a",
-    }
-    monkeypatch.setattr(webchat_server, "ModelClient", lambda **kwargs: _CannedMonitorModelClient(data))
-
-    updated = webchat_server._apply_monitor_llm_decision(
-        _minimal_monitor_result(),
-        model_base_url="http://127.0.0.1:8910/v1",
-        model_api_key="EMPTY",
-        model="fake",
-        model_timeout_s=5.0,
-    )
-
-    metadata = updated["model_metadata"]
-    assert metadata["monitor_llm_model_used"] is False
-    assert metadata["monitor_llm_fallback_reason"] == "model_summary_missing_or_placeholder"
-    assert updated["network_assessment"]["explanation"] == "Deterministic prepass text."
-
-
-def test_monitor_confidence_is_generated_number_when_votes_agree(monkeypatch):
-    data = {
-        "affected": [],
-        "character": "amplitude",
-        "persistence": "transient",
-        "data": "ok",
-        "confidence": 0.83,
-        "summary": "All target sensors track the reference sensor closely this window.",
-    }
-    monkeypatch.setattr(webchat_server, "ModelClient", lambda **kwargs: _CannedMonitorModelClient(data))
-    monkeypatch.setattr(
-        webchat_server,
-        "_monitor_vote_confidence",
-        lambda **kwargs: {"agreement": 1.0, "metadata": {"monitor_vote_n": 5, "monitor_vote_agree": 5}},
-    )
-
-    updated = webchat_server._apply_monitor_llm_decision(
-        _minimal_monitor_result(),
-        model_base_url="http://127.0.0.1:8910/v1",
-        model_api_key="EMPTY",
-        model="fake",
-        model_timeout_s=5.0,
-    )
-
-    assessment = updated["network_assessment"]
-    assert assessment["main_agent_confidence"] == 0.83
-    assert assessment["confidence_source"] == "model"
-    assert assessment["label_uncertain"] is False
-    assert assessment["vote_agreement"] == 1.0
-    assert updated["model_metadata"]["monitor_vote_n"] == 5
-
-
-def test_monitor_low_vote_agreement_flags_label_uncertain(monkeypatch):
-    data = {
-        "affected": ["target_2"],
-        "character": "amplitude",
-        "persistence": "transient",
-        "data": "ok",
-        "confidence": 0.83,
-        "summary": "One target sensor deviates from the reference sensor this window.",
-    }
-    monkeypatch.setattr(webchat_server, "ModelClient", lambda **kwargs: _CannedMonitorModelClient(data))
-    monkeypatch.setattr(
-        webchat_server,
-        "_monitor_vote_confidence",
-        lambda **kwargs: {"agreement": 0.4, "metadata": {"monitor_vote_n": 5, "monitor_vote_agree": 2}},
-    )
-
-    result = _minimal_monitor_result()
-    # A significant sensor makes the extent-one projection land on the alerting
-    # localized label (mild-only would project to the non-popup mild variant).
-    result["network_assessment"]["significant_sensor_ids"] = ["target_2"]
-    # The model can only name sensors that exist in the window's reports.
-    result["sensor_agent_reports"] = [
-        {"sensor_id": "target_2", "small_agent_label": "significant_local_deviation", "quality_flags": []}
-    ]
-    updated = webchat_server._apply_monitor_llm_decision(
-        result,
-        model_base_url="http://127.0.0.1:8910/v1",
-        model_api_key="EMPTY",
-        model="fake",
-        model_timeout_s=5.0,
-    )
-
-    assessment = updated["network_assessment"]
-    assert assessment["main_agent_confidence"] == 0.4
-    assert assessment["confidence_source"] == "model_votes_low_agreement"
-    assert assessment["label_uncertain"] is True
-    assert assessment["main_agent_generated_confidence"] == 0.83
-
-    popup = webchat_server._build_agent_popup(updated)
-    assert popup["show_popup"] is True
-    assert popup["label_uncertain"] is True
-    assert popup["confidence"] == 0.4
-    assert "Label uncertain" in popup["message"]
-    assert "40%" in popup["message"]
-
-
-def test_perturb_monitor_payload_is_seeded_jitter_of_target_metrics():
-    payload = {
-        "net": {"code": "local", "aff": ["target_3"], "sig": [], "mild": [], "q": []},
-        "target_count": 2,
-        "targets_truncated": False,
-        "targets": [
-            {"id": "target_1", "rms": 1.1, "peak": 1.3, "ppv": 1.0, "spec": 0.12, "df": -2.0},
-            {"id": "target_3", "rms": 3.4, "peak": 4.8, "ppv": 2.9, "spec": 0.41, "df": 12.5},
-        ],
-    }
-
-    once = webchat_server._perturb_monitor_payload(payload, seed=1, relative_sigma=0.1)
-    again = webchat_server._perturb_monitor_payload(payload, seed=1, relative_sigma=0.1)
-    other = webchat_server._perturb_monitor_payload(payload, seed=2, relative_sigma=0.1)
-
-    # Original untouched; same seed reproduces; different seed differs.
-    assert payload["targets"][0]["rms"] == 1.1
-    assert once == again
-    assert once != other
-    # Jitter actually moved the magnitudes, and they stay non-negative.
-    for row_in, row_out in zip(payload["targets"], once["targets"]):
-        assert row_out["id"] == row_in["id"]
-        changed = [key for key in ("rms", "peak", "ppv", "spec") if row_out[key] != row_in[key]]
-        assert changed
-        for key in ("rms", "peak", "ppv", "spec"):
-            assert row_out[key] >= 0
-    # The rule-assessment block is not perturbed.
-    assert once["net"] == payload["net"]
 
 
 def _history_rows(sensor_values, label="normal_relative_to_reference_sensor", q=0):
@@ -1365,33 +1148,6 @@ def test_record_window_history_appends_rows(monkeypatch, tmp_path):
     assert row["ref_rms"] == 0.016  # 0.02 / 1.25
 
 
-def test_compact_monitor_sensor_carries_history_fields():
-    report = {
-        "sensor_id": "target_1",
-        "baseline_comparison": {"rms_ratio": 2.0, "peak_ratio": 1.0, "ppv_ratio": 1.0, "spectral_distance": 0.1},
-        "quality_flags": [],
-        "history_context": {"metric": "rms", "percentile": 99.9, "x_median": 2.05, "n": 500},
-    }
-    row = webchat_server._compact_monitor_sensor(report)
-    assert row["hx"] == 2.05
-    assert row["hm"] == "rms"
-
-
-def test_perturbed_hx_scales_with_its_source_metric():
-    payload = {
-        "net": {"code": "local", "aff": [], "sig": [], "mild": [], "q": []},
-        "target_count": 1,
-        "targets_truncated": False,
-        "targets": [{"id": "target_1", "rms": 2.0, "peak": 1.5, "ppv": 1.2, "spec": 0.3, "df": 1.0, "hx": 2.4, "hm": "rms"}],
-    }
-    perturbed = webchat_server._perturb_monitor_payload(payload, seed=3, relative_sigma=0.1)
-    row_in = payload["targets"][0]
-    row_out = perturbed["targets"][0]
-    assert row_out["hx"] != row_in["hx"] or row_out["rms"] == row_in["rms"]
-    # hx must move by exactly the same factor as its source metric (within rounding).
-    assert abs(row_out["hx"] / row_in["hx"] - row_out["rms"] / row_in["rms"]) < 0.05
-
-
 def test_popup_message_includes_history_context():
     result = {
         "network_assessment": {
@@ -1411,83 +1167,6 @@ def test_popup_message_includes_history_context():
     assert "p99.9 of 4321 learned windows" in popup["message"]
 
 
-def test_descriptor_parse_projection_and_text():
-    ids = ["target_1", "target_2", "target_3", "target_4", "target_5"]
-    descriptor, affected, error = webchat_server._parse_monitor_descriptor(
-        {"affected": ["target_1", "target_3", "target_1", "bogus_9"], "character": "amplitude",
-         "persistence": "sustained", "data": "ok"},
-        known_sensor_ids=ids,
-    )
-    assert error is None
-    assert affected == ["target_1", "target_3"]  # deduped, hallucinated id dropped
-    assert descriptor["extent"] == "several"
-    assert webchat_server._descriptor_text(descriptor) == "several sensors · sustained amplitude deviation"
-    assert (
-        webchat_server._legacy_label_from_descriptor(descriptor, {"significant_sensor_ids": ["target_1"]})
-        == "multi_sensor_structure_wide_vibration_event"
-    )
-    assert (
-        webchat_server._legacy_label_from_descriptor(descriptor, {"significant_sensor_ids": []})
-        == "mild_multi_sensor_deviation"
-    )
-
-    quality, affected, error = webchat_server._parse_monitor_descriptor(
-        {"affected": ["target_2"], "character": "mixed", "persistence": "transient", "data": "quality"},
-        known_sensor_ids=ids,
-    )
-    assert error is None
-    assert webchat_server._legacy_label_from_descriptor(quality, {}) == "sensor_network_quality_issue"
-    assert webchat_server._descriptor_text(quality) == "sensor data quality issue"
-
-    none_desc, affected, error = webchat_server._parse_monitor_descriptor(
-        {"affected": [], "character": "amplitude", "persistence": "transient", "data": "ok"},
-        known_sensor_ids=ids,
-    )
-    assert error is None
-    assert affected == []
-    assert none_desc["extent"] == "none"
-    assert webchat_server._legacy_label_from_descriptor(none_desc, {}) == "normal_relative_to_reference_sensor"
-
-    bad, affected, error = webchat_server._parse_monitor_descriptor(
-        {"affected": ["target_1"], "character": "loud", "persistence": "sustained", "data": "ok"},
-        known_sensor_ids=ids,
-    )
-    assert bad is None
-    assert error == "model_output_invalid_descriptor_character"
-
-    missing, affected, error = webchat_server._parse_monitor_descriptor(
-        {"character": "amplitude", "persistence": "transient", "data": "ok"},
-        known_sensor_ids=ids,
-    )
-    assert missing is None
-    assert error == "model_output_missing_affected"
-
-
-def test_extent_is_counted_from_affected_list():
-    assert webchat_server._extent_from_affected(0, 5) == "none"
-    assert webchat_server._extent_from_affected(1, 5) == "one"
-    assert webchat_server._extent_from_affected(3, 5) == "several"
-    assert webchat_server._extent_from_affected(5, 5) == "all"
-
-
-def test_monitor_prev_decision_tracks_persistence(monkeypatch):
-    monkeypatch.setattr(
-        webchat_server,
-        "_MONITOR_PREV_DECISION",
-        {"extent": None, "character": None, "polls": 0, "hx": None},
-    )
-    descriptor = {"extent": "several", "character": "amplitude", "persistence": "transient", "data": "ok"}
-    webchat_server._update_monitor_prev_decision(descriptor, {"x_median": 2.1})
-    webchat_server._update_monitor_prev_decision(descriptor, {"x_median": 2.6})
-    assert webchat_server._MONITOR_PREV_DECISION["polls"] == 2
-    assert webchat_server._MONITOR_PREV_DECISION["hx"] == 2.6
-
-    changed = {"extent": "none", "character": "amplitude", "persistence": "transient", "data": "ok"}
-    webchat_server._update_monitor_prev_decision(changed, None)
-    assert webchat_server._MONITOR_PREV_DECISION["polls"] == 1
-    assert webchat_server._MONITOR_PREV_DECISION["extent"] == "none"
-
-
 def test_agent_monitor_payload_rejects_invalid_axis(monkeypatch):
     called = False
 
@@ -1504,46 +1183,6 @@ def test_agent_monitor_payload_rejects_invalid_axis(monkeypatch):
     assert payload["error"] == "bad_request"
     assert called is False
 
-
-
-def test_genie_config_summary_detects_qnn_htp_context_bins(tmp_path):
-    ctx = tmp_path / "model.serialized.bin"
-    ctx.write_bytes(b"ctx")
-    config = tmp_path / "genie.json"
-    config.write_text(
-        json.dumps(
-            {
-                "dialog": {
-                    "engine": {
-                        "backend": {"type": "QnnHtp"},
-                        "model": {"binary": {"ctx-bins": ["model.serialized.bin"]}},
-                    }
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    summary = webchat_server._summarize_genie_config_for_npu(config)
-
-    assert summary["backend_types"] == ["QnnHtp"]
-    assert summary["htp_context_bins_exist"] is True
-    assert summary["npu_offload"] is True
-    assert summary["warning"] is None
-
-
-def test_genie_config_summary_warns_when_config_is_not_htp(tmp_path):
-    config = tmp_path / "genie.json"
-    config.write_text(
-        json.dumps({"dialog": {"engine": {"backend": {"type": "QnnGenAiTransformer"}}}}),
-        encoding="utf-8",
-    )
-
-    summary = webchat_server._summarize_genie_config_for_npu(config)
-
-    assert summary["backend_types"] == ["QnnGenAiTransformer"]
-    assert summary["npu_offload"] is False
-    assert "not QnnHtp" in summary["warning"]
 
 
 def test_live_vibrometer_payload_uses_board_process_when_requested(monkeypatch):
@@ -1669,14 +1308,12 @@ def test_graph_page_agent_script_has_labelize_helper():
     assert 'const status = labelize(popup.network_label || "checked")' in graph_script
 
 
-def test_graph_page_agent_monitor_uses_llm_every_check_with_short_timeout():
+def test_graph_page_agent_monitor_requires_codes_v3_with_server_timeout():
     graph_script = webchat_server._GRAPH_HTML
 
-    assert 'require_llm: "0"' in graph_script
+    assert 'require_llm: "1"' in graph_script
     assert 'use_llm: "1"' in graph_script
-    # 15 s: the descriptor decision (extent/character/persistence/data + confidence +
-    # summary, max_tokens 128) needs ~11 s of generation on the NPU.
-    assert 'model_timeout_s: "15"' in graph_script
+    assert "model_timeout_s:" not in graph_script
     assert 'skip_cache: "1"' in graph_script
 
 
@@ -1719,46 +1356,6 @@ def test_agent_monitor_payload_popups_for_network_quality_issue(monkeypatch):
     assert payload["popup"]["show_popup"] is True
     assert payload["popup"]["severity"] == "quality"
     assert payload["popup"]["affected_sensor_ids"] == ["target_5"]
-
-
-def test_apply_monitor_llm_decision_skips_oversize_prompt_before_model(monkeypatch):
-    monkeypatch.setenv("AGENT_MONITOR_MAX_PROMPT_CHARS", "80")
-
-    def fail_call(*args, **kwargs):
-        raise AssertionError("monitor LLM should not be called when the prompt budget is exceeded")
-
-    monkeypatch.setattr(webchat_server.ModelClient, "call_json_model", fail_call)
-
-    result = {
-        "baseline_sensor_id": "baseline",
-        "window": {"duration_s": 1.0},
-        "network_assessment": {
-            "network_label": "multi_sensor_structure_wide_vibration_event",
-            "main_agent_confidence": 0.84,
-            "affected_sensor_ids": ["target_1", "target_5"],
-            "significant_sensor_ids": ["target_1", "target_5"],
-            "mild_sensor_ids": [],
-            "quality_flags": [],
-            "explanation": "Multiple target sensors deviated from the reference sensor in the same window.",
-        },
-        "sensor_agent_reports": [
-            {"sensor_id": "target_1", "small_agent_label": "significant_local_deviation", "quality_flags": []},
-            {"sensor_id": "target_5", "small_agent_label": "significant_local_deviation", "quality_flags": []},
-        ],
-        "model_metadata": {"fallbacks_used": []},
-    }
-
-    updated = webchat_server._apply_monitor_llm_decision(
-        result,
-        model_base_url="http://127.0.0.1:8910/v1",
-        model_api_key="EMPTY",
-        model="Qwen/Qwen3-4B-Instruct-2507",
-        model_timeout_s=5.0,
-    )
-
-    assert updated["model_metadata"]["monitor_llm_model_used"] is False
-    assert "prompt_budget_exceeded" in updated["model_metadata"]["monitor_llm_fallback_reason"]
-    assert updated["model_metadata"]["monitor_llm_prompt_chars"] > 80
 
 
 def test_direct_npu_messages_are_trimmed_by_character_budget():
@@ -1868,69 +1465,8 @@ def test_webchat_templates_use_consistent_st_shell_and_collapsed_secondary_contr
     assert 'href="/graph">Live data</a>' in npu
 
 
-def test_apply_monitor_llm_decision_rejects_out_of_domain_content(monkeypatch):
-    blocked_term = sorted(OUT_OF_DOMAIN_COMPONENT_TERMS)[0]
-
-    def fake_call(self, prompt, allowed_labels=None, extra_body=None):
-        data = {
-            "status_code": "local",
-            "summary": f"Unsupported component diagnosis containing {blocked_term}.",
-        }
-        return ModelCallResult(
-            ok=True,
-            used_model=True,
-            data=data,
-            text=json.dumps(data),
-            error=None,
-            metadata={
-                "role": "qwen_autonomous_monitor",
-                "model_used": True,
-                "provider": "test",
-                "model": "fake",
-                "endpoint_configured": True,
-                "fallback_reason": None,
-            },
-        )
-
-    monkeypatch.setattr(webchat_server.ModelClient, "call_json_model", fake_call)
-    result = {
-        "baseline_sensor_id": "baseline",
-        "window": {"duration_s": 1.0},
-        "network_assessment": {
-            "network_label": "mild_local_deviation",
-            "main_agent_confidence": 0.7,
-            "affected_sensor_ids": ["target_1"],
-            "quality_flags": [],
-            "explanation": "Target 1 is mildly above the synchronized reference.",
-        },
-        "sensor_agent_reports": [
-            {"sensor_id": "target_1", "small_agent_label": "mild_deviation", "quality_flags": []}
-        ],
-        "model_metadata": {"fallbacks_used": []},
-    }
-
-    updated = webchat_server._apply_monitor_llm_decision(
-        result,
-        model_base_url="http://127.0.0.1:8910/v1",
-        model_api_key="EMPTY",
-        model="test-model",
-        model_timeout_s=5.0,
-    )
-
-    assert updated["network_assessment"]["explanation"] == "Target 1 is mildly above the synchronized reference."
-    assert updated["model_metadata"]["monitor_llm_model_used"] is False
-    assert updated["model_metadata"]["monitor_llm_domain_guard_triggered"] is True
-    assert updated["model_metadata"]["monitor_llm_fallback_reason"] == "model_output_rejected_for_out_of_domain_language"
-    assert not find_out_of_domain_component_terms(updated)
-
-
 def test_direct_npu_chat_enforces_building_prompt_and_output_guard(monkeypatch):
     blocked_term = sorted(OUT_OF_DOMAIN_COMPONENT_TERMS)[0]
-    monkeypatch.setattr(
-        webchat_server,
-        "_embedded_genie_status",
-        lambda _server: {"serving": False, "enabled": False},
-    )
     monkeypatch.setattr(
         webchat_server,
         "_post_openai_chat_completion",
@@ -1957,11 +1493,6 @@ def test_direct_npu_chat_enforces_building_prompt_and_output_guard(monkeypatch):
 
 
 def test_direct_npu_chat_returns_only_model_generated_text(monkeypatch):
-    monkeypatch.setattr(
-        webchat_server,
-        "_embedded_genie_status",
-        lambda _server: {"serving": False, "enabled": False},
-    )
     monkeypatch.setattr(
         webchat_server,
         "_post_openai_chat_completion",
@@ -1994,11 +1525,6 @@ def test_direct_npu_chat_returns_only_model_generated_text(monkeypatch):
 
 
 def test_direct_npu_chat_timeout_is_reported_without_fallback(monkeypatch):
-    monkeypatch.setattr(
-        webchat_server,
-        "_embedded_genie_status",
-        lambda _server: {"serving": False, "enabled": False},
-    )
     monkeypatch.setattr(
         webchat_server,
         "_post_openai_chat_completion",

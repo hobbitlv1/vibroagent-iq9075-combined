@@ -1,6 +1,6 @@
 {
  "version": "r1_token_map_v1",
- "tokenizer": "/media/ubuntu/Drive/downloads_heavy/zip1_code_only_full_fixes_1.1.0_llm_authority/models/qwen3_4b_instruct_2507-genie-w4a16-qualcomm_qcs9075/tokenizer.json",
+ "tokenizer": "Qwen/Qwen3-4B-Instruct-2507",
  "n_codes": 2048,
  "screened_merge_pairs": 1132,
  "entries": [

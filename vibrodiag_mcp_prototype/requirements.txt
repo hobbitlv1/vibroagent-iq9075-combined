@@ -3,5 +3,3 @@ pydantic>=2.0
 mcp[cli]>=1.2.0
 # Optional for Qwen served through an OpenAI-compatible endpoint:
 # openai>=1.0.0
-# Optional when replacing the heuristic classifier with ONNX:
-# onnxruntime>=1.17.0

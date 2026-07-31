@@ -13,8 +13,8 @@ record must cover at least 10 s; the worker uses the most recent 10 s.
 
 Chain per slot (mirrors the rt345/codes_v3 build recipe):
   last 10 s -> DC removal over the record -> resample_poly to 400 Hz
-  (exact rational, reduced) -> trim to 4000 samples -> codec_dataset
-  normalize_window (detrend + unit AC rms; level_db = 20*log10(ac_rms))
+  (exact rational, reduced) -> trim to 4000 samples -> codec runtime
+  normalization (DC removal + unit AC rms; level_db = 20*log10(ac_rms))
   -> frozen codec-v1 checkpoint (step 29000) -> 125x2 codes ->
   CodeSymbolMap serialization (250 single-codepoint symbols).
 

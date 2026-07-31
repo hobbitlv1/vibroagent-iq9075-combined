@@ -144,7 +144,7 @@ class _FakeModel:
 
 def _runtime(fake: _FakeModel, **overrides) -> server._GenieXRuntime:
     settings = {
-        "model_ref": "unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_0",
+        "model_ref": "models/qwen3_4b_codes_v3_Q4_0_embq8.gguf",
         "device_map": "npu",
         "n_ctx": 6144,
         "max_output_tokens": 256,
@@ -833,13 +833,13 @@ def test_expected_device_validates_resolution():
     cpu._verify_expected_device()
 
     wrong = _runtime(_FakeModel(), expect_device="HTP0")
-    wrong.loaded_backend, wrong.loaded_device = "qairt", "NPU"
+    wrong.loaded_backend, wrong.loaded_device = "unexpected_backend", "NPU"
     with pytest.raises(RuntimeError, match="device resolution mismatch"):
         wrong._verify_expected_device()
 
-    # npu->QAIRT misroute caught when HTP0 was intended but qairt resolved.
+    # A wrong-backend resolution is rejected when HTP0 was requested.
     misroute = _runtime(_FakeModel(), expect_device="llama_cpp:HTP0")
-    misroute.loaded_backend, misroute.loaded_device = "qairt", "NPU"
+    misroute.loaded_backend, misroute.loaded_device = "unexpected_backend", "NPU"
     with pytest.raises(RuntimeError, match="device resolution mismatch"):
         misroute._verify_expected_device()
 

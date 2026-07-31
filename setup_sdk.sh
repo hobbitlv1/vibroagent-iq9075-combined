@@ -17,8 +17,7 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # (https://github.com/STMicroelectronics/stdatalog-pysdk, tag v1.3.0).
 CORE_SHA=a4824fcdf8c670e457df8f87ec1598d2e73476f8
 PNPL_SHA=a6e36d29d9e8b463ef6c4b91f66a2561612bfb46
-# dtk and gui are unpatched, but vibroagent_direct.sh puts them on PYTHONPATH
-# and its precheck requires them on disk.
+# dtk and gui remain at the versions pinned by the umbrella SDK release.
 DTK_SHA=46ceea78c149f6c2c8d20ae887cd8bf57106ee22
 GUI_SHA=708799237b504326ddad8f52227d2ae145028eee
 

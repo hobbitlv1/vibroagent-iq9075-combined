@@ -7,7 +7,6 @@
 # Large local artifacts that never belong in git
 # (the frozen codec_v1 checkpoint IS versioned; the 2.4 GB GGUF is not)
 *.gguf
-/models/genie/
 /v2.46.0.260424/
 vibrodiag_mcp_prototype/data/*
 !vibrodiag_mcp_prototype/data/codec_pretrain
@@ -27,6 +26,7 @@ stdatalog_examples/run_logs/
 
 # Virtualenv, runtime state, caches
 /vibroagent-venv/
+/.codec-demo-venv/
 vibrodiag_mcp_prototype/.venv/
 .run/
 __pycache__/
@@ -35,3 +35,8 @@ __pycache__/
 .build/
 .vibro_mode
 /recordings/
+
+# Live runtime inventory and source metadata are regenerated on acquisition.
+/stdatalog_examples/vibroagent_live_devices.json
+/stdatalog_examples/vibrodiag_live_devices.json
+/stdatalog_examples/live_*/source_identity.json

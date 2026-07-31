@@ -320,7 +320,7 @@ def test_chat_with_mcp_sends_read_result_to_model_once(monkeypatch):
         qwen_mcp_host.chat_with_mcp(
             "Read the saved replay baseline window.",
             agentic=False,
-            base_url="http://127.0.0.1:8910/v1",
+            base_url="http://127.0.0.1:18181/v1",
             model="test-model",
             timeout_s=42.0,
             model_tool_routing=False,
@@ -468,19 +468,19 @@ def test_agent_model_timeout_is_reported_without_deterministic_answer(monkeypatc
                 "model_used": False,
                 "provider": "openai_compatible",
                 "endpoint_configured": True,
-                "fallback_reason": "TimeoutError: persistent Genie runner timed out",
+                "fallback_reason": "TimeoutError: GenieX generation timed out",
             },
         },
         "main_agent_explanation": "Deterministic fallback text must not be shown.",
         "main_agent_explanation_source": "deterministic_fallback",
         "model_metadata": {
             "model_used": False,
-            "fallbacks_used": ["TimeoutError: persistent Genie runner timed out"],
+            "fallbacks_used": ["TimeoutError: GenieX generation timed out"],
             "network_model_metadata": {
                 "model_used": False,
                 "provider": "openai_compatible",
                 "endpoint_configured": True,
-                "fallback_reason": "TimeoutError: persistent Genie runner timed out",
+                "fallback_reason": "TimeoutError: GenieX generation timed out",
             },
         },
     }

@@ -1,37 +1,48 @@
-# Model weights
+# Current model artifacts
 
-## codec_v1/ (included in this repository)
+This directory describes the two artifacts used by the supported codes_v3 production pipeline. Run setup from the repository root before starting VibroAgent.
 
-| file | sha256 | role |
-|------|--------|------|
-| `best.pt` (14.8 MiB) | `a80216b639327f9b4e59447138abc025fddac2d6d5eca68448c4ac14c653a350` | Frozen codec-v1 checkpoint, training step 29000. Residual-VQ conv autoencoder: 2 codebooks x 1024 entries, 125 frames per 10 s / 400 Hz window -> 250 discrete codes. |
-| `split_manifest.json` | embedded copy must match the checkpoint | Training split provenance; the loader fail-closes on any mismatch. |
+## Install the downloadable model
 
-The checkpoint is loaded CPU-only, in eval mode, with deterministic
-algorithms enforced. `scripts/selftest.py` proves your environment
-reproduces the proven live encoder byte-for-byte before you trust any
-output.
+~~~bash
+./setup_models.sh
+~~~
 
-## codes_v3 LLM (NOT in this repository — 2.4 GB)
+The installer resolves the GGUF from the private GitHub release weights-v1 first and uses the configured Hugging Face repository only as a fallback. It verifies every downloaded part and the reconstructed model before returning successfully.
 
-| property | value |
-|----------|-------|
-| file | `qwen3_4b_codes_v3_Q4_0_embq8.gguf` |
-| size | 2 463 745 376 bytes |
-| sha256 | `3a18c057e47d8032cb771140e54ed7bbfcf8cf1d58c6d990f579800f149a90c2` |
-| base model | Qwen/Qwen3-4B-Instruct-2507 |
-| finetune | LoRA on 11 000 codes_v3 examples (merged), then Q4_0 quantization with q8_0 embeddings |
-| training data | public vibration corpora only (fdsn / lumo / rt345 pools); the building's own sensors were never in training |
+`release_assets_manifest.json` records the exact release filenames, sizes, and SHA-256 values for both GGUF parts, codec-v1, and the immutable offline-recording archive. The same file is uploaded as a release asset and drives GGUF part verification during installation.
 
-Distribution: automatic — `./setup_models.sh` downloads it from the private
-Hugging Face weights repo (`hobbitlv/vibroagent-models`, `HF_TOKEN` required)
-into `models/` and **verifies the sha256 before anything may serve it**:
+| Property | Production value |
+|---|---|
+| File | qwen3_4b_codes_v3_Q4_0_embq8.gguf |
+| Size | 2,463,745,376 bytes |
+| SHA-256 | 3a18c057e47d8032cb771140e54ed7bbfcf8cf1d58c6d990f579800f149a90c2 |
+| Base model | Qwen/Qwen3-4B-Instruct-2507 |
+| Fine-tuning | LoRA on 11,000 codes_v3 examples, merged before quantization |
+| Quantization | Q4_0 with q8_0 embeddings |
+| Training data | Public vibration corpora; data from the monitored building was not used |
 
-```bash
-HF_TOKEN=hf_... ./setup_models.sh
-# == verifying sha256
-# models/qwen3_4b_codes_v3_Q4_0_embq8.gguf: OK
-```
+By default, the fallback repository is hobbitlv/vibroagent-models. Set VIBRO_MODELS_REPO to use another source. For a private fallback, set HF_TOKEN or authenticate with the Hugging Face CLI.
 
-The GGUF runs anywhere llama.cpp runs (CPU/GPU) and on the board's Hexagon
-NPU through the geniex bridge (`vibrodiag_mcp_prototype/scripts/serve_qwen35_npu.sh`).
+## Versioned codec checkpoint
+
+The smaller codec-v1 artifacts are versioned with the source:
+
+| File | SHA-256 | Role |
+|---|---|---|
+| codec_v1/best.pt | a80216b639327f9b4e59447138abc025fddac2d6d5eca68448c4ac14c653a350 | Frozen residual-VQ codec checkpoint from training step 29,000 |
+| codec_v1/split_manifest.json | Bound to the checkpoint | Training-split provenance checked by the loader |
+
+For each 10-second, 400 Hz input window, codec-v1 produces 125 latent frames. Two 1,024-entry codebooks produce 250 discrete symbols. The runtime loads the checkpoint on the CPU, selects evaluation mode, enables deterministic algorithms, and fails closed when checkpoint provenance does not match.
+
+Verify the complete codec chain with:
+
+~~~bash
+~/codec-cpu-venv/bin/python examples/selftest.py
+~~~
+
+The successful result is byte-identical to examples/golden_codes.json.
+
+## Serving
+
+On the IQ-9075, vibroagent.sh starts the GGUF through the GenieX Hexagon backend with two sessions and a 6,144-token context. On another Linux computer, the same GGUF can be served by an OpenAI-compatible llama.cpp server for the recorded-data example. The root README contains the complete setup, architecture, and verification instructions.

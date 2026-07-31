@@ -68,7 +68,7 @@ def test_model_client_falls_back_to_qwen_env(monkeypatch):
     monkeypatch.delenv("SMALL_AGENT_MODEL", raising=False)
     monkeypatch.delenv("SMALL_AGENT_API_KEY", raising=False)
     monkeypatch.setenv("QWEN_BASE_URL", "http://127.0.0.1:1234/v1")
-    monkeypatch.setenv("QWEN_MODEL", "qwen3.5-4b-instruct-revised")
+    monkeypatch.setenv("QWEN_MODEL", "qwen3_4b_codes_v3")
     monkeypatch.setenv("QWEN_API_KEY", "EMPTY")
 
     client = ModelClient(
@@ -80,7 +80,7 @@ def test_model_client_falls_back_to_qwen_env(monkeypatch):
 
     assert client.is_configured is True
     assert client.base_url == "http://127.0.0.1:1234/v1"
-    assert client.model == "qwen3.5-4b-instruct-revised"
+    assert client.model == "qwen3_4b_codes_v3"
 
 
 def test_model_client_accepts_per_call_timeout_override(monkeypatch):
@@ -131,7 +131,7 @@ def test_model_client_forwards_extra_body(monkeypatch):
     monkeypatch.setitem(sys.modules, "openai", types.SimpleNamespace(OpenAI=FakeOpenAI))
 
     client = ModelClient(
-        base_url="http://127.0.0.1:8910/v1",
+        base_url="http://127.0.0.1:18181/v1",
         api_key="EMPTY",
         model="qwen-test",
         base_url_env="SMALL_AGENT_BASE_URL",
@@ -167,7 +167,7 @@ def test_model_client_reports_exception_group_child(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "openai", types.SimpleNamespace(OpenAI=FakeOpenAI))
     client = ModelClient(
-        base_url="http://127.0.0.1:8910/v1",
+        base_url="http://127.0.0.1:18181/v1",
         api_key="EMPTY",
         model="qwen-test",
         base_url_env="SMALL_AGENT_BASE_URL",

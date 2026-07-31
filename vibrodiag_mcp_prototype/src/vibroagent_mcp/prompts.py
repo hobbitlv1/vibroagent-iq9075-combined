@@ -104,8 +104,8 @@ def build_autonomous_sensor_agent_messages(
 ) -> tuple[str, str]:
     """Build a compact tool-loop prompt for one target sensor.
 
-    The local Qualcomm Genie adapter does not consume OpenAI tool schemas, so
-    the system instruction also defines the project's text tool-call protocol.
+    The codes_v3 host routes tools deterministically, so the system
+    instruction also defines the project's text tool-call protocol.
     """
 
     system = (

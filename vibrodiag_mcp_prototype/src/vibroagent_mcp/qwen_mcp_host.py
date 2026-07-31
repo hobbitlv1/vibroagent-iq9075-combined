@@ -8,13 +8,13 @@ This script demonstrates the full idea:
    structured decision or a bounded final explanation of a non-agent tool result.
 
 Model-based tool routing remains opt-in for OpenAI-compatible runtimes that
-actually support tool schemas.  The local Genie adapter consumes only chat
+actually support tool schemas. The local GenieX adapter consumes only chat
 messages, so a deterministic first step avoids a redundant NPU generation.
 
 Environment variables:
-    QWEN_BASE_URL  default: http://127.0.0.1:1234/v1
+    QWEN_BASE_URL  default: http://127.0.0.1:18181/v1
     QWEN_API_KEY   default: EMPTY
-    QWEN_MODEL     default: qwen3.5-4b-instruct-revised
+    QWEN_MODEL     default: qwen3_4b_codes_v3
 
 Example:
     python -m vibroagent_mcp.qwen_mcp_host "Compare the current building sensors with the baseline."
@@ -32,7 +32,7 @@ import sys
 from typing import Any
 
 from .errors import format_exception_for_response
-from .model_client import _local_genie_timeout_body
+from .model_client import _local_geniex_timeout_body
 from .schemas import find_out_of_domain_component_terms, redact_out_of_domain_component_text
 
 SYSTEM_PROMPT = """You are a building-vibration monitoring assistant.
@@ -113,7 +113,7 @@ def _load_openai_client(
             "The optional OpenAI-compatible client is not installed. Run: pip install -e '.[qwen]'"
         ) from exc
 
-    base_url = base_url or os.environ.get("QWEN_BASE_URL", "http://127.0.0.1:1234/v1")
+    base_url = base_url or os.environ.get("QWEN_BASE_URL", "http://127.0.0.1:18181/v1")
     api_key = api_key or os.environ.get("QWEN_API_KEY", "EMPTY")
     timeout = (
         _env_float("QWEN_TIMEOUT_S", DEFAULT_QWEN_TIMEOUT_S, minimum=1.0)
@@ -283,8 +283,8 @@ Use the labels exactly as the observations report them.
 # Decoder-level constraint for agent steps: which action to take stays entirely
 # the model's decision; this only pins the FORM of each step to one valid JSON
 # object. The GenieX adapter compiles it to a llama.cpp GBNF grammar, so a step
-# cannot be malformed; the local Genie adapter ignores response_format
-# (verified by scripts/model_backend_probe.py), making it safe to send always.
+# cannot be malformed. The current GenieX adapter compiles the schema into
+# a decoding grammar.
 AGENT_ACTION_RESPONSE_FORMAT: dict[str, Any] = {
     "type": "json_schema",
     "json_schema": {
@@ -359,8 +359,8 @@ async def _chat_with_mcp_agentic_inner(
 
     del model_tool_routing  # the model always routes in agentic mode
 
-    base_url = base_url or os.environ.get("QWEN_BASE_URL", "http://127.0.0.1:1234/v1")
-    model = model or os.environ.get("QWEN_MODEL", "qwen3.5-4b-instruct-revised")
+    base_url = base_url or os.environ.get("QWEN_BASE_URL", "http://127.0.0.1:18181/v1")
+    model = model or os.environ.get("QWEN_MODEL", "qwen3_4b_codes_v3")
     resolved_timeout_s = (
         _env_float("QWEN_TIMEOUT_S", DEFAULT_QWEN_TIMEOUT_S, minimum=1.0)
         if timeout_s is None
@@ -378,7 +378,7 @@ async def _chat_with_mcp_agentic_inner(
     )
     max_steps = _env_int("QWEN_AGENTIC_MAX_STEPS", DEFAULT_AGENTIC_MAX_STEPS, minimum=1)
     max_steps = min(8, max_steps)
-    local_request_body = _local_genie_timeout_body(base_url, resolved_timeout_s)
+    local_request_body = _local_geniex_timeout_body(base_url, resolved_timeout_s)
 
     resolved_api_key = api_key or os.environ.get("QWEN_API_KEY", "EMPTY")
     client = _load_openai_client(base_url=base_url, api_key=resolved_api_key, timeout_s=resolved_timeout_s)
@@ -694,8 +694,8 @@ async def _chat_with_mcp_inner(
     error; it never substitutes a deterministic fallback answer.
     """
 
-    base_url = base_url or os.environ.get("QWEN_BASE_URL", "http://127.0.0.1:1234/v1")
-    model = model or os.environ.get("QWEN_MODEL", "qwen3.5-4b-instruct-revised")
+    base_url = base_url or os.environ.get("QWEN_BASE_URL", "http://127.0.0.1:18181/v1")
+    model = model or os.environ.get("QWEN_MODEL", "qwen3_4b_codes_v3")
     resolved_timeout_s = (
         _env_float("QWEN_TIMEOUT_S", DEFAULT_QWEN_TIMEOUT_S, minimum=1.0)
         if timeout_s is None
@@ -716,7 +716,7 @@ async def _chat_with_mcp_inner(
         if model_tool_routing is None
         else bool(model_tool_routing)
     )
-    local_request_body = _local_genie_timeout_body(base_url, resolved_timeout_s)
+    local_request_body = _local_geniex_timeout_body(base_url, resolved_timeout_s)
 
     resolved_api_key = api_key or os.environ.get("QWEN_API_KEY", "EMPTY")
     client = _load_openai_client(
@@ -1047,7 +1047,7 @@ def _create_chat_completion(
         "timeout": timeout_s + HTTP_TIMEOUT_GRACE_S,
     }
     # ``timeout_s`` is a private field understood by this repository's local
-    # Genie adapter.  Do not leak it to arbitrary OpenAI-compatible services,
+    # GenieX adapter. Do not leak it to arbitrary OpenAI-compatible services,
     # which may reject unknown request-body fields.
     if extra_body:
         kwargs["extra_body"] = dict(extra_body)
@@ -1334,7 +1334,7 @@ _TIMEOUT_FAILURE_MARKERS = (
 
 
 def _looks_like_timeout_failure(value: Any) -> bool:
-    """Recognize timeout failures from local Genie and OpenAI client wrappers."""
+    """Recognize timeout failures from local GenieX and OpenAI client wrappers."""
 
     seen: set[int] = set()
     current = value

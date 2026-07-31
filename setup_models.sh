@@ -2,12 +2,13 @@
 # setup_models.sh — download the fine-tuned codes_v3 model automatically.
 #
 # The frozen codec checkpoint (models/codec_v1/best.pt, 15 MB) is versioned in
-# this repository; the fine-tuned LLM is not (2.4 GB). This script pulls it
-# from the private Hugging Face weights repo and verifies its pinned sha256
-# before anything may serve it.
+# this repository; the fine-tuned LLM is not (2.4 GB). This script first tries
+# the application repository's private GitHub release, then falls back to the
+# Hugging Face weights repository. The final GGUF is always verified against
+# its pinned sha256 before anything may serve it.
 #
-#   HF_TOKEN            read token for the private weights repo; falls back to
-#                       ~/.cache/huggingface/token (hf auth login)
+#   GitHub access       `gh auth login`, or GITHUB_TOKEN when gh is unavailable
+#   HF_TOKEN            fallback read token; also reads the cached hf login
 #   VIBRO_MODELS_REPO   default hobbitlv/vibroagent-models
 #
 # Idempotent — a present, hash-verified GGUF is left untouched.

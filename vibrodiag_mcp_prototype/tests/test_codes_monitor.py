@@ -1,4 +1,4 @@
-"""Tests for the webchat codes_v3 monitor decision path (all IO mocked)."""
+"""Tests for the only supported webchat monitor path (all IO mocked)."""
 
 from __future__ import annotations
 
@@ -93,7 +93,6 @@ def _base_result():
 def codes_env(monkeypatch):
     import subprocess
 
-    monkeypatch.setenv("VIBRO_MONITOR_DECISION_MODE", "codes")
     monkeypatch.setattr(W, "SensorRegistry", _FakeRegistry)
     monkeypatch.setattr(W, "_resolve_live_sensor_config_path",
                         lambda value: "/fake/config.yaml")
@@ -202,6 +201,40 @@ def test_codes_decision_accepts_per_sensor_native_rates(codes_env, monkeypatch):
     assert codes_metadata["fs_native_hz_by_slot"] == rates
 
 
+def test_fixed_replay_reads_exact_ten_second_windows(codes_env, monkeypatch):
+    read_calls = []
+
+    def capture_reader(**kwargs):
+        read_calls.append(kwargs)
+        return _fake_reader(**kwargs)
+
+    monkeypatch.setattr(W, "read_sdk_vibrometer_window", capture_reader)
+    _FakeModelClient.reply = json.dumps({
+        "sensor_reports": [
+            {"sensor_id": slot,
+             "local_status": "normal_relative_to_baseline"}
+            for slot in live_codes.LIVE_SLOTS],
+        "network_status": "normal_relative_to_reference_sensor",
+        "affected_sensor_ids": [],
+    })
+
+    result = W._apply_codes_monitor_decision(
+        _base_result(),
+        start_time_s=45.0,
+        require_current=False,
+        model_base_url="http://127.0.0.1:18181/v1",
+        model_api_key="EMPTY",
+        model="codes-v3",
+        model_timeout_s=60.0,
+    )
+
+    assert result["model_metadata"]["monitor_llm_model_used"] is True
+    assert len(read_calls) == 6
+    assert {call["start_time_s"] for call in read_calls} == {45.0}
+    assert {call["duration_s"] for call in read_calls} == {10.0}
+    assert {call["require_current"] for call in read_calls} == {False}
+
+
 def test_codes_decision_rejects_bad_model_output(codes_env):
     _FakeModelClient.reply = json.dumps({
         "sensor_reports": [
@@ -240,11 +273,6 @@ def test_codes_decision_short_window_fails_closed(codes_env, monkeypatch):
     result = _call()
     assert "window_too_short" in \
         result["model_metadata"]["monitor_llm_fallback_reason"]
-
-
-def test_descriptor_path_untouched_when_mode_off(monkeypatch):
-    monkeypatch.delenv("VIBRO_MONITOR_DECISION_MODE", raising=False)
-    assert not W._codes_monitor_mode_enabled()
 
 
 def test_axis_sweep_combines_worst_case(codes_env, monkeypatch):

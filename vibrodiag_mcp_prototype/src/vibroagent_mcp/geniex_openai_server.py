@@ -2,13 +2,13 @@
 
 The GenieX pip distribution ships the Python SDK + ``geniex-py`` CLI but not
 the ``geniex serve`` HTTP server, so this thin adapter provides the same
-OpenAI surface the rest of the stack already speaks (the Genie adapter
-pattern), backed by ``geniex.AutoModelForCausalLM``:
+OpenAI surface used by the rest of the stack, backed by
+``geniex.AutoModelForCausalLM``:
 
     ~/geniex-venv/bin/python -u -m vibroagent_mcp.geniex_openai_server \
         --host 127.0.0.1 --port 18181
 
-Compared to the QAIRT/Genie adapter this backend honors per-request
+The adapter honors per-request
 ``max_tokens``, ``temperature``, ``stop``, ``response_format`` with
 ``json_object`` (llama.cpp JSON mode) or ``json_schema`` (compiled here to a
 GBNF grammar — the SDK only accepts raw GBNF), and an extra-body ``grammar``
@@ -67,12 +67,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import urlparse
 
-DEFAULT_MODEL = "unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_0"
-# 'npu' is the QAIRT plugin alias: it rejects .gguf files outright for local
-# paths, and only ever worked for hub refs via the cache manifest's plugin
-# hint rebinding it to llama_cpp. This adapter exists solely for the
-# GGUF-on-llama.cpp path (QAIRT bundles have their own adapter), so the
-# default is the explicit proven selector.
+DEFAULT_MODEL = "models/qwen3_4b_codes_v3_Q4_0_embq8.gguf"
+# Use an explicit llama.cpp selector so a local GGUF cannot resolve to an
+# incompatible backend.
 DEFAULT_DEVICE_MAP = "llama_cpp:HTP0"
 # 8192 fails on HTP0: the KV cache needs a ~1 GiB fastrpc_mmap, above the
 # Hexagon buffer-mapping limit. 6144 is the measured ceiling that still loads.
@@ -504,8 +501,8 @@ class _GenieXRuntime:
 
     The Hexagon NPU serializes generations, so requests queue on a timed lock:
     a caller whose budget expires while queued gets a timeout error instead of
-    running as orphan work after its client gave up (same policy as the Genie
-    adapter).
+    running as orphan work after its client gave up. The current service uses
+    the same single-flight policy for every request.
     """
 
     def __init__(
@@ -783,8 +780,8 @@ class _GenieXRuntime:
     def _verify_expected_device(self) -> None:
         """The SDK exposes no independently observed device (profile
         backend/device are stamped from the configured meta), so this
-        validates selector RESOLUTION — it catches the npu->QAIRT class of
-        misroute, not physical HTP placement; placement evidence comes from
+        validates selector RESOLUTION — it catches wrong-backend routing,
+        not physical HTP placement; placement evidence comes from
         the offload trace smoke."""
         if not self.expect_device:
             return

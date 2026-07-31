@@ -1,182 +1,72 @@
-# VibroAgent MCP — Building Vibration Monitoring
+# VibroAgent runtime package
 
-This application monitors a building with one reference IIS3DWB sensor and one or more target sensors. It reads synchronized acquisition windows, computes compact vibration metrics, compares every target with the reference, and returns fixed building-monitoring labels through an MCP-enabled webchat.
+This directory contains the Python application used by the current codes_v3 production stack. Start with the [repository README](../README.md): it is the authoritative setup, operation, architecture, and hardware guide.
 
-## Scope
-
-The supported analysis domain is:
-
-```text
-building_vibration_relative_monitoring
-```
-
-The system reports relative vibration level, dominant frequency, spectral distribution, transient or shock-like events, sensor-data quality, and whether a deviation is local or shared by several sensors. It is a monitoring and triage tool, not a certified structural-safety assessment.
-
-## Main components
-
-- `webchat_server.py`: webchat, live-readings page, and floating PSD window.
-- `spectral.py`: periodic-Hann Welch PSD, raw periodogram mode, filtering, peak extraction, and plot aggregation.
-- `sensor_registry.py`: maps each sensor ID to one configured acquisition folder and location.
-- `sdk_vibrometer.py`: decodes IIS3DWB acquisition windows.
-- `llm_sensor_agent.py`: one bounded model call for all selected sensors, with deterministic checks and fixed labels.
-- `agent_pipeline.py`: deterministic building metrics and reference comparisons.
-- `mcp_server.py`: exposes only building-monitoring tools.
-- `qwen_mcp_host.py`: deterministic tool routing and a bounded host-generated operator summary.
-
-## Sensor configuration
-
-Edit `config/sensors.live.yaml`. Every board must have a unique `sensor_id` and acquisition folder:
-
-```yaml
-baseline_sensor_id: baseline
-
-sensors:
-  - sensor_id: baseline
-    location: first_floor_reference
-    role: baseline
-    acquisition_folder: ../../stdatalog_examples/live_baseline
-    hsd_sensor_name: iis3dwb_acc
-    axis: z
-
-  - sensor_id: target_1
-    location: upper_floor_position
-    role: target
-    acquisition_folder: ../../stdatalog_examples/live_target_1
-    hsd_sensor_name: iis3dwb_acc
-    axis: z
-```
-
-Use the same axis, time interval, sampling conditions, and mounting approach when comparing floors.
-
-## Installation
-
-From the repository root (or run the top-level `./setup.sh`, which does all of
-this plus the SDK and model runtime):
-
-```bash
-python -m venv vibroagent-venv
-source vibroagent-venv/bin/activate
-pip install -e vibrodiag_mcp_prototype
-```
-
-For an OpenAI-compatible local model client:
-
-```bash
-pip install -e '.[qwen]'
-```
-
-## Run the complete live stack
+## Setup and run
 
 From the repository root:
 
-```bash
+~~~bash
+./setup.sh
 ./vibroagent.sh start
-./vibroagent.sh status
-./vibroagent.sh stop
-```
+~~~
 
-The default webchat address is `http://127.0.0.1:7860` and the live graph page is `/graph`.
+For recorded input without STWIN.box hardware:
 
-To run only the webchat:
+~~~bash
+./setup.sh --offline
+./vibroagent.sh start
+~~~
 
-```bash
-cd vibrodiag_mcp_prototype
-python -m vibroagent_mcp.webchat_server --host 127.0.0.1 --port 7860
-```
+The top-level setup creates the application environment, installs the pinned STDATALOG SDK overlay, installs the CPU codec and GenieX environments, and obtains the hash-verified model. The launcher starts the model service and web application in both modes. Live mode also starts the USB callback logger; offline mode starts no data writer and reads the verified recordings in place.
 
-## MCP tools
+## Current architecture
 
-The server exposes only these application tools:
+The supported monitoring path is:
 
-- `list_building_sensors`
-- `read_building_sensor_window`
-- `run_autonomous_sensor_check`
-- `run_building_sensor_agent`
-- `run_building_vibration_agent_pipeline`
-- `export_building_validation_dataset`
+1. SensorRegistry resolves the baseline and five target folders, remapping them to the immutable recording root in offline mode.
+2. One persistent board_reader_process child owns the mutable STDATALOG decoder state for each sensor without modifying the underlying acquisition.
+3. sdk_vibrometer returns calibrated, measured-rate windows: latest windows for live data or explicit fixed timestamps for replay.
+4. The web server calls scripts/live_codes_worker.py for the latest live 10 seconds or once at each scheduled offline timestamp.
+5. The worker resamples each selected axis to 400 Hz, loads the frozen architecture from scripts/codec_runtime.py, and encodes it with the pinned codec-v1 checkpoint.
+6. live_codes.py builds the byte-exact codes_v3 prompt from 250 symbols per sensor plus relative level values.
+7. geniex_openai_server.py serves the fine-tuned Qwen3-4B GGUF on Hexagon through an OpenAI-compatible loopback endpoint.
+8. Strict schema and label validation accepts the verdict or exposes the failure to the operator.
+9. webchat_server.py renders live waveforms, PSD views, chat, monitor history, and alerts.
 
-Run the server over stdio:
+The waveform and PSD display path branches before codec inference. Display filters do not alter the acquisition stream or the model input. During offline replay, graphs follow the monotonic virtual position continuously while codec-v1 and codes_v3 remain idle between inference timestamps.
 
-```bash
-python -m vibroagent_mcp.mcp_server --transport stdio
-```
+Offline anomalies are already encoded in the supplied target `.dat` files. `offline_replay.py` only schedules reads; it never copies, truncates, appends to, or rewrites the recordings.
 
-Example client call:
+## Important paths
 
-```bash
-python -m vibroagent_mcp.mcp_client_demo \
-  --tool run_autonomous_sensor_check \
-  --config-path config/sensors.live.yaml \
-  --duration-s 10
-```
+| Path | Responsibility |
+|---|---|
+| config/sensors.live.yaml | Logical IDs, roles, locations, folders, components, and axes |
+| src/vibroagent_mcp/sensor_registry.py | Registered-folder resolution and path boundary |
+| src/vibroagent_mcp/offline_replay.py | Immutable replay clock and timestamp claim controller |
+| src/vibroagent_mcp/board_reader_process.py | Isolated persistent SDK readers |
+| src/vibroagent_mcp/sdk_vibrometer.py | Calibrated live-window extraction |
+| scripts/codec_runtime.py | Frozen codec-v1 architecture and normalization |
+| scripts/live_codes_worker.py | Deterministic codec subprocess |
+| scripts/serve_codes_v3_geniex.sh | Hash-pinned GenieX launcher for codes_v3 |
+| src/vibroagent_mcp/live_codes.py | Prompt construction, labels, and response validation |
+| src/vibroagent_mcp/geniex_openai_server.py | GenieX model adapter |
+| src/vibroagent_mcp/webchat_server.py | HTTP API, monitoring coordinator, and UI |
+| tests/ | Hardware-independent regression suite |
 
-Read one registered board without running the network assessment:
-
-```bash
-python -m vibroagent_mcp.mcp_client_demo \
-  --tool read_building_sensor_window \
-  --sensor-id target_2 \
-  --duration-s 5
-```
-
-Add `--allow-recorded-data` only when intentionally reading a saved acquisition.
-
-## PSD display
-
-The floating spectrum window provides:
-
-- periodic-Hann Welch PSD by default;
-- optional raw periodogram mode;
-- X, Y, Z, or magnitude selection;
-- high-pass, low-pass, band-pass, and notch filters;
-- a full time-domain overview plus an inspectable spectrum;
-- a persistent primary-peak marker;
-- frequency and PSD readout while moving the pointer along the curve.
-
-Filters are analysis-only and do not modify stored acquisition files.
-
-## Building labels
-
-Sensor-level labels:
-
-```text
-normal_relative_to_baseline
-mild_deviation
-significant_local_deviation
-impulsive_or_shock_event
-possible_sensor_issue
-insufficient_data
-```
-
-Network-level labels:
-
-```text
-normal_relative_to_reference_sensor
-mild_local_deviation
-mild_multi_sensor_deviation
-localized_vibration_deviation
-multi_sensor_building_wide_vibration_event
-sensor_network_quality_issue
-insufficient_data
-```
-
-Model output is validated against these fixed labels. Out-of-domain component diagnoses are rejected before they can reach the webchat.
+Raw acceleration stays local. Only codec symbols, relative level values, fixed instructions, and the response schema are sent to the loopback model service. Deterministic data-quality checks remain authoritative.
 
 ## Tests
 
-```bash
-pytest -q
-```
+From this directory, after top-level setup:
 
-Focused building and webchat tests:
+~~~bash
+../vibroagent-venv/bin/python -m pytest tests/
+~~~
 
-```bash
-pytest -q \
-  tests/test_service.py \
-  tests/test_agent_pipeline.py \
-  tests/test_llm_sensor_agent.py \
-  tests/test_mcp_building_pipeline.py \
-  tests/test_qwen_host_stability.py \
-  tests/test_webchat_graph.py \
-  tests/test_spectral.py
-```
+For the frozen codec reproducibility gate, run from the repository root:
+
+~~~bash
+~/codec-cpu-venv/bin/python examples/selftest.py
+~~~

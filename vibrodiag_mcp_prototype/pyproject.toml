@@ -18,24 +18,9 @@ dependencies = [
 qwen = [
     "openai>=1.0.0",
 ]
-onnx = [
-    "onnxruntime>=1.17.0",
-    "onnxruntime-genai>=0.14.1",
-]
-onnx-export = [
-    "huggingface-hub>=0.34.0",
-    "onnx>=1.17.0",
-    "onnxscript>=0.2.0",
-    "safetensors>=0.4.0",
-    "torch>=2.4.0",
-    "transformers>=5.0.0",
-]
 dev = [
     "pytest>=8.0",
 ]
-
-[project.scripts]
-vibroagent-onnx-openai = "vibroagent_mcp.onnx_openai_server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

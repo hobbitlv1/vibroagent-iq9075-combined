@@ -2,14 +2,15 @@
 # setup_recordings.sh — place the offline-mode recordings (5-minute .dat sets).
 #
 # Offline mode replays full-length recorded acquisitions; those are too large
-# for git (~280 MB for six 5-minute IIS3DWB streams), so this script downloads
-# them from the private Hugging Face weights repo into ./recordings/live_* and
-# verifies every file against the recording manifest's sha256 pins. The
-# replay logger streams from these folders; they are placed ONCE here and
-# never modified afterwards.
+# for git (~280 MB for six 5-minute IIS3DWB streams), so this script first
+# tries the application repository's private GitHub release and then falls
+# back to the Hugging Face weights repository. Every downloaded file is
+# verified against the recording manifest's sha256 pins. The web service reads
+# fixed timestamp windows directly from ./recordings/live_*; no replay process
+# opens those source files for writing.
 #
-#   HF_TOKEN            read token for the private weights repo; falls back to
-#                       ~/.cache/huggingface/token (hf auth login)
+#   GitHub access       `gh auth login`, or GITHUB_TOKEN when gh is unavailable
+#   HF_TOKEN            fallback read token; also reads the cached hf login
 #   VIBRO_MODELS_REPO   default hobbitlv/vibroagent-models
 #
 # Idempotent — a present, fully hash-verified recording set is left untouched.

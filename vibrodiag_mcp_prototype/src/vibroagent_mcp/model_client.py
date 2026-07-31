@@ -15,16 +15,16 @@ from .errors import format_exception_for_response
 MODEL_HTTP_TIMEOUT_GRACE_S = 10.0
 
 
-def _local_genie_timeout_body(base_url: str | None, timeout_s: float) -> dict[str, Any] | None:
+def _local_geniex_timeout_body(base_url: str | None, timeout_s: float) -> dict[str, Any] | None:
     if not base_url:
         return None
     parsed = urlparse(base_url)
     host = (parsed.hostname or "").lower()
     try:
-        genie_port = int(os.environ.get("GENIE_ADAPTER_PORT", "8910"))
+        geniex_port = int(os.environ.get("GENIEX_PORT", "18181"))
     except ValueError:
-        genie_port = 8910
-    if host not in {"127.0.0.1", "localhost", "::1"} or parsed.port != genie_port:
+        geniex_port = 18181
+    if host not in {"127.0.0.1", "localhost", "::1"} or parsed.port != geniex_port:
         return None
     return {"timeout_s": max(1.0, float(timeout_s))}
 
@@ -102,7 +102,7 @@ class ModelClient:
                 "timeout": timeout_s + MODEL_HTTP_TIMEOUT_GRACE_S,
             }
             merged_extra_body = dict(extra_body or {})
-            local_timeout = _local_genie_timeout_body(self.base_url, timeout_s)
+            local_timeout = _local_geniex_timeout_body(self.base_url, timeout_s)
             if local_timeout is not None:
                 for key, value in local_timeout.items():
                     merged_extra_body.setdefault(key, value)

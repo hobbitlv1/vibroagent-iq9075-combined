@@ -25,7 +25,7 @@ from typing import Any, Mapping, Sequence
 _ASSET = Path(__file__).resolve().parent / "assets" / \
     "codes_v3_prompt_template.json"
 
-# The legacy label vocabularies the codes_v3 assistant messages use —
+# The fixed label vocabularies the codes_v3 assistant messages use —
 # identical to the deterministic prepass vocabulary the webchat panel
 # already renders.
 SENSOR_LABELS = (

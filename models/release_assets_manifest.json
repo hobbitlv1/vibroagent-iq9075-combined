@@ -1,0 +1,45 @@
+{
+  "schema": "vibroagent-release-assets-v1",
+  "release_tag": "weights-v1",
+  "gguf": {
+    "name": "qwen3_4b_codes_v3_Q4_0_embq8.gguf",
+    "size_bytes": 2463745376,
+    "sha256": "3a18c057e47d8032cb771140e54ed7bbfcf8cf1d58c6d990f579800f149a90c2",
+    "parts": [
+      {
+        "name": "qwen3_4b_codes_v3_Q4_0_embq8.gguf.part-00.part",
+        "size_bytes": 1992294400,
+        "sha256": "8a84d2541d76f5da1257a4804b1b798842a2a9411213153b8857e89a4af0a686"
+      },
+      {
+        "name": "qwen3_4b_codes_v3_Q4_0_embq8.gguf.part-01.part",
+        "size_bytes": 471450976,
+        "sha256": "b78234d3e6bd6cbcc706c82f88c0496bb1f31b1ed72e1502ceeff8baf9be012f"
+      }
+    ]
+  },
+  "codec": {
+    "name": "codec_v1_best.pt",
+    "size_bytes": 15494565,
+    "sha256": "a80216b639327f9b4e59447138abc025fddac2d6d5eca68448c4ac14c653a350",
+    "provenance_asset": {
+      "name": "codec_v1_split_manifest.json",
+      "size_bytes": 855,
+      "sha256": "35a5cfaf252dfa2e7b0be21ffc8f3c2e01eedad07bd0bf5a577cc4a69a3dd680"
+    }
+  },
+  "recordings": {
+    "name": "offline_recordings.tar.gz",
+    "size_bytes": 170485920,
+    "sha256": "c64981b729759faa2c4f18477529b6d90a34aefe9ac440c16840da2079962461",
+    "manifest_sha256": "5cb085514392613ff97d2112ec847b9514c4f3a027d77808da97ed426578e7f8",
+    "duration_s": 300.0,
+    "inference_window_s": 10.0,
+    "inference_timestamps_s": [
+      45.0,
+      90.0,
+      150.0,
+      210.0
+    ]
+  }
+}

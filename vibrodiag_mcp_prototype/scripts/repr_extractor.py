@@ -1,25 +1,10 @@
-"""Deterministic codec-v1 representation extraction for SFT/eval examples.
+"""Deterministic codec-v1 representation primitives for codes_v3.
 
-This module exposes two reusable pieces:
-
-* :class:`CodecV1Extractor` maps an exact waveform batch through
-  ``raw -> normalized codec input -> pre-RVQ -> codes -> dequantized -> recon``.
-* :func:`regenerate_examples` resolves SFT/eval JSONL references by replaying the
-  seeded v3 builder and capturing its exact post-excitation waveforms.  This is
-  necessary because the artifacts retain source-row identities but not the RNG
-  state or corruption parameters.
-
-The CLI writes the full arrays to an NPZ and prints a compact JSON summary.  It
-always runs on CPU and, when prompt codes are present, verifies the regenerated
-Unicode code stream byte-for-byte before writing output.
-
-Example (from the repository root)::
-
-    /home/ubuntu/codec-cpu-venv/bin/python \
-      vibrodiag_mcp_prototype/scripts/repr_extractor.py \
-      --example-jsonl vibrodiag_mcp_prototype/data/phase05_benchmark/eval_codes_v3.jsonl \
-      --example-id codes_single_0020 --slot target_1 --output /tmp/repr.npz
+The live worker imports the frozen-checkpoint loader, residual-VQ extractor,
+token map, and provenance helpers from this module. Production extraction is
+CPU-only and deterministic.
 """
+
 
 from __future__ import annotations
 
@@ -41,12 +26,9 @@ import numpy as np
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 
-DEFAULT_CHECKPOINT = Path(
-    "/media/ubuntu/Drive/downloads_heavy/codec_v1_backup_20260709/best.pt"
-)
-DEFAULT_SPLIT_MANIFEST = Path(
-    "/media/ubuntu/Drive/downloads_heavy/codec_v1_backup_20260709/split_manifest.json"
-)
+REPOSITORY_ROOT = PROJECT_ROOT.parent
+DEFAULT_CHECKPOINT = REPOSITORY_ROOT / "models/codec_v1/best.pt"
+DEFAULT_SPLIT_MANIFEST = REPOSITORY_ROOT / "models/codec_v1/split_manifest.json"
 DEFAULT_DATA_DIR = PROJECT_ROOT / "data/public_windows"
 DEFAULT_TOKEN_MAP = PROJECT_ROOT / "data/codec_pretrain/r1_token_map.json"
 
@@ -562,7 +544,7 @@ class CodecV1Extractor:
         if str(SCRIPT_DIR) not in sys.path:
             sys.path.insert(0, str(SCRIPT_DIR))
         import torch  # noqa: PLC0415
-        from train_vibration_codec import CodecConfig, RVQCodec  # noqa: PLC0415
+        from codec_runtime import CodecConfig, RVQCodec  # noqa: PLC0415
 
         self.torch = torch
         self.checkpoint_path = Path(checkpoint)
@@ -620,7 +602,7 @@ class CodecV1Extractor:
     def extract_batch(self, raw_waveforms: Sequence[np.ndarray]) -> list[RepresentationBundle]:
         """Extract a full original example batch; never split singles/multis."""
 
-        from codec_dataset import normalize_window  # noqa: PLC0415
+        from codec_runtime import normalize_window  # noqa: PLC0415
 
         if not raw_waveforms:
             raise ValueError("raw_waveforms cannot be empty")

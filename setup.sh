@@ -10,12 +10,9 @@
 #                              of vibrodiag_mcp_prototype     (created with uv)
 #                           4) codec worker virtualenv ~/codec-cpu-venv
 #                              (CPU torch — runs the frozen codec-v1)
-#                           5) GenieX runtime + base-model download from
-#                              Hugging Face                   -> setup_geniex.sh
+#                           5) GenieX runtime                 -> setup_geniex.sh
 #                           6) fine-tuned codes_v3 GGUF, hash-verified
 #                                                             -> setup_models.sh
-#   ./setup.sh --qairt    all of the above PLUS the 1.8 GB QAIRT Community SDK
-#                         (only needed for the legacy MODEL_BACKEND=genie path)
 #
 # Every step is idempotent — re-running skips what is already in place.
 # All virtualenvs and installs use uv (installed automatically if missing).
@@ -24,12 +21,10 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 MODE=live
-WANT_QAIRT=0
 for arg in "$@"; do
     case "$arg" in
         --offline) MODE=offline ;;
-        --qairt)   WANT_QAIRT=1 ;;
-        *) echo "unknown option: $arg (supported: --offline --qairt)" >&2; exit 2 ;;
+        *) echo "unknown option: $arg (supported: --offline)" >&2; exit 2 ;;
     esac
 done
 echo "$MODE" > "$REPO/.vibro_mode"
@@ -90,7 +85,7 @@ uv pip install --quiet --python "$CODEC_VENV/bin/python" \
     torch --index-url https://download.pytorch.org/whl/cpu
 echo "codec venv ready: $("$CODEC_VENV/bin/python" --version) at $CODEC_VENV"
 
-echo "==== [5/6] GenieX runtime + base-model autodownload ===="
+echo "==== [5/6] GenieX runtime ===="
 "$REPO/setup_geniex.sh"
 
 echo "==== [6/6] fine-tuned codes_v3 GGUF (hash-verified) ===="
@@ -101,20 +96,15 @@ if [ "$MODE" = "offline" ]; then
     "$REPO/setup_recordings.sh"
 fi
 
-if [ "$WANT_QAIRT" = "1" ]; then
-    echo "==== [optional] QAIRT Community SDK (legacy genie backend) ===="
-    "$REPO/setup_qairt.sh"
-fi
-
 echo
 echo "==== setup complete ===="
 echo "Next steps (mode: $MODE):"
 if [ "$MODE" = "offline" ]; then
     echo "  1. Start the stack:   ./vibroagent.sh start"
-    echo "     (the replay logger streams the recorded examples/ acquisitions in"
-    echo "      real time; the USB logger stays down — no boards needed)"
+    echo "     (the web app reads immutable recordings directly; no replay writer"
+    echo "      or USB logger starts, so the supplied .dat files stay unchanged)"
     echo "  2. Open the webchat:  http://<board-lan-ip>:7860 — graphs, chat and"
-    echo "     monitor popups reproduce the recording at its original moments."
+    echo "     monitor popups run at the manifest's inference timestamps."
     echo "  To switch to live boards later:  ./setup.sh   (reruns USB setup)"
 else
     echo "  1. If setup_usb.sh just added you to the hsdatalog group, log out and"

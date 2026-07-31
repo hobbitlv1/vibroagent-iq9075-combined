@@ -8,18 +8,15 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import atexit
 import copy
 import json
 import math
 import os
-import random
 import ipaddress
 import threading
 import time
 from bisect import bisect_right
 from collections import deque
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -30,18 +27,11 @@ from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
 from .errors import format_exception_for_response
-from .genie_openai_server import (
-    DEFAULT_GENIE_MAX_OUTPUT_TOKENS,
-    GenieOpenAIHandler,
-    GenieServerConfig,
-    default_persistent_runner_path,
-    default_runner_path,
-    discover_sdk_root,
-    prepare_bounded_genie_config,
-    prewarm_persistent_genie_runner,
-    shutdown_persistent_genie_runners,
-)
 from .model_client import ModelClient
+from .offline_replay import (
+    OfflineReplayConfigurationError,
+    offline_replay_from_environment,
+)
 from .board_reader_process import (
     board_reader_processes_enabled,
     board_reader_process_statuses,
@@ -77,20 +67,13 @@ from .spectral import (
 )
 
 
-DEFAULT_BASE_URL = "http://127.0.0.1:1234/v1"
-DEFAULT_MODEL = "qwen3.5-4b-instruct-revised"
+DEFAULT_BASE_URL = "http://127.0.0.1:18181/v1"
+DEFAULT_MODEL = "qwen3_4b_codes_v3"
 DEFAULT_LIVE_SENSOR_CONFIG = "config/sensors.live.yaml"
 DEFAULT_ANOMALY_WINDOW_DIR = "validation_exports/anomaly_windows"
-DEFAULT_GENIE_HOST = "127.0.0.1"
-DEFAULT_GENIE_PORT = 8910
-DEFAULT_GENIE_MODEL = "Qwen/Qwen3-4B-Instruct-2507"
-DEFAULT_GENIE_PROMPT_FORMAT = "qwen3"
+DEFAULT_GENIEX_PORT = 18181
 DEFAULT_AGENT_MODEL_TIMEOUT_S = 120.0
-DEFAULT_MONITOR_MODEL_TIMEOUT_S = 5.0
-DEFAULT_MONITOR_MAX_PROMPT_CHARS = 2600
-DEFAULT_MONITOR_MAX_PROMPT_ESTIMATED_TOKENS = 880
-DEFAULT_MONITOR_MAX_TOKENS = 128
-DEFAULT_MONITOR_FOCUS_SENSOR_LIMIT = 5
+DEFAULT_MONITOR_MODEL_TIMEOUT_S = 60.0
 MAX_AGENT_MODEL_TIMEOUT_S = 300.0
 DEFAULT_DIRECT_NPU_TIMEOUT_S = 300.0
 DEFAULT_DIRECT_NPU_MAX_TOKENS = 256
@@ -102,14 +85,6 @@ DIRECT_BUILDING_SYSTEM_PROMPT = (
     "Use supplied measurements only, state uncertainty clearly, and do not infer unmeasured causes. "
     "This is monitoring and triage, not a certified structural-safety assessment."
 )
-WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_QCS9075_GENIE_BUNDLE = (
-    WORKSPACE_ROOT
-    / "models"
-    / "merged_4k_6000s"
-    / "merged_6000_ctx4096_calib1-genie-w4a16-qualcomm_qcs9075"
-)
-DEFAULT_GENIE_CONFIG = DEFAULT_QCS9075_GENIE_BUNDLE / "genie_config.json"
 VALID_LIVE_AXES = {"norm", "magnitude", "vector_norm", "x", "y", "z", "0", "1", "2"}
 DEFAULT_PSD_FFT_WINDOW_S = 100.0
 MAX_PSD_FFT_WINDOW_S = 120.0
@@ -133,65 +108,6 @@ ANOMALOUS_SENSOR_LABELS = {
     "impulsive_or_shock_event",
     "possible_sensor_issue",
 }
-MONITOR_STATUS_CODE_TO_LABEL = {
-    "normal": "normal_relative_to_reference_sensor",
-    "local": "localized_vibration_deviation",
-    "mild_local": "mild_local_deviation",
-    "mild_multi": "mild_multi_sensor_deviation",
-    "multi": "multi_sensor_structure_wide_vibration_event",
-    "quality": "sensor_network_quality_issue",
-    "insufficient": "insufficient_data",
-}
-MONITOR_STATUS_LABEL_TO_CODE = {label: code for code, label in MONITOR_STATUS_CODE_TO_LABEL.items()}
-
-
-@dataclass
-class EmbeddedGenieRuntime:
-    enabled: bool
-    serving: bool
-    base_url: str
-    model: str
-    config_path: str | None = None
-    runner_path: str | None = None
-    persistent: bool = False
-    persistent_runner_path: str | None = None
-    sdk_root: str | None = None
-    backend_types: list[str] = field(default_factory=list)
-    htp_context_bins: list[str] = field(default_factory=list)
-    htp_context_bins_exist: bool = False
-    npu_offload: bool = False
-    warning: str | None = None
-    startup_error: str | None = None
-    server: ThreadingHTTPServer | None = field(default=None, repr=False)
-    thread: threading.Thread | None = field(default=None, repr=False)
-
-    def status(self) -> dict[str, Any]:
-        return {
-            "enabled": self.enabled,
-            "serving": self.serving,
-            "base_url": self.base_url,
-            "model": self.model,
-            "config_path": self.config_path,
-            "runner_path": self.runner_path,
-            "persistent": self.persistent,
-            "persistent_runner_path": self.persistent_runner_path,
-            "sdk_root": self.sdk_root,
-            "backend_types": self.backend_types,
-            "htp_context_bins": self.htp_context_bins,
-            "htp_context_bins_exist": self.htp_context_bins_exist,
-            "npu_offload": self.npu_offload,
-            "warning": self.warning,
-            "startup_error": self.startup_error,
-        }
-
-    def shutdown(self) -> None:
-        if self.server is None:
-            return
-        self.server.shutdown()
-        self.server.server_close()
-        shutdown_persistent_genie_runners()
-
-
 class WebchatHandler(BaseHTTPRequestHandler):
     server_version = "VibroAgentWebchat/0.1"
 
@@ -241,24 +157,11 @@ class WebchatHandler(BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/api/config":
-            runtime_status = _embedded_genie_status(self.server)
-            if runtime_status.get("serving"):
-                base_url = str(runtime_status["base_url"])
-                api_key = os.environ.get("QWEN_API_KEY", "EMPTY")
-                model = str(runtime_status["model"])
-            else:
-                base_url = os.environ.get("QWEN_BASE_URL", DEFAULT_BASE_URL)
-                api_key = os.environ.get("QWEN_API_KEY", "EMPTY")
-                requested_model = os.environ.get("QWEN_MODEL", DEFAULT_MODEL)
-                model = _auto_select_agent_model(
-                    base_url=base_url,
-                    api_key=api_key,
-                    requested_model=requested_model,
-                )
+            runtime_status = _codes_model_status()
             self._send_json(
                 {
-                    "base_url": base_url,
-                    "model": model,
+                    "base_url": runtime_status["base_url"],
+                    "model": runtime_status["model"],
                     "has_api_key": bool(os.environ.get("QWEN_API_KEY")),
                     "npu": runtime_status,
                 }
@@ -266,7 +169,7 @@ class WebchatHandler(BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/api/npu":
-            self._send_json({"ok": True, "npu": _embedded_genie_status(self.server)})
+            self._send_json({"ok": True, "npu": _codes_model_status()})
             return
 
         if parsed.path == "/api/board-readers":
@@ -514,25 +417,36 @@ class WebchatHandler(BaseHTTPRequestHandler):
         return None
 
 
-def _embedded_genie_status(server: Any) -> dict[str, Any]:
-    runtime = getattr(server, "embedded_genie_runtime", None)
-    if isinstance(runtime, EmbeddedGenieRuntime):
-        return runtime.status()
-    return {
-        "enabled": False,
+def _codes_model_status() -> dict[str, Any]:
+    base_url = os.environ.get("QWEN_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
+    model = os.environ.get("QWEN_MODEL", DEFAULT_MODEL)
+    status: dict[str, Any] = {
+        "enabled": True,
         "serving": False,
-        "base_url": os.environ.get("QWEN_BASE_URL", DEFAULT_BASE_URL),
-        "model": os.environ.get("QWEN_MODEL", DEFAULT_MODEL),
-        "config_path": None,
-        "runner_path": None,
-        "sdk_root": None,
-        "backend_types": [],
-        "htp_context_bins": [],
-        "htp_context_bins_exist": False,
+        "base_url": base_url,
+        "model": model,
+        "runtime": "geniex",
         "npu_offload": False,
+        "device": None,
         "warning": None,
         "startup_error": None,
     }
+    try:
+        request = Request(f"{base_url}/health", headers={"Accept": "application/json"}, method="GET")
+        with urlopen(request, timeout=0.75) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise RuntimeError("GenieX health endpoint returned a non-object payload")
+        status["serving"] = payload.get("status") == "ok"
+        configured = str(payload.get("device_configured") or "")
+        resolved = str(payload.get("device_resolved") or "")
+        status["device"] = resolved or configured or None
+        status["npu_offload"] = "htp" in f"{configured} {resolved}".lower()
+        if not status["serving"]:
+            status["startup_error"] = "GenieX codes_v3 service reported unavailable"
+    except Exception as exc:
+        status["startup_error"] = f"{exc.__class__.__name__}: {exc}"
+    return status
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -672,184 +586,6 @@ def _env_float_value(name: str, default: float, *, minimum: float | None = None)
     return value
 
 
-def _start_embedded_genie_runtime(
-    *,
-    host: str,
-    port: int,
-    sdk_root: str | None,
-    config_path: str | None,
-    runner_path: str | None,
-    persistent: bool,
-    persistent_runner_path: str | None,
-    model: str,
-    prompt_format: str,
-    timeout_s: float,
-    max_prompt_chars: int,
-    max_output_tokens: int = DEFAULT_GENIE_MAX_OUTPUT_TOKENS,
-    require_qnn_htp: bool = True,
-) -> EmbeddedGenieRuntime:
-    base_url = f"http://{host}:{port}/v1"
-    resolved_config: Path | None = None
-    resolved_runner: Path | None = None
-    resolved_persistent_runner: Path | None = None
-    resolved_sdk: Path | None = None
-    summary = _summarize_genie_config_for_npu(DEFAULT_GENIE_CONFIG)
-    try:
-        resolved_sdk = Path(sdk_root).expanduser().resolve() if sdk_root else discover_sdk_root()
-        if resolved_sdk is None:
-            raise RuntimeError("QAIRT SDK root not found. Set QAIRT_SDK_ROOT or pass --qairt-sdk-root.")
-        source_config = Path(config_path).expanduser().resolve() if config_path else DEFAULT_GENIE_CONFIG.resolve()
-        resolved_config = prepare_bounded_genie_config(
-            source_config,
-            max_output_tokens=max_output_tokens,
-        )
-        resolved_runner = Path(runner_path).expanduser().resolve() if runner_path else default_runner_path(resolved_sdk)
-        resolved_persistent_runner = (
-            Path(persistent_runner_path).expanduser().resolve()
-            if persistent_runner_path
-            else default_persistent_runner_path()
-        )
-        if not resolved_config.exists():
-            raise FileNotFoundError(f"Genie config not found: {resolved_config}")
-        if not resolved_runner.exists():
-            raise FileNotFoundError(f"Genie runner not found: {resolved_runner}")
-
-        summary = _summarize_genie_config_for_npu(resolved_config)
-        if require_qnn_htp and not summary["npu_offload"]:
-            raise RuntimeError(
-                summary["warning"]
-                or "Genie config must use QnnHtp and all referenced context binaries must exist."
-            )
-        genie_config = GenieServerConfig(
-            sdk_root=resolved_sdk,
-            config_path=resolved_config,
-            runner_path=resolved_runner,
-            model_id=model,
-            prompt_format=prompt_format,
-            timeout_s=timeout_s,
-            max_prompt_chars=max_prompt_chars,
-            persistent=persistent,
-            persistent_runner_path=resolved_persistent_runner,
-        )
-        # Do not advertise an OpenAI-compatible port until the persistent model
-        # has finished loading. This prevents the first webchat turn from spending
-        # its entire request budget on model startup.
-        prewarm_persistent_genie_runner(genie_config)
-        adapter = ThreadingHTTPServer((host, port), GenieOpenAIHandler)
-        adapter.genie_config = genie_config  # type: ignore[attr-defined]
-        thread = threading.Thread(target=adapter.serve_forever, name="embedded-genie-openai", daemon=True)
-        runtime = EmbeddedGenieRuntime(
-            enabled=True,
-            serving=True,
-            base_url=base_url,
-            model=model,
-            config_path=str(resolved_config),
-            runner_path=str(resolved_runner),
-            persistent=persistent,
-            persistent_runner_path=str(resolved_persistent_runner),
-            sdk_root=str(resolved_sdk),
-            backend_types=summary["backend_types"],
-            htp_context_bins=summary["htp_context_bins"],
-            htp_context_bins_exist=summary["htp_context_bins_exist"],
-            npu_offload=summary["npu_offload"],
-            warning=summary["warning"],
-            server=adapter,
-            thread=thread,
-        )
-        thread.start()
-        atexit.register(runtime.shutdown)
-        return runtime
-    except Exception as exc:
-        return EmbeddedGenieRuntime(
-            enabled=True,
-            serving=False,
-            base_url=base_url,
-            model=model,
-            config_path=str(resolved_config) if resolved_config else str(config_path or DEFAULT_GENIE_CONFIG),
-            runner_path=str(resolved_runner) if resolved_runner else runner_path,
-            persistent=persistent,
-            persistent_runner_path=str(resolved_persistent_runner) if resolved_persistent_runner else persistent_runner_path,
-            sdk_root=str(resolved_sdk) if resolved_sdk else sdk_root,
-            backend_types=summary["backend_types"],
-            htp_context_bins=summary["htp_context_bins"],
-            htp_context_bins_exist=summary["htp_context_bins_exist"],
-            npu_offload=False,
-            warning=summary["warning"],
-            startup_error=f"{exc.__class__.__name__}: {exc}",
-        )
-
-
-def _summarize_genie_config_for_npu(config_path: Path) -> dict[str, Any]:
-    backend_types: list[str] = []
-    htp_context_bins: list[str] = []
-    htp_context_bins_exist = False
-    warning: str | None = None
-    try:
-        data = json.loads(config_path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        return {
-            "backend_types": [],
-            "htp_context_bins": [],
-            "htp_context_bins_exist": False,
-            "npu_offload": False,
-            "warning": f"Could not inspect Genie config for NPU status: {exc.__class__.__name__}: {exc}",
-        }
-
-    dialog = data.get("dialog") if isinstance(data, dict) else None
-    engine = dialog.get("engine") if isinstance(dialog, dict) else None
-    engines = engine if isinstance(engine, list) else [engine] if isinstance(engine, dict) else []
-    for item in engines:
-        if not isinstance(item, dict):
-            continue
-        backend = item.get("backend")
-        if isinstance(backend, dict):
-            backend_type = str(backend.get("type") or "").strip()
-            if backend_type and backend_type not in backend_types:
-                backend_types.append(backend_type)
-        model = item.get("model")
-        if isinstance(model, dict):
-            binary = model.get("binary")
-            if isinstance(binary, dict):
-                for raw_path in _as_string_list(binary.get("ctx-bins")):
-                    htp_context_bins.append(str(_resolve_config_relative_path(config_path, raw_path)))
-
-    if htp_context_bins:
-        htp_context_bins_exist = all(Path(path).exists() for path in htp_context_bins)
-
-    npu_offload = "QnnHtp" in backend_types and bool(htp_context_bins) and htp_context_bins_exist
-    if "QnnHtp" in backend_types and not htp_context_bins_exist:
-        warning = "Genie config selects QnnHtp, but one or more context binaries are missing."
-    elif "QnnHtp" not in backend_types:
-        backends = ", ".join(backend_types) if backend_types else "unknown"
-        warning = (
-            f"Embedded Genie is using backend {backends}, not QnnHtp. "
-            "This validates the webchat path; true Hexagon NPU offload needs a QnnHtp config with existing context binaries."
-        )
-
-    return {
-        "backend_types": backend_types,
-        "htp_context_bins": htp_context_bins,
-        "htp_context_bins_exist": htp_context_bins_exist,
-        "npu_offload": npu_offload,
-        "warning": warning,
-    }
-
-
-def _resolve_config_relative_path(config_path: Path, raw_path: str) -> Path:
-    path = Path(raw_path).expanduser()
-    if path.is_absolute():
-        return path.resolve()
-    return (config_path.parent / path).resolve()
-
-
-def _as_string_list(value: Any) -> list[str]:
-    if isinstance(value, list):
-        return [str(item) for item in value if str(item).strip()]
-    if isinstance(value, str) and value.strip():
-        return [value]
-    return []
-
-
 def _openai_chat_completion_url(base_url: str) -> str:
     cleaned = base_url.rstrip("/")
     if cleaned.endswith("/chat/completions"):
@@ -909,18 +645,13 @@ def _first_choice_payload(response_payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _direct_npu_chat_payload(payload: dict[str, Any], server: Any) -> dict[str, Any]:
-    runtime_status = _embedded_genie_status(server)
-    if runtime_status.get("serving"):
-        base_url = str(runtime_status["base_url"])
-        model = str(runtime_status["model"])
-        api_key = os.environ.get("QWEN_API_KEY", "EMPTY")
-    else:
-        base_url = _request_model_base_url(
-            _clean(payload.get("base_url")),
-            default=os.environ.get("QWEN_BASE_URL", DEFAULT_BASE_URL),
-        )
-        api_key = _clean(payload.get("api_key")) or os.environ.get("QWEN_API_KEY", "EMPTY")
-        model = _clean(payload.get("model")) or os.environ.get("QWEN_MODEL", DEFAULT_MODEL)
+    del server
+    base_url = _request_model_base_url(
+        _clean(payload.get("base_url")),
+        default=os.environ.get("QWEN_BASE_URL", DEFAULT_BASE_URL),
+    )
+    api_key = _clean(payload.get("api_key")) or os.environ.get("QWEN_API_KEY", "EMPTY")
+    model = _clean(payload.get("model")) or os.environ.get("QWEN_MODEL", DEFAULT_MODEL)
 
     max_prompt_chars = _payload_int(
         payload.get("max_prompt_chars"),
@@ -951,7 +682,7 @@ def _direct_npu_chat_payload(payload: dict[str, Any], server: Any) -> dict[str, 
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
-        # Consumed by the local Genie adapter.  The HTTP client below adds a
+        # Consumed by the local GenieX adapter. The HTTP client below adds a
         # small grace period so it can receive the adapter's timeout response.
         "timeout_s": timeout_s,
     }
@@ -979,7 +710,7 @@ def _direct_npu_chat_payload(payload: dict[str, Any], server: Any) -> dict[str, 
     message_value = choice.get("message")
     message_payload: dict[str, Any] = message_value if isinstance(message_value, dict) else {}
     usage_value = response_payload.get("usage")
-    metrics_value = response_payload.get("genie_metrics")
+    metrics_value = response_payload.get("geniex_metrics")
     usage_payload = usage_value if isinstance(usage_value, dict) else None
     adapter_metrics = metrics_value if isinstance(metrics_value, dict) else None
 
@@ -1032,7 +763,7 @@ def _direct_npu_chat_payload(payload: dict[str, Any], server: Any) -> dict[str, 
             "tokens_per_second": tokens_per_second,
             "persistent": bool(adapter_metrics.get("persistent")) if isinstance(adapter_metrics, dict) else False,
         },
-        "npu": runtime_status,
+        "npu": _codes_model_status(),
     }
 
 def _usage_int(usage: Any, key: str) -> int | None:
@@ -1193,6 +924,24 @@ def _live_vibrometer_payload(query: dict[str, list[str]]) -> dict[str, Any]:
     duration_s = min(10.0, max(0.1, _float_query(query, "duration_s", 1.0)))
     max_points = min(5000, max(64, _int_query(query, "max_points", 1800)))
     require_current = _bool_query(query, "require_current", True)
+    start_time_raw = _clean(_first(query, "start_time_s"))
+    try:
+        replay_controller = offline_replay_from_environment()
+        replay_snapshot = replay_controller.snapshot() if replay_controller else None
+        start_time_s = (
+            float(start_time_raw)
+            if start_time_raw is not None
+            else replay_controller.window_start(duration_s) if replay_controller else None
+        )
+    except (OfflineReplayConfigurationError, ValueError) as exc:
+        return {
+            "ok": False,
+            "status": "error",
+            "error": "replay_configuration_failed",
+            "message": format_exception_for_response(exc),
+        }
+    if replay_controller:
+        require_current = False
     request_started_s = time.perf_counter()
     process_reader = _bool_query(query, "process_reader", False)
     reader_fn = (
@@ -1208,6 +957,7 @@ def _live_vibrometer_payload(query: dict[str, list[str]]) -> dict[str, Any]:
             acquisition_folder=acquisition_folder,
             sensor_name=sensor_name,
             axis=axis,
+            start_time_s=start_time_s,
             duration_s=duration_s,
             require_current=require_current,
         )
@@ -1288,6 +1038,7 @@ def _live_vibrometer_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         "sensor_name": sensor_name,
         "acquisition_folder": acquisition_folder,
         "axis": axis,
+        "replay": replay_snapshot,
         "sample_count": sample_count,
         "points_returned": int(values.size),
         "downsample_stride": int(stride),
@@ -1577,7 +1328,7 @@ def _psd_fft_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         MAX_PSD_FFT_WINDOW_S,
         max(0.1, _float_query(query, "duration_s", DEFAULT_PSD_FFT_WINDOW_S)),
     )
-    start_time_s = _clean(_first(query, "start_time_s"))
+    start_time_raw = _clean(_first(query, "start_time_s"))
     max_bins = min(MAX_PSD_FFT_BINS, max(64, _int_query(query, "max_bins", DEFAULT_PSD_FFT_MAX_BINS)))
     waveform_max_points = min(
         MAX_PSD_WAVEFORM_POINTS,
@@ -1592,6 +1343,23 @@ def _psd_fft_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         max(0.0, _float_query(query, "overlap_fraction", DEFAULT_WELCH_OVERLAP)),
     )
     require_current = _bool_query(query, "require_current", False)
+    try:
+        replay_controller = offline_replay_from_environment()
+        replay_snapshot = replay_controller.snapshot() if replay_controller else None
+        start_time_s = (
+            float(start_time_raw)
+            if start_time_raw is not None
+            else replay_controller.window_start(duration_s) if replay_controller else None
+        )
+    except (OfflineReplayConfigurationError, ValueError) as exc:
+        return {
+            "ok": False,
+            "status": "error",
+            "error": "replay_configuration_failed",
+            "message": format_exception_for_response(exc),
+        }
+    if replay_controller:
+        require_current = False
     process_reader = _bool_query(query, "process_reader", False)
     request_started_s = time.perf_counter()
     reader_fn = (
@@ -1607,7 +1375,7 @@ def _psd_fft_payload(query: dict[str, list[str]]) -> dict[str, Any]:
             acquisition_folder=acquisition_folder,
             sensor_name=sensor_name,
             axis=axis,
-            start_time_s=float(start_time_s) if start_time_s is not None else None,
+            start_time_s=start_time_s,
             duration_s=duration_s,
             require_current=require_current,
             max_duration_s=MAX_PSD_FFT_WINDOW_S,
@@ -1877,6 +1645,7 @@ def _psd_fft_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         "machine_id": actual_machine_id,
         "sensor_name": actual_sensor_name,
         "acquisition_folder": actual_acquisition_folder,
+        "replay": replay_snapshot,
         "source": source_payload,
         "axis": axis,
         "axis_warning": axis_warning,
@@ -2068,6 +1837,16 @@ def _live_sensors_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         }
         for sensor in registry.sensors.values()
     ]
+    try:
+        replay_controller = offline_replay_from_environment()
+        replay_snapshot = replay_controller.snapshot() if replay_controller else None
+    except OfflineReplayConfigurationError as exc:
+        return {
+            "ok": False,
+            "status": "error",
+            "error": "replay_configuration_failed",
+            "message": format_exception_for_response(exc),
+        }
     process_reader = _bool_query(query, "process_reader", False)
     prewarm = _bool_query(query, "prewarm", process_reader)
     process_enabled = board_reader_processes_enabled(default=process_reader)
@@ -2079,6 +1858,7 @@ def _live_sensors_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         "config_path": str(registry.config_path),
         "baseline_sensor_id": registry.baseline_sensor_id,
         "sensors": sensors,
+        "replay": replay_snapshot,
         "board_reader_process_enabled": bool(process_enabled),
         "board_reader_processes": process_statuses,
     }
@@ -2111,8 +1891,6 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
     use_llm = _bool_query(query, "use_llm", require_llm)
     process_reader = _bool_query(query, "process_reader", False)
     skip_cache = _bool_query(query, "skip_cache", False)
-    raw_vote_k = _int_query(query, "vote_k", 0)
-    vote_k = max(1, min(10, raw_vote_k)) if raw_vote_k > 0 else None
     default_model_timeout_s = _env_float_value(
         "AGENT_MONITOR_MODEL_TIMEOUT_S",
         DEFAULT_MONITOR_MODEL_TIMEOUT_S,
@@ -2145,6 +1923,48 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
     requested_model = _clean(_first(query, "model")) or os.environ.get("MAIN_AGENT_MODEL") or os.environ.get("QWEN_MODEL") or DEFAULT_MODEL
     model = requested_model
     request_started_s = time.perf_counter()
+    analysis_start_time_s: float | None = None
+    replay_controller = None
+    replay_claim = None
+    replay_snapshot = None
+    try:
+        replay_controller = offline_replay_from_environment()
+        if replay_controller:
+            # Recorded mode has one decision path: the scheduled immutable
+            # window must pass through codec-v1 and codes_v3.
+            use_llm = True
+            require_llm = True
+            require_current = False
+            replay_snapshot = replay_controller.snapshot()
+            if _chat_is_inflight():
+                paused = _agent_monitor_paused_payload(request_started_s)
+                paused["replay"] = replay_snapshot
+                return paused
+            replay_claim = replay_controller.claim_due_inference()
+            if replay_claim is None:
+                return {
+                    "ok": True,
+                    "status": "waiting",
+                    "waiting_for_replay": True,
+                    "anomaly": False,
+                    "agent": {
+                        "llm_agent_active": False,
+                        "waiting_for_replay": True,
+                    },
+                    "replay": replay_snapshot,
+                    "diagnostics": {
+                        "server_duration_s": time.perf_counter() - request_started_s,
+                    },
+                }
+            analysis_start_time_s = replay_claim.window.start_time_s
+            duration_s = min(10.0, max(0.2, replay_claim.window.duration_s))
+    except OfflineReplayConfigurationError as exc:
+        return {
+            "ok": False,
+            "status": "error",
+            "error": "replay_configuration_failed",
+            "message": format_exception_for_response(exc),
+        }
     process_enabled = board_reader_processes_enabled(default=process_reader)
     cache_key = _agent_monitor_cache_key(
         config_path=config_path,
@@ -2152,6 +1972,7 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         sensor_ids=sensor_ids,
         axis=axis,
         duration_s=duration_s,
+        start_time_s=analysis_start_time_s,
         require_current=require_current,
         use_llm=use_llm,
         model_base_url=model_base_url,
@@ -2172,6 +1993,8 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         cached = _cached_agent_monitor_payload(cache_key, request_started_s=request_started_s)
         if cached is not None:
             return cached
+        if replay_controller and replay_claim:
+            replay_controller.release_claim(replay_claim)
         return _agent_monitor_paused_payload(request_started_s)
 
     try:
@@ -2179,12 +2002,13 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
             config_path=str(config_path),
             baseline_sensor_id=baseline_sensor_id,
             sensor_ids=sensor_ids,
+            start_time_s=analysis_start_time_s,
             duration_s=duration_s,
             axis=axis,
             require_current=require_current,
-            # The monitor path uses the deterministic feature prepass so popup
-            # checks stay fast and reliable. A single compact monitor LLM call
-            # may be layered on top below when requested.
+            # Build measurement and quality context first. When requested,
+            # codes_v3 then rereads synchronized 10 s windows, encodes them
+            # with codec-v1, and returns a schema-locked verdict.
             use_model_agents=False,
             process_reader=process_enabled,
             model_base_url=None,
@@ -2193,6 +2017,8 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
             model_timeout_s=None,
         )
     except LiveSdkVibrometerDataRequiredError as exc:
+        if replay_controller and replay_claim:
+            replay_controller.release_claim(replay_claim)
         elapsed_s = time.perf_counter() - request_started_s
         return {
             "ok": False,
@@ -2203,6 +2029,8 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
             "diagnostics": {"server_duration_s": elapsed_s},
         }
     except Exception as exc:
+        if replay_controller and replay_claim:
+            replay_controller.release_claim(replay_claim)
         elapsed_s = time.perf_counter() - request_started_s
         return {
             "ok": False,
@@ -2233,18 +2061,14 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
                     if cached is not None:
                         return cached
 
-            model = _auto_select_agent_model(
-                base_url=model_base_url,
-                api_key=model_api_key,
-                requested_model=requested_model,
-            )
-            result = _apply_monitor_llm_decision(
+            result = _apply_codes_monitor_decision(
                 result,
+                start_time_s=analysis_start_time_s,
+                require_current=require_current,
                 model_base_url=model_base_url,
                 model_api_key=model_api_key,
                 model=model,
                 model_timeout_s=model_timeout_s,
-                vote_k=vote_k,
                 config_path=str(config_path),
                 process_reader=process_enabled,
             )
@@ -2258,11 +2082,13 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
             require_llm=require_llm,
         )
         if require_llm and not agent_status["llm_agent_active"]:
+            if replay_controller and replay_claim:
+                replay_controller.release_claim(replay_claim)
             return {
                 "ok": False,
                 "status": "error",
                 "error": "llm_agent_unavailable",
-                "message": "Qwen monitor LLM is required for autonomous monitoring, but the compact monitor decision fell back.",
+                "message": "The codes_v3 monitor model is required, but the codec/model decision failed.",
                 "agent": agent_status,
                 "result": result,
                 "diagnostics": {
@@ -2282,6 +2108,7 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
                 "baseline_sensor_id": baseline_sensor_id,
                 "sensor_ids": sensor_ids,
                 "axis": axis,
+                "start_time_s": analysis_start_time_s,
                 "duration_s": duration_s,
                 "require_current": require_current,
                 "use_llm": use_llm,
@@ -2296,6 +2123,10 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         payload = {
             "ok": True,
             "status": "ok",
+            "replay": (
+                {**replay_snapshot, "inference": replay_claim.as_dict()}
+                if replay_snapshot is not None and replay_claim is not None else None
+            ),
             "agent": agent_status,
             "anomaly": bool(popup["show_popup"]),
             "popup": popup,
@@ -2314,7 +2145,6 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
             _AGENT_MONITOR_LOCK.release()
 
 
-_AGENT_MODEL_CACHE: dict[tuple[str, str], str] = {}
 _AGENT_MONITOR_LOCK = threading.Lock()
 _AGENT_MONITOR_CACHE_MAX_AGE_S = 90.0
 _AGENT_MONITOR_CACHE: dict[tuple[Any, ...], tuple[float, dict[str, Any]]] = {}
@@ -2382,6 +2212,7 @@ def _agent_monitor_cache_key(
     sensor_ids: str | None,
     axis: str,
     duration_s: float,
+    start_time_s: float | None = None,
     require_current: bool,
     use_llm: bool,
     model_base_url: str,
@@ -2395,6 +2226,7 @@ def _agent_monitor_cache_key(
         sensor_ids or "",
         axis,
         round(float(duration_s), 3),
+        round(float(start_time_s), 3) if start_time_s is not None else None,
         bool(require_current),
         bool(use_llm),
         bool(process_reader),
@@ -2468,10 +2300,7 @@ def _register_anomaly_window(
             "network_label": popup.get("network_label") or assessment.get("network_label"),
             "severity": popup.get("severity"),
             "confidence": popup.get("confidence"),
-            "label_uncertain": bool(popup.get("label_uncertain")),
-            "vote_agreement": popup.get("vote_agreement"),
-            "descriptor": popup.get("descriptor"),
-            "descriptor_text": popup.get("descriptor_text"),
+            "status_text": popup.get("status_text"),
             "reference_x_median": popup.get("reference_x_median"),
             "history_n": popup.get("history_n"),
             "history_percentile": popup.get("history_percentile"),
@@ -2565,34 +2394,10 @@ def _safe_anomaly_window_id(value: str) -> str:
     return safe[:160] or f"anomaly-{os.urandom(4).hex()}"
 
 
-def _auto_select_agent_model(*, base_url: str, api_key: str, requested_model: str) -> str:
-    cache_key = (base_url, requested_model)
-    cached = _AGENT_MODEL_CACHE.get(cache_key)
-    if cached:
-        return cached
-
-    selected = requested_model
-    try:
-        client = _load_openai_client(base_url=base_url, api_key=api_key)
-        model_ids = [str(item.id) for item in client.models.list().data]
-    except Exception:
-        model_ids = []
-
-    if model_ids and requested_model not in model_ids:
-        qwen_instruct = [
-            model_id
-            for model_id in model_ids
-            if "qwen" in model_id.lower() and "instruct" in model_id.lower()
-        ]
-        selected = qwen_instruct[0] if qwen_instruct else model_ids[0]
-    _AGENT_MODEL_CACHE[cache_key] = selected
-    return selected
-
-
 def _mark_monitor_llm_skipped(result: dict[str, Any], *, reason: str = "disabled_by_request") -> dict[str, Any]:
     result_metadata = dict(result.get("model_metadata") or {})
     fallbacks = list(result_metadata.get("fallbacks_used") or [])
-    fallback = f"qwen_autonomous_monitor:{reason}"
+    fallback = f"codes_v3_monitor:{reason}"
     if fallback not in fallbacks:
         fallbacks.append(fallback)
     result_metadata.update(
@@ -2715,8 +2520,6 @@ def _record_window_history(result: dict[str, Any], popup: dict[str, Any]) -> Non
         "q": 1 if any_quality else 0,
         "sensors": sensors,
     }
-    if popup.get("label_uncertain"):
-        entry["u"] = 1
     if ref_rms is not None:
         entry["ref_rms"] = ref_rms
     global _WINDOW_HISTORY_APPENDS
@@ -2853,323 +2656,16 @@ def _attach_window_history_context(result: dict[str, Any]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Structured monitor descriptor — the model's decision as orthogonal fields
-# instead of one fused label. extent × character × persistence describe the
-# vibration situation; data carries the trust state. The legacy 7-label
-# vocabulary is kept as a deterministic projection (renaming, not judgment) so
-# severities, dedupe keys, the registry, and the Anomalies panel stay stable.
+# Current monitor decision path: synchronized windows -> codec-v1 -> codes_v3.
 # ---------------------------------------------------------------------------
-DESCRIPTOR_EXTENTS = ("none", "one", "several", "all")
-DESCRIPTOR_CHARACTERS = ("amplitude", "spectral", "impulsive", "mixed")
-DESCRIPTOR_PERSISTENCE = ("transient", "sustained", "growing")
-DESCRIPTOR_DATA = ("ok", "quality", "insufficient")
-
-
-def _extent_from_affected(affected_count: int, target_count: int) -> str:
-    """Extent is COUNTED from the model's own affected list, never generated
-    separately — a generated extent could contradict the list it describes
-    ("one sensor" next to two affected ids, observed live 2026-07-06)."""
-    if affected_count <= 0:
-        return "none"
-    if affected_count == 1:
-        return "one"
-    if target_count > 0 and affected_count >= target_count:
-        return "all"
-    return "several"
-
-
-def _parse_monitor_descriptor(
-    data: dict[str, Any],
-    *,
-    known_sensor_ids: list[str],
-) -> tuple[dict[str, str] | None, list[str], str | None]:
-    """Validate the model's decision fields and derive extent from its affected list.
-
-    Returns (descriptor, affected_ids, error). The affected list is deduplicated
-    and filtered to real sensor ids (a hallucinated id cannot enter the report).
-    """
-    raw_affected = data.get("affected")
-    if not isinstance(raw_affected, list):
-        return None, [], "model_output_missing_affected"
-    known = set(known_sensor_ids)
-    affected = [item for item in dict.fromkeys(str(value) for value in raw_affected) if item in known]
-    descriptor = {
-        "extent": _extent_from_affected(len(affected), len(known_sensor_ids)),
-        "character": str(data.get("character") or "").strip().lower(),
-        "persistence": str(data.get("persistence") or "").strip().lower(),
-        "data": str(data.get("data") or "").strip().lower(),
-    }
-    for key, allowed in (
-        ("character", DESCRIPTOR_CHARACTERS),
-        ("persistence", DESCRIPTOR_PERSISTENCE),
-        ("data", DESCRIPTOR_DATA),
-    ):
-        if descriptor[key] not in allowed:
-            return None, [], f"model_output_invalid_descriptor_{key}"
-    return descriptor, affected, None
-
-
-def _legacy_label_from_descriptor(descriptor: dict[str, str], assessment: dict[str, Any]) -> str:
-    """Mechanical projection of the descriptor onto the legacy 7-label vocabulary.
-
-    Pure renaming for compatibility (severity mapping, dedupe keys, registry,
-    panel episodes) — the judgment itself is the model's descriptor. The
-    mild/significant split reuses the deterministic prepass sensor sets, which
-    are measurements.
-    """
-    if descriptor["data"] == "insufficient":
-        return "insufficient_data"
-    if descriptor["data"] == "quality":
-        return "sensor_network_quality_issue"
-    extent = descriptor["extent"]
-    if extent == "none":
-        return "normal_relative_to_reference_sensor"
-    mild_only = not _string_list(assessment.get("significant_sensor_ids"))
-    if extent == "one":
-        return "mild_local_deviation" if mild_only else "localized_vibration_deviation"
-    return "mild_multi_sensor_deviation" if mild_only else "multi_sensor_structure_wide_vibration_event"
-
-
-def _descriptor_text(descriptor: dict[str, str]) -> str:
-    if descriptor["data"] == "insufficient":
-        return "insufficient data to judge"
-    if descriptor["data"] == "quality":
-        return "sensor data quality issue"
-    if descriptor["extent"] == "none":
-        return "no deviation from the reference"
-    extent_phrase = {
-        "one": "one sensor",
-        "several": "several sensors",
-        "all": "all sensors",
-    }[descriptor["extent"]]
-    return f"{extent_phrase} · {descriptor['persistence']} {descriptor['character']} deviation"
-
-
-# Previous monitor decision, so the model can judge persistence (transient vs
-# sustained vs growing) from real temporal context instead of a single window.
-# Mutated only under _AGENT_MONITOR_LOCK.
-_MONITOR_PREV_DECISION: dict[str, Any] = {"extent": None, "character": None, "polls": 0, "hx": None}
-
-
-def _update_monitor_prev_decision(descriptor: dict[str, str], history_summary: dict[str, Any] | None) -> None:
-    same = (
-        descriptor["extent"] == _MONITOR_PREV_DECISION.get("extent")
-        and descriptor["character"] == _MONITOR_PREV_DECISION.get("character")
-    )
-    _MONITOR_PREV_DECISION.update(
-        {
-            "extent": descriptor["extent"],
-            "character": descriptor["character"],
-            "polls": (_MONITOR_PREV_DECISION.get("polls") or 0) + 1 if same else 1,
-            "hx": (history_summary or {}).get("x_median"),
-        }
-    )
-
-
-# Per-episode vote tally: extent of the last monitor decision and every sampled
-# re-decision collected so far in the episode. Mutated only under
-# _AGENT_MONITOR_LOCK (the use_llm monitor path is serialized on it).
-_MONITOR_VOTE_STATE: dict[str, Any] = {"label": None, "votes": []}
-_MONITOR_VOTE_BUDGET_S = 24.0
-# Stop growing the tally once it is this long: windows drift over a long episode, so
-# very old votes should not keep diluting the estimate forever.
-_MONITOR_VOTE_MAX_TALLY = 40
-
-
-def _perturb_monitor_payload(payload: dict[str, Any], *, seed: int, relative_sigma: float) -> dict[str, Any]:
-    """A copy of the monitor payload with the target measurements jittered by typical
-    window-to-window noise (multiplicative Gaussian for the non-negative magnitudes,
-    additive for the frequency shift). Seeded, so each vote index reproducibly sees the
-    same perturbation for a given window."""
-    rng = random.Random(seed)
-    perturbed = copy.deepcopy(payload)
-    for row in perturbed.get("targets") or []:
-        before = {key: _safe_float(row.get(key)) for key in ("rms", "peak", "ppv", "spec")}
-        for key in ("rms", "peak", "ppv", "spec"):
-            value = before.get(key)
-            if value is not None:
-                row[key] = _round_monitor_value(max(0.0, value * (1.0 + rng.gauss(0.0, relative_sigma))))
-        df = _safe_float(row.get("df"))
-        if df is not None:
-            row["df"] = _round_monitor_value(df + rng.gauss(0.0, max(0.5, abs(df) * relative_sigma)))
-        # hx is derived from one of the jittered metrics (hm), so it must move by
-        # exactly that metric's jitter factor to stay consistent inside the probe.
-        hx = _safe_float(row.get("hx"))
-        source = str(row.get("hm") or "")
-        if hx is not None and before.get(source) and _safe_float(row.get(source)) is not None:
-            row["hx"] = _round_monitor_value(max(0.0, hx * (_safe_float(row.get(source)) / before[source])))
-    return perturbed
-
-
-def _post_monitor_vote(
-    *,
-    base_url: str,
-    api_key: str,
-    model: str,
-    prompt: str,
-    sampler: dict[str, Any],
-    sensor_ids: list[str],
-    timeout_s: float,
-) -> str | None:
-    """One re-decision: the probe names the affected sensors (grammar-locked to the
-    real ids) and the vote is the EXTENT COUNTED from that list — the same derivation
-    as the main decision, so probes and decision cannot diverge in definition. The
-    sampler dict chooses the mode: greedy (perturbation votes — the only variation is
-    the data jitter) or temperature 1 with an explicit open sampler and seed (sampling
-    votes — the C plugin's default is greedy top-k 1, which would otherwise make
-    temperature and seed no-ops)."""
-    body = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": "Return strict JSON only. Do not include markdown."},
-            {"role": "user", "content": prompt},
-        ],
-        **sampler,
-        "max_tokens": 48,
-        "timeout_s": round(max(1.0, timeout_s), 3),
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "monitor_vote",
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "affected": {
-                            "type": "array",
-                            "items": {"enum": sorted(sensor_ids)} if sensor_ids else {"type": "string"},
-                        }
-                    },
-                    "required": ["affected"],
-                },
-            },
-        },
-    }
-    request = Request(
-        f"{base_url.rstrip('/')}/chat/completions",
-        data=json.dumps(body).encode("utf-8"),
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key or 'EMPTY'}"},
-        method="POST",
-    )
-    with urlopen(request, timeout=timeout_s + 5.0) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-    text = str(((payload.get("choices") or [{}])[0].get("message") or {}).get("content") or "")
-    raw_affected = json.loads(text).get("affected")
-    if not isinstance(raw_affected, list):
-        return None
-    known = set(sensor_ids)
-    affected = [item for item in dict.fromkeys(str(value) for value in raw_affected) if item in known]
-    return _extent_from_affected(len(affected), len(sensor_ids))
-
-
-def _monitor_vote_confidence(
-    *,
-    result: dict[str, Any],
-    descriptor: dict[str, str],
-    model_base_url: str,
-    model_api_key: str,
-    model: str,
-    vote_k: int | None = None,
-) -> dict[str, Any] | None:
-    """Decision-stability agreement for the monitor decision (the uncertainty gate).
-
-    Default mode (VIBRO_MONITOR_VOTE_MODE=sample, user-chosen 2026-07-06): each
-    vote re-decides the SAME unmodified window at temperature 1 with a distinct
-    seed — a Monte-Carlo estimate of the model's own decision stability on the
-    evidence at hand. Alternative mode (=perturb): re-decides GREEDILY on
-    measurements jittered by typical window-to-window noise
-    (VIBRO_MONITOR_PERTURB_PCT, default 10%), measuring distance to a decision
-    boundary instead; more sensitive for a decisive model, which answers
-    unanimously under sampling even on borderline windows.
-    A new episode (extent change) starts with a burst of k votes (vote_k request
-    override, else VIBRO_MONITOR_VOTE_K, default 5; k=1 means a single probe);
-    while the situation persists, each poll adds one more. The share is NOT the
-    displayed confidence: the popup shows the model's generated evidence-strength
-    number, and this share only gates it — below the uncertainty threshold the
-    label is flagged uncertain and the share takes over the display (see
-    _apply_monitor_llm_decision). Returns None when voting is unavailable (chat
-    holding the NPU, endpoint down, too few valid votes). Disable entirely with
-    VIBRO_MONITOR_CONFIDENCE=generated.
-    """
-    if (os.environ.get("VIBRO_MONITOR_CONFIDENCE") or "votes").strip().lower() != "votes":
-        return None
-    # The gate probes the primary decision axis: would the EXTENT survive
-    # re-measurement? (Character/persistence flips are less operationally
-    # critical and would make the gate fire on descriptive nuance.)
-    expected_code = descriptor["extent"]
-    episode_key = f"{descriptor['extent']}|{descriptor['data']}"
-    if episode_key != _MONITOR_VOTE_STATE["label"]:
-        _MONITOR_VOTE_STATE.update({"label": episode_key, "votes": []})
-    votes: list[str] = _MONITOR_VOTE_STATE["votes"]
-    k = vote_k if vote_k is not None else _env_int_value("VIBRO_MONITOR_VOTE_K", 5, minimum=1)
-    k = max(1, min(10, int(k)))
-    if len(votes) < k:
-        needed = k - len(votes)  # burst at episode start (or refill after failures)
-    elif len(votes) < _MONITOR_VOTE_MAX_TALLY:
-        needed = 1  # steady state: one refinement vote per poll
-    else:
-        needed = 0
-    mode = (os.environ.get("VIBRO_MONITOR_VOTE_MODE") or "sample").strip().lower()
-    perturb_sigma = _env_float_value("VIBRO_MONITOR_PERTURB_PCT", 10.0, minimum=1.0) / 100.0
-    payload = _monitor_llm_payload(result)
-    sensor_ids = sorted(
-        {str(report.get("sensor_id") or "") for report in result.get("sensor_agent_reports") or []} - {""}
-    )
-    deadline = time.monotonic() + _MONITOR_VOTE_BUDGET_S
-    for _ in range(needed):
-        remaining = deadline - time.monotonic()
-        if remaining <= 1.0 or _chat_is_inflight():
-            break
-        vote_index = len(votes) + 1
-        if mode == "perturb":
-            vote_prompt = _render_monitor_prompt(
-                _perturb_monitor_payload(payload, seed=vote_index, relative_sigma=perturb_sigma)
-            )
-            sampler: dict[str, Any] = {"temperature": 0.0}
-        else:
-            vote_prompt = _render_monitor_prompt(payload)
-            sampler = {"temperature": 1.0, "top_k": 100, "top_p": 1.0, "seed": vote_index}
-        try:
-            code = _post_monitor_vote(
-                base_url=model_base_url,
-                api_key=model_api_key,
-                model=model,
-                prompt=vote_prompt,
-                sampler=sampler,
-                sensor_ids=sensor_ids,
-                timeout_s=min(8.0, remaining),
-            )
-        except (HTTPError, URLError, TimeoutError, OSError):
-            break  # endpoint unavailable: further attempts would fail the same way
-        except Exception:
-            continue  # one malformed vote does not invalidate the others
-        if code:
-            votes.append(code)
-    if len(votes) < min(2, k):
-        return None
-    agree = votes.count(expected_code)
-    agreement = round(agree / len(votes), 3)
-    metadata = {
-        "monitor_vote_mode": mode,
-        "monitor_vote_n": len(votes),
-        "monitor_vote_agree": agree,
-        "monitor_vote_agreement": agreement,
-        "monitor_vote_codes": votes[-10:],
-    }
-    return {"agreement": agreement, "metadata": metadata}
-
-
-_CODES_MONITOR_MODE_ENV = "VIBRO_MONITOR_DECISION_MODE"
-_CODES_WORKER_WINDOW_S = 10.5  # read margin so the worker's exact 10 s fits
-
-
-def _codes_monitor_mode_enabled() -> bool:
-    value = (os.environ.get(_CODES_MONITOR_MODE_ENV) or "").strip().lower()
-    return value in {"codes", "codes_v3"}
+_CODES_WORKER_WINDOW_S = 10.5  # live-read margin; fixed replay reads exactly 10 s
 
 
 def _apply_codes_monitor_decision(
     result: dict[str, Any],
     *,
+    start_time_s: float | None = None,
+    require_current: bool = True,
     model_base_url: str,
     model_api_key: str,
     model: str,
@@ -3177,15 +2673,13 @@ def _apply_codes_monitor_decision(
     config_path: str | None = None,
     process_reader: bool = False,
 ) -> dict[str, Any]:
-    """codes_v3 decision: raw windows -> codec-v1 codes -> finetuned model.
+    """Run the only supported monitor decision path.
 
-    Replaces the descriptor LLM call when VIBRO_MONITOR_DECISION_MODE=codes:
-    the six live windows are encoded by the frozen codec-v1 checkpoint in
-    the codec-cpu-venv worker and the codes_v3 SFT model judges the five
-    targets against the baseline. Its labels ARE the legacy vocabulary, so
-    they merge into the panel fields directly. Every failure is reported as
-    a model failure (LLM-only policy) — the deterministic prepass label is
-    never promoted to a model decision.
+    Six synchronized live or fixed replay windows are encoded by the frozen
+    codec-v1 checkpoint in the isolated CPU worker. The codes_v3 model then judges
+    the five targets against the baseline under a strict JSON schema.
+    Failures stay explicit: deterministic prepass labels are never presented
+    as a model verdict.
     """
     import shutil
     import subprocess
@@ -3242,6 +2736,7 @@ def _apply_codes_monitor_decision(
         if axis not in {"x", "y", "z", "0", "1", "2"}:
             return _failed(f"bad_axis:{axis!r} (single axes only, no norm)")
     axis_passes: list[str | None] = list(axes) or [None]
+    read_duration_s = 10.0 if start_time_s is not None else _CODES_WORKER_WINDOW_S
 
     worker_python = os.environ.get(
         "VIBRO_CODES_WORKER_PYTHON", "/home/ubuntu/codec-cpu-venv/bin/python")
@@ -3273,8 +2768,9 @@ def _apply_codes_monitor_decision(
                     acquisition_folder=sensor.acquisition_folder,
                     sensor_name=sensor.hsd_sensor_name,
                     axis=axis_override or sensor.axis,
-                    duration_s=_CODES_WORKER_WINDOW_S,
-                    require_current=True,
+                    start_time_s=start_time_s,
+                    duration_s=read_duration_s,
+                    require_current=require_current,
                 )
             except Exception as exc:
                 return None, (f"live_read_failed:{slot}:"
@@ -3422,9 +2918,8 @@ def _apply_codes_monitor_decision(
             "main_agent_label": network_label,
             "network_label": network_label,
             "affected_sensor_ids": affected,
-            "descriptor_text": "codes_v3: " + network_label.replace("_", " "),
-            "confidence_source": "codes_v3_schema",
-            "label_uncertain": False,
+            "status_text": "codes_v3: " + network_label.replace("_", " "),
+            "main_agent_confidence": None,
             "explanation": summary,
             "model_metadata": model_result_metadata,
         }
@@ -3475,436 +2970,6 @@ def _apply_codes_monitor_decision(
     return result
 
 
-def _apply_monitor_llm_decision(
-    result: dict[str, Any],
-    *,
-    model_base_url: str,
-    model_api_key: str,
-    model: str,
-    model_timeout_s: float = 8.0,
-    vote_k: int | None = None,
-    config_path: str | None = None,
-    process_reader: bool = False,
-) -> dict[str, Any]:
-    if _existing_pipeline_llm_active(result):
-        return result
-    if _codes_monitor_mode_enabled():
-        return _apply_codes_monitor_decision(
-            result,
-            model_base_url=model_base_url,
-            model_api_key=model_api_key,
-            model=model,
-            model_timeout_s=model_timeout_s,
-            config_path=config_path,
-            process_reader=process_reader,
-        )
-
-    prompt = _build_monitor_llm_prompt(result)
-    prompt_chars = len(prompt)
-    prompt_estimated_tokens = _estimate_prompt_tokens(prompt)
-    max_prompt_chars, max_prompt_tokens = _monitor_prompt_budget()
-    server_timeout_override = _local_genie_timeout_override(model_base_url, model_timeout_s)
-    result_metadata = dict(result.get("model_metadata") or {})
-    result_metadata.update(
-        {
-            "monitor_llm_prompt_chars": prompt_chars,
-            "monitor_llm_prompt_estimated_tokens": prompt_estimated_tokens,
-            "monitor_llm_prompt_budget_chars": max_prompt_chars,
-            "monitor_llm_prompt_budget_tokens": max_prompt_tokens,
-            "monitor_llm_timeout_s": round(float(model_timeout_s), 3),
-            "monitor_llm_server_timeout_override": bool(server_timeout_override),
-        }
-    )
-
-    if prompt_chars > max_prompt_chars or prompt_estimated_tokens > max_prompt_tokens:
-        reason = (
-            "prompt_budget_exceeded("
-            f"chars={prompt_chars}/{max_prompt_chars},"
-            f"est_tokens={prompt_estimated_tokens}/{max_prompt_tokens})"
-        )
-        result_metadata.update(
-            {
-                "agent_mode": "single_llm_monitor",
-                "monitor_llm_model_used": False,
-                "monitor_llm_fallback_reason": reason,
-                "fallbacks_used": [f"qwen_autonomous_monitor:{reason}"],
-            }
-        )
-        result["model_metadata"] = result_metadata
-        return result
-
-    model_client = ModelClient(
-        base_url=model_base_url,
-        api_key=model_api_key,
-        model=model,
-        base_url_env="MAIN_AGENT_BASE_URL",
-        api_key_env="MAIN_AGENT_API_KEY",
-        model_env="MAIN_AGENT_MODEL",
-        role="qwen_autonomous_monitor",
-        timeout_s=model_timeout_s,
-        max_tokens=_env_int_value("AGENT_MONITOR_MAX_TOKENS", DEFAULT_MONITOR_MAX_TOKENS, minimum=32),
-    )
-    # Grammar-enforce the response shape on the GenieX shim (schema→GBNF): the decision
-    # fields first (affected sensors + character × persistence × data — extent is
-    # counted from the affected list, never generated), then the model's own confidence
-    # number, then the summary. Adapters without json_schema support ignore
-    # response_format and fall back to prompt-guided JSON.
-    monitor_sensor_ids = sorted(
-        {str(report.get("sensor_id") or "") for report in result.get("sensor_agent_reports") or []} - {""}
-    )
-    monitor_response_format = {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "monitor_decision",
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "affected": {
-                        "type": "array",
-                        "items": {"enum": monitor_sensor_ids} if monitor_sensor_ids else {"type": "string"},
-                    },
-                    "character": {"enum": list(DESCRIPTOR_CHARACTERS)},
-                    "persistence": {"enum": list(DESCRIPTOR_PERSISTENCE)},
-                    "data": {"enum": list(DESCRIPTOR_DATA)},
-                    "confidence": {"type": "number"},
-                    "summary": {"type": "string"},
-                },
-                "required": ["affected", "character", "persistence", "data", "confidence", "summary"],
-            },
-        },
-    }
-    monitor_extra_body = {"response_format": monitor_response_format}
-    monitor_extra_body.update(server_timeout_override or {})
-    model_result = model_client.call_json_model(
-        prompt,
-        allowed_labels=None,
-        extra_body=monitor_extra_body,
-    )
-
-    if not model_result.ok or not model_result.data:
-        reason = model_result.error or (model_result.metadata or {}).get("fallback_reason") or "model_call_failed"
-        result_metadata.update(
-            {
-                "agent_mode": "single_llm_monitor",
-                "monitor_llm_model_used": False,
-                "monitor_llm_fallback_reason": reason,
-                "fallbacks_used": [f"qwen_autonomous_monitor:{reason}"],
-            }
-        )
-        result["model_metadata"] = result_metadata
-        return result
-
-    data = model_result.data
-    rejected_terms = find_out_of_domain_component_terms({"data": data, "text": model_result.text})
-    if rejected_terms:
-        reason = "model_output_rejected_for_out_of_domain_language"
-        fallbacks = list(result_metadata.get("fallbacks_used") or [])
-        fallback = f"qwen_autonomous_monitor:{reason}"
-        if fallback not in fallbacks:
-            fallbacks.append(fallback)
-        result_metadata.update(
-            {
-                "agent_mode": "single_llm_monitor",
-                "monitor_llm_model_used": False,
-                "monitor_llm_fallback_reason": reason,
-                "monitor_llm_domain_guard_triggered": True,
-                "monitor_llm_rejected_term_count": len(rejected_terms),
-                "fallbacks_used": fallbacks,
-            }
-        )
-        result["model_metadata"] = result_metadata
-        return result
-
-    def _monitor_llm_failed(reason: str) -> dict[str, Any]:
-        # LLM-only policy: an unusable model decision is reported as a model
-        # failure. The deterministic prepass label is never silently promoted
-        # to "the LLM's decision" (require_llm then surfaces the error).
-        fallbacks = list(result_metadata.get("fallbacks_used") or [])
-        fallback = f"qwen_autonomous_monitor:{reason}"
-        if fallback not in fallbacks:
-            fallbacks.append(fallback)
-        result_metadata.update(
-            {
-                "agent_mode": "single_llm_monitor",
-                "monitor_llm_model_used": False,
-                "monitor_llm_fallback_reason": reason,
-                "fallbacks_used": fallbacks,
-            }
-        )
-        result["model_metadata"] = result_metadata
-        return result
-
-    descriptor, model_affected, descriptor_error = _parse_monitor_descriptor(
-        data, known_sensor_ids=monitor_sensor_ids
-    )
-    if descriptor is None:
-        return _monitor_llm_failed(descriptor_error or "model_output_invalid_descriptor")
-    # The descriptor IS the model's decision; the legacy label is a mechanical
-    # projection kept for severity mapping, dedupe keys, registry, and panel.
-    label = _legacy_label_from_descriptor(descriptor, result.get("network_assessment") or {})
-    confidence = _safe_float(data.get("confidence"))
-    vote = _monitor_vote_confidence(
-        result=result,
-        descriptor=descriptor,
-        model_base_url=model_base_url,
-        model_api_key=model_api_key,
-        model=model,
-        vote_k=vote_k,
-    )
-    assessment = dict(result.get("network_assessment") or {})
-    assessment["descriptor"] = descriptor
-    assessment["descriptor_text"] = _descriptor_text(descriptor)
-    # The model's own affected list replaces the rule's: the popup extent is
-    # counted from this exact list, so the two can never contradict.
-    assessment["affected_sensor_ids"] = model_affected
-    assessment["main_agent_label"] = label
-    assessment["network_label"] = label
-    generated = max(0.0, min(1.0, confidence)) if confidence is not None else None
-    uncertain_below = _env_float_value("VIBRO_MONITOR_VOTE_UNCERTAIN_BELOW", 0.6)
-    if vote is not None:
-        assessment["vote_agreement"] = vote["agreement"]
-        result_metadata.update(vote["metadata"])
-    if vote is not None and vote["agreement"] < uncertain_below:
-        # The model is genuinely torn on this label: the sampled agreement share
-        # replaces the evidence-strength number and the label is flagged.
-        assessment["main_agent_confidence"] = vote["agreement"]
-        assessment["confidence_source"] = "model_votes_low_agreement"
-        assessment["label_uncertain"] = True
-        if generated is not None:
-            assessment["main_agent_generated_confidence"] = generated
-    elif generated is not None:
-        # Displayed confidence = the model's generated evidence-strength number;
-        # the vote share above is its uncertainty gate, not the display value.
-        assessment["main_agent_confidence"] = generated
-        assessment["confidence_source"] = "model"
-        assessment["label_uncertain"] = False
-    summary = str(data.get("summary") or "").strip()
-    if _is_placeholder_monitor_summary(summary):
-        return _monitor_llm_failed("model_summary_missing_or_placeholder")
-    if "certified structural safety assessment" not in summary.lower():
-        summary = (
-            f"{summary} This is monitoring/triage information, not a certified structural safety assessment."
-        )
-    assessment["explanation"] = summary
-    result["main_agent_explanation"] = summary
-    for key in ("affected_sensor_ids", "significant_sensor_ids", "mild_sensor_ids", "quality_flags", "evidence"):
-        values = _string_list(data.get(key))
-        if values:
-            assessment[key] = values
-    assessment["model_metadata"] = model_result.metadata
-    result["network_assessment"] = assessment
-    _update_monitor_prev_decision(descriptor, result.get("history_summary"))
-    result_metadata.update(
-        {
-            "agent_mode": "single_llm_monitor",
-            "monitor_llm_model_used": True,
-            "monitor_llm_model": model,
-            "fallbacks_used": [],
-        }
-    )
-    result["model_metadata"] = result_metadata
-    return result
-
-
-def _existing_pipeline_llm_active(result: dict[str, Any]) -> bool:
-    metadata = result.get("model_metadata") or {}
-    if metadata.get("monitor_llm_model_used") is True:
-        return True
-    reports = result.get("sensor_agent_reports") or []
-    if not reports:
-        return False
-    all_sensor_models_used = all(
-        bool((report.get("model_metadata") or {}).get("model_used"))
-        for report in reports
-    )
-    network_metadata = (result.get("network_assessment") or {}).get("model_metadata") or {}
-    main_model_used = bool(
-        network_metadata.get("model_used")
-        or metadata.get("main_model_used")
-        or (metadata.get("model_used") and not metadata.get("fallbacks_used"))
-    )
-    return bool(main_model_used and all_sensor_models_used)
-
-
-def _build_monitor_llm_prompt(result: dict[str, Any]) -> str:
-    return _render_monitor_prompt(_monitor_llm_payload(result))
-
-
-def _monitor_llm_payload(result: dict[str, Any]) -> dict[str, Any]:
-    assessment = result.get("network_assessment") or {}
-    sensor_reports = result.get("sensor_agent_reports") or []
-    focus_reports, targets_truncated = _monitor_focus_sensor_reports(result)
-    payload = {
-        "net": _compact_network_assessment(assessment),
-        "target_count": len(sensor_reports),
-        "targets_truncated": targets_truncated,
-        "targets": [_compact_monitor_sensor(report) for report in focus_reports],
-    }
-    history_n = ((result.get("history_summary") or {}).get("n"))
-    if history_n is not None:
-        payload["hist_n"] = int(history_n)
-    reference_x = (result.get("reference_history") or {}).get("x_median")
-    if reference_x is not None:
-        payload["ref_hx"] = reference_x
-    if _MONITOR_PREV_DECISION.get("extent"):
-        payload["prev"] = {
-            "extent": _MONITOR_PREV_DECISION["extent"],
-            "character": _MONITOR_PREV_DECISION["character"],
-            "polls": _MONITOR_PREV_DECISION["polls"],
-            "hx": _MONITOR_PREV_DECISION.get("hx"),
-        }
-    return payload
-
-
-def _render_monitor_prompt(payload: dict[str, Any]) -> str:
-    return (
-        "Return JSON only with keys affected, character, persistence, data, confidence and summary. "
-        "Interpret only relative building response, reference comparisons, transient events, and sensor-data quality. "
-        "affected: the exact target ids that truly deviate from the reference this window "
-        "(empty list if none do); list a sensor only when its own numbers justify it. "
-        "character: amplitude (level differs), spectral (frequency content shifted: high spec or df), "
-        "impulsive (short shock), mixed. "
-        "persistence: transient (this window only), sustained (across recent windows, see prev), "
-        "growing (rising versus prev). "
-        "data: ok, quality (sensor data untrustworthy) or insufficient (too little to judge). "
-        "targets: rms/peak/ppv are target-to-reference ratios (near 1 = agreement), spec is spectral distance, "
-        "df is the dominant-frequency shift in Hz. "
-        "hx, when present, is this window as a multiple of that sensor's own normal median for metric hm: "
-        "near 1 typical, large a real departure; absent while the hist_n history is small. "
-        "ref_hx well above 1 means the reference itself is not calm and ratios understate deviations. "
-        "prev is the previous decision and how many polls it persisted. "
-        "confidence: your own 0-to-1 estimate of how clearly these measurements support your descriptor; "
-        "scale it with the margin of the evidence and judge it fresh each window. "
-        "Use only supplied measurements and make no unmeasured causal claims. "
-        "summary is exactly one sentence of at most 18 words. "
-        f"Input:{json.dumps(payload, separators=(',', ':'), sort_keys=True)}"
-    )
-
-
-def _compact_network_assessment(assessment: dict[str, Any]) -> dict[str, Any]:
-    # Quality flags only. The rule's affected/significant/mild lists and label
-    # code are deliberately NOT shown to the model: with the affected-array
-    # output they are copy bait — the model echoed the rule's full list instead
-    # of judging per-sensor numbers ("always all sensors", observed live).
-    return {
-        "q": assessment.get("quality_flags") or [],
-    }
-
-
-def _monitor_focus_sensor_reports(result: dict[str, Any]) -> tuple[list[dict[str, Any]], bool]:
-    reports = list(result.get("sensor_agent_reports") or [])
-    if not reports:
-        return [], False
-
-    assessment = result.get("network_assessment") or {}
-    selected_ids: list[str] = []
-    seen_ids: set[str] = set()
-    for key in ("affected_sensor_ids", "significant_sensor_ids", "mild_sensor_ids"):
-        for sensor_id in _string_list(assessment.get(key)):
-            if sensor_id not in seen_ids:
-                selected_ids.append(sensor_id)
-                seen_ids.add(sensor_id)
-
-    for report in reports:
-        sensor_id = str(report.get("sensor_id") or "").strip()
-        if not sensor_id or sensor_id in seen_ids:
-            continue
-        label = str(report.get("small_agent_label") or "").strip()
-        if report.get("quality_flags") or (label and label != "normal_relative_to_baseline"):
-            selected_ids.append(sensor_id)
-            seen_ids.add(sensor_id)
-
-    if selected_ids:
-        focus_reports = [
-            report
-            for report in reports
-            if str(report.get("sensor_id") or "").strip() in seen_ids
-        ]
-    else:
-        focus_reports = reports[: min(2, len(reports))]
-
-    limit = _env_int_value("AGENT_MONITOR_MAX_TARGETS", DEFAULT_MONITOR_FOCUS_SENSOR_LIMIT, minimum=1)
-    visible_reports = focus_reports[:limit]
-    return visible_reports, len(reports) > len(visible_reports)
-
-
-def _compact_monitor_sensor(report: dict[str, Any]) -> dict[str, Any]:
-    # The model can only vary its confidence with the evidence it can see: give it the
-    # target-to-reference comparison, not just the sensor id (ids alone made every
-    # same-label window an identical prompt, so greedy decoding froze the confidence).
-    comparison = report.get("baseline_comparison") or {}
-    row: dict[str, Any] = {
-        "id": report.get("sensor_id"),
-        "rms": _round_monitor_value(comparison.get("rms_ratio")),
-        "peak": _round_monitor_value(comparison.get("peak_ratio")),
-        "ppv": _round_monitor_value(comparison.get("ppv_ratio")),
-        "spec": _round_monitor_value(comparison.get("spectral_distance")),
-        "df": _round_monitor_value(comparison.get("dominant_frequency_delta_hz")),
-    }
-    flags = _string_list(report.get("quality_flags"))
-    if flags:
-        row["q"] = flags[:3]
-    history = report.get("history_context") or {}
-    if history.get("x_median") is not None:
-        # This window versus the sensor's own learned normal: hx = multiple of the
-        # normal median for metric hm. The percentile stays out of the prompt (it
-        # saturates and cannot be re-derived under perturbation; hx can).
-        row["hx"] = history["x_median"]
-        row["hm"] = history.get("metric")
-    return row
-
-
-def _round_monitor_value(value: Any) -> float | None:
-    number = _safe_float(value)
-    if number is None:
-        return None
-    return float(f"{number:.3g}")
-
-
-def _monitor_prompt_budget() -> tuple[int, int]:
-    return (
-        _env_int_value("AGENT_MONITOR_MAX_PROMPT_CHARS", DEFAULT_MONITOR_MAX_PROMPT_CHARS, minimum=128),
-        _env_int_value(
-            "AGENT_MONITOR_MAX_PROMPT_TOKENS",
-            DEFAULT_MONITOR_MAX_PROMPT_ESTIMATED_TOKENS,
-            minimum=32,
-        ),
-    )
-
-
-def _estimate_prompt_tokens(text: str) -> int:
-    compact = text.strip()
-    if not compact:
-        return 0
-    return max(1, math.ceil(len(compact) / 3.0))
-
-
-def _local_genie_timeout_override(model_base_url: str, timeout_s: float) -> dict[str, Any] | None:
-    parsed = urlparse(model_base_url)
-    host = (parsed.hostname or "").lower()
-    if host not in {"127.0.0.1", "localhost"}:
-        return None
-    if parsed.port != DEFAULT_GENIE_PORT:
-        return None
-    return {"timeout_s": round(max(1.0, float(timeout_s)), 3)}
-
-
-def _compact_text(value: Any, *, max_chars: int) -> str | None:
-    text = " ".join(str(value or "").split())
-    if not text:
-        return None
-    if len(text) <= max_chars:
-        return text
-    if max_chars <= 3:
-        return text[:max_chars]
-    return text[: max_chars - 3].rstrip() + "..."
-
-
-def _is_placeholder_monitor_summary(text: str) -> bool:
-    normalized = " ".join(str(text or "").strip().lower().split())
-    return normalized in {"", "no details available", "n/a", "none"}
-
-
 def _round_float(value: Any) -> float | None:
     number = _safe_float(value)
     if number is None:
@@ -3925,42 +2990,22 @@ def _agent_llm_status(
     model: str,
     require_llm: bool,
 ) -> dict[str, Any]:
-    sensor_reports = result.get("sensor_agent_reports") or []
     result_metadata = result.get("model_metadata") or {}
-    if "monitor_llm_model_used" in result_metadata:
-        monitor_used = bool(result_metadata.get("monitor_llm_model_used"))
-        return {
-            "role": "qwen_building_vibration_monitor",
-            "mode": "single_llm_monitor_required" if require_llm else "single_llm_monitor_with_fallback",
-            "llm_agent_active": monitor_used,
-            "model": model,
-            "base_url": model_base_url,
-            "main_model_used": monitor_used,
-            "small_model_used_count": 0,
-            "small_model_expected_count": 0,
-            "fallbacks_used": list(result_metadata.get("fallbacks_used") or []),
-        }
-    small_used_count = sum(
-        1
-        for report in sensor_reports
-        if bool((report.get("model_metadata") or {}).get("model_used"))
-    )
-    expected_small_count = len(sensor_reports)
-    network_metadata = (result.get("network_assessment") or {}).get("model_metadata") or {}
-    main_model_used = bool(network_metadata.get("model_used") or result_metadata.get("main_model_used"))
-    fallbacks_used = list(result_metadata.get("fallbacks_used") or [])
-    all_small_used = expected_small_count > 0 and small_used_count == expected_small_count
-    llm_agent_active = bool(main_model_used and all_small_used)
+    model_used = bool(result_metadata.get("monitor_llm_model_used"))
     return {
-        "role": "qwen_building_vibration_monitor",
-        "mode": "llm_required" if require_llm else "llm_with_deterministic_fallback",
-        "llm_agent_active": llm_agent_active,
+        "role": "codes_v3_building_vibration_monitor",
+        "mode": (
+            "codes_v3_monitor_required"
+            if require_llm
+            else "codes_v3_monitor_optional"
+        ),
+        "llm_agent_active": model_used,
         "model": model,
         "base_url": model_base_url,
-        "main_model_used": main_model_used,
-        "small_model_used_count": small_used_count,
-        "small_model_expected_count": expected_small_count,
-        "fallbacks_used": fallbacks_used,
+        "main_model_used": model_used,
+        "small_model_used_count": 0,
+        "small_model_expected_count": 0,
+        "fallbacks_used": list(result_metadata.get("fallbacks_used") or []),
     }
 
 
@@ -3984,13 +3029,10 @@ def _build_agent_popup(result: dict[str, Any]) -> dict[str, Any]:
     anomaly = label in ANOMALOUS_NETWORK_LABELS or bool(anomalous_reports)
     severity = _agent_severity(label, significant, mild, anomalous_reports)
     confidence = _safe_float(assessment.get("main_agent_confidence"))
-    label_uncertain = bool(assessment.get("label_uncertain"))
-    vote_agreement = _safe_float(assessment.get("vote_agreement"))
     history = result.get("history_summary") or {}
     history_learning = bool(history.get("learning"))
     reference_history = result.get("reference_history") or {}
-    descriptor = assessment.get("descriptor")
-    descriptor_text = str(assessment.get("descriptor_text") or "").strip()
+    status_text = str(assessment.get("status_text") or "").strip()
     explanation = str(assessment.get("explanation") or result.get("main_agent_explanation") or "").strip()
     sensor_text = ", ".join(affected[:6]) if affected else "none"
     confidence_text = f" Confidence {confidence * 100:.1f}%." if confidence is not None else ""
@@ -4006,14 +3048,7 @@ def _build_agent_popup(result: dict[str, Any]) -> dict[str, Any]:
             f" Caution: the reference sensor itself is at {reference_x:.1f}x its normal level, "
             "so target-to-reference ratios understate deviations."
         )
-    if label_uncertain:
-        agreement_text = (
-            f" only {vote_agreement * 100:.0f}% of re-checks kept this label"
-            if vote_agreement is not None
-            else " re-checks disagreed on this label"
-        )
-        confidence_text += f" Label uncertain:{agreement_text}."
-    headline = descriptor_text.capitalize() if descriptor_text else _labelize(label)
+    headline = status_text.capitalize() if status_text else _labelize(label)
     message = (
         f"{headline}. Affected sensors: {sensor_text}.{confidence_text} {explanation}".strip()
         if anomaly
@@ -4026,10 +3061,7 @@ def _build_agent_popup(result: dict[str, Any]) -> dict[str, Any]:
         "message": message,
         "network_label": label,
         "confidence": confidence,
-        "label_uncertain": label_uncertain,
-        "vote_agreement": vote_agreement,
-        "descriptor": descriptor,
-        "descriptor_text": descriptor_text or None,
+        "status_text": status_text or None,
         "reference_x_median": reference_history.get("x_median"),
         "history_learning": history_learning,
         "history_n": history.get("n"),
@@ -4097,103 +3129,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run the VibroAgent loaded-model webchat")
     parser.add_argument("--host", default="127.0.0.1", help="Bind host")
     parser.add_argument("--port", type=int, default=7860, help="Bind port")
-    parser.add_argument(
-        "--npu",
-        action="store_true",
-        default=_env_bool("WEBCHAT_START_GENIE", False),
-        help="Start the Qualcomm Genie OpenAI-compatible adapter inside the webchat process.",
-    )
-    parser.add_argument("--genie-host", default=os.environ.get("GENIE_ADAPTER_HOST", DEFAULT_GENIE_HOST))
-    parser.add_argument(
-        "--genie-port",
-        type=int,
-        default=_env_int_value("GENIE_ADAPTER_PORT", DEFAULT_GENIE_PORT, minimum=1),
-    )
-    parser.add_argument("--qairt-sdk-root", default=os.environ.get("QAIRT_SDK_ROOT"))
-    parser.add_argument("--genie-config", default=os.environ.get("GENIE_CONFIG") or str(DEFAULT_GENIE_CONFIG))
-    parser.add_argument("--genie-runner", default=os.environ.get("GENIE_RUNNER"))
-    parser.add_argument(
-        "--genie-persistent",
-        action=argparse.BooleanOptionalAction,
-        default=_env_bool("GENIE_PERSISTENT", True),
-        help="Keep one loaded Genie dialog process alive between NPU chat requests.",
-    )
-    parser.add_argument(
-        "--genie-persistent-runner",
-        default=os.environ.get("GENIE_PERSISTENT_RUNNER"),
-        help="Path to the persistent Genie helper binary. Built automatically when missing.",
-    )
-    parser.add_argument(
-        "--allow-genie-non-htp",
-        action="store_true",
-        help="Allow --npu to serve a non-QnnHtp Genie config for adapter smoke tests.",
-    )
-    parser.add_argument("--genie-model", default=os.environ.get("GENIE_MODEL", DEFAULT_GENIE_MODEL))
-    parser.add_argument(
-        "--genie-prompt-format",
-        choices=["plain", "qwen3"],
-        default=os.environ.get("GENIE_PROMPT_FORMAT", DEFAULT_GENIE_PROMPT_FORMAT),
-    )
-    parser.add_argument(
-        "--genie-timeout-s",
-        type=float,
-        default=_env_float_value("GENIE_TIMEOUT_S", 300.0, minimum=1.0),
-    )
-    parser.add_argument(
-        "--genie-max-prompt-chars",
-        type=int,
-        default=_env_int_value("GENIE_ADAPTER_MAX_PROMPT_CHARS", 12000, minimum=1000),
-    )
-    parser.add_argument(
-        "--genie-max-output-tokens",
-        type=int,
-        default=_env_int_value(
-            "GENIE_MAX_OUTPUT_TOKENS",
-            DEFAULT_GENIE_MAX_OUTPUT_TOKENS,
-            minimum=16,
-        ),
-    )
     args = parser.parse_args()
 
-    runtime = None
-    if args.npu:
-        runtime = _start_embedded_genie_runtime(
-            host=args.genie_host,
-            port=args.genie_port,
-            sdk_root=args.qairt_sdk_root,
-            config_path=args.genie_config,
-            runner_path=args.genie_runner,
-            persistent=args.genie_persistent,
-            persistent_runner_path=args.genie_persistent_runner,
-            model=args.genie_model,
-            prompt_format=args.genie_prompt_format,
-            timeout_s=args.genie_timeout_s,
-            max_prompt_chars=args.genie_max_prompt_chars,
-            max_output_tokens=args.genie_max_output_tokens,
-            require_qnn_htp=not args.allow_genie_non_htp,
-        )
-        if runtime.serving:
-            os.environ["QWEN_BASE_URL"] = runtime.base_url
-            os.environ["QWEN_API_KEY"] = os.environ.get("QWEN_API_KEY", "EMPTY")
-            os.environ["QWEN_MODEL"] = runtime.model
-
     httpd = ThreadingHTTPServer((args.host, args.port), WebchatHandler)
-    httpd.embedded_genie_runtime = runtime  # type: ignore[attr-defined]
     url = f"http://{args.host}:{args.port}"
     print(f"VibroAgent webchat running at {url}")
-    if runtime is not None:
-        if runtime.serving:
-            print(f"Embedded Genie adapter running at {runtime.base_url}")
-            print(f"Genie model: {runtime.model}")
-            print(f"Genie config: {runtime.config_path}")
-            print(f"Genie persistent mode: {runtime.persistent}")
-            if runtime.persistent_runner_path:
-                print(f"Genie persistent runner: {runtime.persistent_runner_path}")
-            print(f"NPU offload detected: {runtime.npu_offload}")
-            if runtime.warning:
-                print(f"NPU warning: {runtime.warning}")
-        else:
-            print(f"Embedded Genie adapter failed: {runtime.startup_error}")
     print("Press Ctrl+C to stop.")
     try:
         httpd.serve_forever()
@@ -4201,8 +3141,6 @@ def main() -> None:
         pass
     finally:
         httpd.server_close()
-        if runtime is not None:
-            runtime.shutdown()
 
 
 _NPU_CHAT_HTML = r"""<!doctype html>
@@ -6407,17 +5345,17 @@ _HTML = r"""<!doctype html>
     async function loadConfig() {
       const res = await fetch("/api/config");
       const data = await res.json();
-      els.baseUrl.value = data.base_url || "http://127.0.0.1:1234/v1";
-      els.model.value = data.model || "qwen3.5-4b-instruct-revised";
+      els.baseUrl.value = data.base_url || "http://127.0.0.1:18181/v1";
+      els.model.value = data.model || "qwen3_4b_codes_v3";
       updateConnectionSummary();
       if (data.npu && data.npu.enabled) {
         if (data.npu.serving) {
-          const mode = data.npu.npu_offload ? "QNN HTP/NPU" : "Genie adapter";
+          const mode = data.npu.npu_offload ? "Hexagon HTP" : "GenieX";
           setStatus(data.npu.npu_offload ? "ok" : "", `${mode}: ${els.model.value}`);
           if (data.npu.warning) addMessage("assistant", data.npu.warning);
         } else {
           setStatus("bad", "NPU adapter failed");
-          addMessage("error", data.npu.startup_error || "Embedded Genie adapter failed to start.");
+          addMessage("error", data.npu.startup_error || "codes_v3 GenieX service is unavailable.");
         }
       } else {
         setStatus("", `Configured: ${els.model.value}`);
@@ -8492,13 +7430,6 @@ _GRAPH_HTML = r"""<!doctype html>
                 <option value="60000">60 s</option>
               </select>
             </label>
-            <label title="Re-decision probes behind the confidence gate: more probes = finer uncertainty detection, fewer = faster checks.">Confidence probes
-              <select id="voteK">
-                <option value="5" selected>5</option>
-                <option value="3">3</option>
-                <option value="1">1</option>
-              </select>
-            </label>
             <label>Plot points
               <input id="points" type="number" min="200" max="5000" step="100" value="1800">
             </label>
@@ -8590,7 +7521,6 @@ _GRAPH_HTML = r"""<!doctype html>
       duration: document.getElementById("duration"),
       refresh: document.getElementById("refresh"),
       agentInterval: document.getElementById("agentInterval"),
-      voteK: document.getElementById("voteK"),
       points: document.getElementById("points"),
       center: document.getElementById("center"),
       sharedScale: document.getElementById("sharedScale"),
@@ -8632,6 +7562,7 @@ _GRAPH_HTML = r"""<!doctype html>
     let agentRunning = true;
     let timer = null;
     let agentTimer = null;
+    let replayAgentWakeTimer = null;
     let inFlight = false;
     let agentInFlight = false;
     let chatBusy = false;
@@ -8916,15 +7847,37 @@ _GRAPH_HTML = r"""<!doctype html>
           axis: els.axis.value,
           duration_s: els.duration.value,
           require_current: "1",
-          require_llm: "0",
+          require_llm: "1",
           use_llm: "1",
-          model_timeout_s: "15",
-          vote_k: els.voteK.value,
           skip_cache: "1",
           process_reader: "1",
         });
         const res = await fetch(`/api/agent-monitor?${params}`, { cache: "no-store" });
         const data = await res.json();
+        if (data && data.waiting_for_replay) {
+          const replay = data.replay || {};
+          const next = replay.next_inference_time_s == null
+            ? Number.NaN : Number(replay.next_inference_time_s);
+          const nextCycle = replay.next_inference_cycle == null
+            ? Number.NaN : Number(replay.next_inference_cycle);
+          const nextIn = replay.next_inference_in_s == null
+            ? Number.NaN : Number(replay.next_inference_in_s);
+          els.agentToggle.textContent = "Agent Waiting";
+          els.agentToggle.title = Number.isFinite(next)
+            ? `Next codec + codes_v3 inference at replay t=${next.toFixed(1)} s, cycle ${Number.isFinite(nextCycle) ? nextCycle : "?"}`
+            : "Waiting for the next replay cycle";
+          if (replayAgentWakeTimer) window.clearTimeout(replayAgentWakeTimer);
+          replayAgentWakeTimer = null;
+          if (agentRunning && Number.isFinite(nextIn)) {
+            replayAgentWakeTimer = window.setTimeout(
+              () => fetchAgentMonitor(true),
+              Math.max(100, nextIn * 1000 + 50),
+            );
+          }
+          return;
+        }
+        if (replayAgentWakeTimer) window.clearTimeout(replayAgentWakeTimer);
+        replayAgentWakeTimer = null;
         if (data && data.paused_for_chat) {
           // A chat is using the NPU; skip this check without touching the panel or alert.
           els.agentToggle.textContent = agentRunning ? "Agent On" : "Agent Off";
@@ -8977,13 +7930,10 @@ _GRAPH_HTML = r"""<!doctype html>
         ? `${fmt(Number(popup.confidence) * 100, 1)}%`
         : "--";
       const isNum = (value) => value != null && Number.isFinite(Number(value));
-      const uncertain = popup.label_uncertain
-        ? ` · Label uncertain (${isNum(popup.vote_agreement) ? fmt(Number(popup.vote_agreement) * 100, 0) + "% re-check agreement" : "re-checks disagree"})`
-        : "";
       const history = isNum(popup.history_x_median)
         ? ` · vs normal: ${fmt(Number(popup.history_x_median), 1)}× median (p${fmt(Number(popup.history_percentile), 1)})`
         : (popup.history_learning ? ` · history: learning (${popup.history_n || 0} windows)` : "");
-      els.agentAlertMeta.textContent = `Status: ${popup.descriptor_text || labelize(popup.network_label)} · Affected: ${affected}${history} · Confidence: ${confidence}${uncertain}`;
+      els.agentAlertMeta.textContent = `Status: ${popup.status_text || labelize(popup.network_label)} · Affected: ${affected}${history} · Confidence: ${confidence}`;
 
       if (shouldNotify) {
         lastAgentAlertKey = key;
@@ -9058,7 +8008,7 @@ _GRAPH_HTML = r"""<!doctype html>
       const head = document.createElement("div");
       head.className = "anomaly-item-head";
       const title = document.createElement("strong");
-      title.textContent = (record.descriptor_text || labelize(record.network_label)) + (group.count > 1 ? ` (×${group.count})` : "");
+      title.textContent = (record.status_text || labelize(record.network_label)) + (group.count > 1 ? ` (×${group.count})` : "");
       const when = document.createElement("span");
       when.className = "when";
       when.textContent = fmtAnomalyTime(record.created_at_utc);
@@ -9133,7 +8083,9 @@ _GRAPH_HTML = r"""<!doctype html>
       const timing = diagnosticsFor(data);
 
       els.chartTitle.textContent = `${sensorId} ${String(data.axis || "norm").toUpperCase()} acceleration ${els.center.checked ? "(centered)" : "(raw)"}`;
-      els.sourceChip.textContent = `${selected && selected.role ? selected.role : "sensor"} · ${metadata.data_is_current ? "Current file" : "Stale or missing"}`;
+      els.sourceChip.textContent = data.replay && data.replay.enabled
+        ? `immutable replay · t=${fmt(data.replay.position_s, 1)} s`
+        : `${selected && selected.role ? selected.role : "sensor"} · ${metadata.data_is_current ? "Current file" : "Stale or missing"}`;
       els.liveChip.textContent = `${fmt(data.window_duration_s, 2)} s`;
       els.samples.textContent = String(data.sample_count || "--");
       els.rate.textContent = data.sampling_rate_hz ? `${data.sampling_rate_hz} Hz` : "--";
@@ -9183,12 +8135,15 @@ _GRAPH_HTML = r"""<!doctype html>
       const maxSdkGap = sdkGapValues.length ? Math.max(...sdkGapValues) : null;
 
       els.chartTitle.textContent = `All ${count} IIS3DWB waveforms ${els.center.checked ? "(centered)" : "(raw)"}`;
+      const replay = readings.find((item) => item.replay && item.replay.enabled);
       els.sourceChip.textContent = failures.length
         ? `${failures.length} read failed`
-        : readings.every((item) => (item.metadata || {}).data_is_current)
-          ? "All current"
-          : "Some stale or missing";
-      els.liveChip.textContent = `${count}/${count + failures.length} live`;
+        : replay
+          ? `immutable replay · t=${fmt(replay.replay.position_s, 1)} s`
+          : readings.every((item) => (item.metadata || {}).data_is_current)
+            ? "All current"
+            : "Some stale or missing";
+      els.liveChip.textContent = `${count}/${count + failures.length} ${replay ? "replay" : "live"}`;
       els.samples.textContent = sampleCounts.length ? String(Math.min(...sampleCounts)) : "--";
       els.rate.textContent = rates.length ? `${Math.round(rates.reduce((sum, value) => sum + value, 0) / rates.length)} Hz avg` : "--";
       els.mean.textContent = `${count} sensors`;
@@ -9611,6 +8566,10 @@ _GRAPH_HTML = r"""<!doctype html>
 
     function restartAgentLoop() {
       if (agentTimer) clearInterval(agentTimer);
+      if (!agentRunning && replayAgentWakeTimer) {
+        window.clearTimeout(replayAgentWakeTimer);
+        replayAgentWakeTimer = null;
+      }
       if (agentRunning) {
         agentTimer = setInterval(fetchAgentMonitor, Math.max(5000, Number(els.agentInterval.value) || 30000));
       }
@@ -9641,7 +8600,7 @@ _GRAPH_HTML = r"""<!doctype html>
         restartLoop();
       });
     });
-    [els.axis, els.duration, els.agentInterval, els.voteK].forEach((control) => {
+    [els.axis, els.duration, els.agentInterval].forEach((control) => {
       control.addEventListener("change", () => {
         fetchAgentMonitor(true);
         restartAgentLoop();
