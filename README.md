@@ -260,8 +260,8 @@ setup_usb.sh                  Linux USB prerequisites: libusb, hsdatalog udev ru
 setup_sdk.sh                  Fetches stock STDATALOG-PYSDK v1.3.0 (pinned commits) and applies
                               the sdk_patches/ overlay (incl. cached STWIN.box device templates).
 setup_geniex.sh               Installs the GenieX runtime (PyPI) into ~/geniex-venv (via uv).
-setup_models.sh               Downloads the fine-tuned codes_v3 GGUF from the private HF
-                              weights repo (HF_TOKEN) and verifies its pinned sha256.
+setup_models.sh               Downloads the fine-tuned codes_v3 GGUF — GitHub release assets
+                              first (split parts, per-part + final sha256 pins), HF fallback.
 setup_qairt.sh                Downloads the QAIRT Community SDK (~1.8 GB, public URL) —
                               only needed for the legacy genie backend.
 sdk_patches/                  ONLY the files that differ from stock ST SDK v1.3.0, as a
@@ -331,7 +331,7 @@ PSD/                          Standalone Jupyter notebook comparing PSD estimato
 
 | Missing piece | Why | How to get it |
 |---|---|---|
-| **codes_v3 GGUF** (`qwen3_4b_codes_v3_Q4_0_embq8.gguf`, 2.4 GB) | Model weights, too large for git | `./setup_models.sh` — automatic download from the private HF weights repo (`HF_TOKEN`), **sha256-verified** `3a18c057e47d8032cb771140e54ed7bbfcf8cf1d58c6d990f579800f149a90c2`; see `models/README.md` |
+| **codes_v3 GGUF** (`qwen3_4b_codes_v3_Q4_0_embq8.gguf`, 2.4 GB) | Model weights, too large for git | `./setup_models.sh` — automatic download, **sha256-verified** `3a18c057e47d8032cb771140e54ed7bbfcf8cf1d58c6d990f579800f149a90c2`. Sources, in order: **GitHub release assets on this repo** (tag `weights-v1`; the GGUF ships as two byte-split parts, each part sha-pinned, reassembled by pure concatenation and re-verified against the same final pin — repo access is the only credential needed), then the HF weights repo (`HF_TOKEN` if private). See `models/README.md` |
 | Stock STDATALOG-PYSDK (`stdatalog_core/`, `stdatalog_pnpl/`, `stdatalog_dtk/`, `stdatalog_gui/`) | It is ST's unmodified code | `./setup_sdk.sh` fetches the pinned v1.3.0 commits and applies the patches |
 | GenieX runtime | Installable on demand | `./setup_geniex.sh` (PyPI) |
 | QAIRT SDK (`v2.46.0.260424/`) | Qualcomm-licensed, 1.8 GB | `./setup_qairt.sh` (public Qualcomm Software Center URL); legacy genie backend only |
