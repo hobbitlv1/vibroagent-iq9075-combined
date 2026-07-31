@@ -480,13 +480,18 @@ re-derive the prompt asset from the training set, which is not distributed.
   longer session, cut at exact STDatalog frame boundaries; the golden codes
   bind the first 10 s window.
 
-## Licensing
+## Ownership & License
 
-- `sdk_patches/overlay/**` derives from STMicroelectronics sources —
-  **BSD-3-Clause**, © STMicroelectronics (text in `sdk_patches/LICENSE.md`).
-  The SDK trees fetched by `setup_sdk.sh` carry their own ST licenses.
-- The base LLM is Qwen3-4B-Instruct-2507 (Apache-2.0); the fine-tuned GGUF is
-  this project's own artifact.
-- Everything else (application code under `vibrodiag_mcp_prototype/`, launchers,
-  loggers, notebook) is this project's own work; no license has been chosen yet —
-  the repository is private.
+This project is licensed under **CC BY-NC-SA 4.0** (Creative Commons
+Attribution-NonCommercial-ShareAlike 4.0 International) — full terms and the
+ownership statement in [`LICENSE.md`](LICENSE.md).
+
+Owners: **Niks KORDJUKOVS** (System Research and Applications),
+**Danilo Pau** (System Research and Applications, danilo.pau@st.com),
+**STMicroelectronics SRL**.
+
+Third-party components keep their own licenses: `sdk_patches/overlay/**` is
+BSD-3-Clause © STMicroelectronics (`sdk_patches/LICENSE.md`), the SDK trees
+fetched by `setup_sdk.sh` carry ST's licenses, and the base LLM
+Qwen3-4B-Instruct-2507 is Apache-2.0; the fine-tuned codes_v3 GGUF and the
+recorded datasets are covered by this project's license.

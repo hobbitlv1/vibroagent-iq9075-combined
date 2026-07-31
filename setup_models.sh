@@ -32,10 +32,8 @@ fi
 if [ -z "${HF_TOKEN:-}" ] && [ -f "$HOME/.cache/huggingface/token" ]; then
     HF_TOKEN="$(cat "$HOME/.cache/huggingface/token")"
 fi
-if [ -z "${HF_TOKEN:-}" ]; then
-    echo "ERROR: the weights repo is private — set HF_TOKEN or run 'hf auth login'." >&2
-    exit 1
-fi
+# A public weights repo downloads anonymously; a private one needs HF_TOKEN
+# (or an 'hf auth login' token on disk) from an account with read access.
 
 if ! command -v uv >/dev/null 2>&1; then
     echo "== installing uv (https://astral.sh/uv)"
@@ -45,7 +43,7 @@ fi
 
 echo "== downloading $GGUF_NAME from $MODELS_REPO (2.4 GB)"
 mkdir -p "$REPO/models"
-HF_TOKEN="$HF_TOKEN" uv tool run --from 'huggingface_hub[cli]' \
+HF_TOKEN="${HF_TOKEN:-}" uv tool run --from 'huggingface_hub[cli]' \
     hf download "$MODELS_REPO" "$GGUF_NAME" --local-dir "$REPO/models"
 
 echo "== verifying sha256"
