@@ -96,6 +96,11 @@ echo "==== [5/6] GenieX runtime + base-model autodownload ===="
 echo "==== [6/6] fine-tuned codes_v3 GGUF (hash-verified) ===="
 "$REPO/setup_models.sh"
 
+if [ "$MODE" = "offline" ]; then
+    echo "==== [offline] 5-minute recorded acquisitions (hash-verified) ===="
+    "$REPO/setup_recordings.sh"
+fi
+
 if [ "$WANT_QAIRT" = "1" ]; then
     echo "==== [optional] QAIRT Community SDK (legacy genie backend) ===="
     "$REPO/setup_qairt.sh"

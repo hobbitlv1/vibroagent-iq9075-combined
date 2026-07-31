@@ -209,9 +209,12 @@ start_logger() {
   if [ -n "$(logger_pid)" ]; then warn "Logger already running (pid $(logger_pid)) — skipping"; return 0; fi
   if [ "$VIBRO_MODE" = "offline" ]; then
     say "OFFLINE mode (set at setup): replaying recorded acquisitions — USB logger stays down."
+    local replay_src="$REPO/examples"
+    [ -f "$REPO/recordings/recordings_manifest.json" ] && replay_src="$REPO/recordings"
+    say "  replay source: $replay_src"
     ( cd "$REPO" || exit 1
       PYTHONUNBUFFERED=1 nohup python3 -u \
-        "$REPLAY_PY" --output-root "$EX" --source-root "$REPO/examples" --stats-s 5 \
+        "$REPLAY_PY" --output-root "$EX" --source-root "$replay_src" --stats-s 5 \
         > "$RUN_DIR/logger.log" 2>&1 &
       echo $! > "$RUN_DIR/logger.pid" )
     local i=0

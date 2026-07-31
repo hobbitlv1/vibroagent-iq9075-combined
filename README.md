@@ -71,10 +71,26 @@ runs in its place:
 ./vibroagent.sh start       # NPU model server + webchat + REPLAY logger
 ```
 
-The replay logger re-creates each live acquisition folder (metadata verbatim)
-and appends the recorded STDatalog frames to `iis3dwb_acc.dat` at the
-ORIGINAL real-time cadence (~37.5 ms per frame), looping over the 60 s
-recordings. Everything downstream is byte- and time-faithful and completely
+`setup.sh --offline` additionally downloads the **5-minute recording set**
+(`setup_recordings.sh`, ~280 MB, sha-verified per file into `./recordings/`,
+placed once and never modified): real ambient acquisitions from all six
+sensors with **five staged anomalies** injected through the codec-training
+menu (`vibration_injection.py`) in the codec's 400 Hz domain, so each event
+is exactly the input distribution the model was trained to label. Baseline
+stays untouched; the schedule ships in `recordings_manifest.json`:
+
+| time in cycle | sensor | event | measured level vs baseline |
+|---|---|---|---|
+| 45–55 s | target_2 | repeated impulses (significant) | +13.4 dB |
+| 90–100 s | target_4 | tone + harmonics (significant) | +13.1 dB |
+| 150–160 s | target_1 | broadband rise (significant) | +13.4 dB |
+| 210–220 s | target_3 | repeated impulses (significant) | +9.5 dB |
+| 210–220 s | target_5 | mild tone | +5.3 dB |
+
+The replay logger streams the placed recordings into the live acquisition
+folders at the ORIGINAL real-time cadence (~37.5 ms per frame), looping over
+the 5-minute cycle — **the monitor's verdicts and popups fire at these
+moments**, every cycle, as the anomaly enters its 10 s window. Everything downstream is byte- and time-faithful and completely
 unaware of the replay — the webchat, monitor, and codec worker read the same
 folders through the same code paths as with live boards:
 
