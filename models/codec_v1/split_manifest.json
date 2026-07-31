@@ -1,0 +1,44 @@
+{
+  "seed": 20260708,
+  "val_fraction": 0.15,
+  "datasets": {
+    "fdsn": {
+      "n_windows": 4560,
+      "n_blocks": 38,
+      "val_blocks": [
+        "CI.MIK|2026-06-03",
+        "GE.RUE|2026-06-05",
+        "GE.STU|2026-06-05",
+        "IU.ANMO|2026-06-03",
+        "IU.ANMO|2026-06-05",
+        "IU.HRV|2026-06-03"
+      ],
+      "n_train": 3840,
+      "n_val": 720
+    },
+    "lumo": {
+      "n_windows": 10800,
+      "n_blocks": 12,
+      "val_blocks": [
+        "07_Healthy",
+        "12_DAM3_010"
+      ],
+      "n_train": 9000,
+      "n_val": 1800
+    },
+    "rt345": {
+      "n_windows": 5854,
+      "n_blocks": 25,
+      "val_blocks": [
+        "damage_1|test_1",
+        "damage_4|test_2",
+        "damage_5|test_1",
+        "damage_6|test_4"
+      ],
+      "n_train": 4902,
+      "n_val": 952
+    }
+  },
+  "n_train": 17742,
+  "n_val": 3472
+}

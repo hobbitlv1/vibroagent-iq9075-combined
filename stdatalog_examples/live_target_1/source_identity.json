@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0.0",
+  "updated_at_utc": "2026-06-24T15:07:19.452447+00:00",
+  "sensor_id": "target_1",
+  "device_id": 3,
+  "serial": "004E003A3530500820323641",
+  "folder": "/home/ubuntu/Downloads/zip1/stdatalog_examples/live_target_1",
+  "components": [
+    "iis3dwb_acc"
+  ],
+  "mode": "native_data_ready_callback",
+  "firmware": {
+    "alias": "STWIN_BOX_001",
+    "fw_name": "FP-SNS-DATALOG2_Datalog2",
+    "fw_version": "3.2.0",
+    "part_number": "FP-SNS-DATALOG2",
+    "device_url": "https://www.st.com/stwinbox",
+    "fw_url": "https://github.com/STMicroelectronics/fp-sns-datalog2",
+    "mac_address": "c1:6a:7c:19:45:87",
+    "c_type": 2
+  }
+}

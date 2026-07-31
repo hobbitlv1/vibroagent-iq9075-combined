@@ -1,0 +1,17 @@
+# Extra dependencies for building the vibration SFT dataset and LoRA/QLoRA training.
+# Install after the base project dependencies:
+#   python -m pip install -r requirements.txt -r requirements-finetune.txt
+
+numpy>=1.24
+scipy>=1.11
+pandas>=2.0
+openpyxl>=3.1
+PyYAML>=6.0
+
+torch>=2.3
+transformers>=4.51
+datasets>=2.19
+trl>=0.23.1
+peft>=0.15
+accelerate>=0.30
+bitsandbytes>=0.43; platform_system == "Linux"

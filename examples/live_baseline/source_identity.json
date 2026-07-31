@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0.0",
+  "updated_at_utc": "2026-06-24T15:07:18.917041+00:00",
+  "sensor_id": "baseline",
+  "device_id": 5,
+  "serial": "003F003D3530500820323641",
+  "folder": "/home/ubuntu/Downloads/zip1/stdatalog_examples/live_baseline",
+  "components": [
+    "iis3dwb_acc"
+  ],
+  "mode": "native_data_ready_callback",
+  "firmware": {
+    "alias": "STWIN_BOX_001",
+    "fw_name": "FP-SNS-DATALOG2_Datalog2",
+    "fw_version": "3.2.0",
+    "part_number": "FP-SNS-DATALOG2",
+    "device_url": "https://www.st.com/stwinbox",
+    "fw_url": "https://github.com/STMicroelectronics/fp-sns-datalog2",
+    "mac_address": "f3:b0:b3:27:d9:21",
+    "c_type": 2
+  }
+}

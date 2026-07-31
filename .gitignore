@@ -1,0 +1,35 @@
+# Stock ST SDK trees fetched by setup_sdk.sh — only sdk_patches/ is versioned
+/stdatalog_core/
+/stdatalog_pnpl/
+/stdatalog_dtk/
+/stdatalog_gui/
+
+# Large local artifacts that never belong in git
+# (the frozen codec_v1 checkpoint IS versioned; the 2.4 GB GGUF is not)
+*.gguf
+/models/genie/
+/v2.46.0.260424/
+vibrodiag_mcp_prototype/data/*
+!vibrodiag_mcp_prototype/data/codec_pretrain
+vibrodiag_mcp_prototype/data/codec_pretrain/*
+!vibrodiag_mcp_prototype/data/codec_pretrain/r1_token_map.json
+validation_exports/
+*.zip
+*.tar.gz
+
+# Captured sensor data written into the live acquisition folders at runtime,
+# EXCEPT the recorded example acquisitions shipped for board-free use
+*.dat
+!examples/*/iis3dwb_acc.dat
+*.npy
+*.mat
+stdatalog_examples/run_logs/
+
+# Virtualenv, runtime state, caches
+/vibroagent-venv/
+vibrodiag_mcp_prototype/.venv/
+.run/
+__pycache__/
+*.pyc
+*.egg-info/
+.build/

@@ -1,0 +1,10248 @@
+{
+ "version": "r1_token_map_v1",
+ "tokenizer": "/media/ubuntu/Drive/downloads_heavy/zip1_code_only_full_fixes_1.1.0_llm_authority/models/qwen3_4b_instruct_2507-genie-w4a16-qualcomm_qcs9075/tokenizer.json",
+ "n_codes": 2048,
+ "screened_merge_pairs": 1132,
+ "entries": [
+  {
+   "code": 0,
+   "sym": "丈",
+   "token_id": 102358
+  },
+  {
+   "code": 1,
+   "sym": "丏",
+   "token_id": 119541
+  },
+  {
+   "code": 2,
+   "sym": "丐",
+   "token_id": 119299
+  },
+  {
+   "code": 3,
+   "sym": "丑",
+   "token_id": 105500
+  },
+  {
+   "code": 4,
+   "sym": "丕",
+   "token_id": 119559
+  },
+  {
+   "code": 5,
+   "sym": "丘",
+   "token_id": 105697
+  },
+  {
+   "code": 6,
+   "sym": "丙",
+   "token_id": 106980
+  },
+  {
+   "code": 7,
+   "sym": "丛",
+   "token_id": 101721
+  },
+  {
+   "code": 8,
+   "sym": "丞",
+   "token_id": 118794
+  },
+  {
+   "code": 9,
+   "sym": "丟",
+   "token_id": 119185
+  },
+  {
+   "code": 10,
+   "sym": "丢",
+   "token_id": 101527
+  },
+  {
+   "code": 11,
+   "sym": "两",
+   "token_id": 77540
+  },
+  {
+   "code": 12,
+   "sym": "並",
+   "token_id": 100225
+  },
+  {
+   "code": 13,
+   "sym": "丨",
+   "token_id": 106847
+  },
+  {
+   "code": 14,
+   "sym": "丫",
+   "token_id": 103558
+  },
+  {
+   "code": 15,
+   "sym": "丰",
+   "token_id": 99638
+  },
+  {
+   "code": 16,
+   "sym": "串",
+   "token_id": 51575
+  },
+  {
+   "code": 17,
+   "sym": "丸",
+   "token_id": 106256
+  },
+  {
+   "code": 18,
+   "sym": "乂",
+   "token_id": 119532
+  },
+  {
+   "code": 19,
+   "sym": "乃",
+   "token_id": 101451
+  },
+  {
+   "code": 20,
+   "sym": "乍",
+   "token_id": 114490
+  },
+  {
+   "code": 21,
+   "sym": "乒",
+   "token_id": 103631
+  },
+  {
+   "code": 22,
+   "sym": "乔",
+   "token_id": 101384
+  },
+  {
+   "code": 23,
+   "sym": "乗",
+   "token_id": 127731
+  },
+  {
+   "code": 24,
+   "sym": "乙",
+   "token_id": 100916
+  },
+  {
+   "code": 25,
+   "sym": "乜",
+   "token_id": 119533
+  },
+  {
+   "code": 26,
+   "sym": "乞",
+   "token_id": 113503
+  },
+  {
+   "code": 27,
+   "sym": "乩",
+   "token_id": 119605
+  },
+  {
+   "code": 28,
+   "sym": "乸",
+   "token_id": 122372
+  },
+  {
+   "code": 29,
+   "sym": "乾",
+   "token_id": 101641
+  },
+  {
+   "code": 30,
+   "sym": "亂",
+   "token_id": 110534
+  },
+  {
+   "code": 31,
+   "sym": "亍",
+   "token_id": 122126
+  },
+  {
+   "code": 32,
+   "sym": "云",
+   "token_id": 99718
+  },
+  {
+   "code": 33,
+   "sym": "亓",
+   "token_id": 119539
+  },
+  {
+   "code": 34,
+   "sym": "井",
+   "token_id": 104097
+  },
+  {
+   "code": 35,
+   "sym": "亘",
+   "token_id": 119600
+  },
+  {
+   "code": 36,
+   "sym": "亞",
+   "token_id": 106172
+  },
+  {
+   "code": 37,
+   "sym": "亟",
+   "token_id": 119209
+  },
+  {
+   "code": 38,
+   "sym": "亢",
+   "token_id": 113976
+  },
+  {
+   "code": 39,
+   "sym": "亥",
+   "token_id": 114468
+  },
+  {
+   "code": 40,
+   "sym": "亦",
+   "token_id": 103972
+  },
+  {
+   "code": 41,
+   "sym": "亨",
+   "token_id": 110039
+  },
+  {
+   "code": 42,
+   "sym": "亭",
+   "token_id": 104726
+  },
+  {
+   "code": 43,
+   "sym": "亳",
+   "token_id": 120467
+  },
+  {
+   "code": 44,
+   "sym": "亵",
+   "token_id": 121018
+  },
+  {
+   "code": 45,
+   "sym": "亶",
+   "token_id": 121271
+  },
+  {
+   "code": 46,
+   "sym": "亸",
+   "token_id": 123569
+  },
+  {
+   "code": 47,
+   "sym": "亹",
+   "token_id": 123783
+  },
+  {
+   "code": 48,
+   "sym": "什",
+   "token_id": 99217
+  },
+  {
+   "code": 49,
+   "sym": "仂",
+   "token_id": 119545
+  },
+  {
+   "code": 50,
+   "sym": "仃",
+   "token_id": 119543
+  },
+  {
+   "code": 51,
+   "sym": "仄",
+   "token_id": 116447
+  },
+  {
+   "code": 52,
+   "sym": "仆",
+   "token_id": 109753
+  },
+  {
+   "code": 53,
+   "sym": "仉",
+   "token_id": 119544
+  },
+  {
+   "code": 54,
+   "sym": "仔",
+   "token_id": 102437
+  },
+  {
+   "code": 55,
+   "sym": "仕",
+   "token_id": 107669
+  },
+  {
+   "code": 56,
+   "sym": "仙",
+   "token_id": 100717
+  },
+  {
+   "code": 57,
+   "sym": "仝",
+   "token_id": 122138
+  },
+  {
+   "code": 58,
+   "sym": "仞",
+   "token_id": 119569
+  },
+  {
+   "code": 59,
+   "sym": "仟",
+   "token_id": 119566
+  },
+  {
+   "code": 60,
+   "sym": "仡",
+   "token_id": 119567
+  },
+  {
+   "code": 61,
+   "sym": "仨",
+   "token_id": 119565
+  },
+  {
+   "code": 62,
+   "sym": "仫",
+   "token_id": 119568
+  },
+  {
+   "code": 63,
+   "sym": "仲",
+   "token_id": 102671
+  },
+  {
+   "code": 64,
+   "sym": "仳",
+   "token_id": 122163
+  },
+  {
+   "code": 65,
+   "sym": "仵",
+   "token_id": 119621
+  },
+  {
+   "code": 66,
+   "sym": "伈",
+   "token_id": 122165
+  },
+  {
+   "code": 67,
+   "sym": "伉",
+   "token_id": 119624
+  },
+  {
+   "code": 68,
+   "sym": "伊",
+   "token_id": 100208
+  },
+  {
+   "code": 69,
+   "sym": "伋",
+   "token_id": 122137
+  },
+  {
+   "code": 70,
+   "sym": "伍",
+   "token_id": 100449
+  },
+  {
+   "code": 71,
+   "sym": "伎",
+   "token_id": 119617
+  },
+  {
+   "code": 72,
+   "sym": "休",
+   "token_id": 100242
+  },
+  {
+   "code": 73,
+   "sym": "伛",
+   "token_id": 119618
+  },
+  {
+   "code": 74,
+   "sym": "伝",
+   "token_id": 132322
+  },
+  {
+   "code": 75,
+   "sym": "伞",
+   "token_id": 106691
+  },
+  {
+   "code": 76,
+   "sym": "伢",
+   "token_id": 119619
+  },
+  {
+   "code": 77,
+   "sym": "伣",
+   "token_id": 122164
+  },
+  {
+   "code": 78,
+   "sym": "伥",
+   "token_id": 119622
+  },
+  {
+   "code": 79,
+   "sym": "伧",
+   "token_id": 119623
+  },
+  {
+   "code": 80,
+   "sym": "伪",
+   "token_id": 101624
+  },
+  {
+   "code": 81,
+   "sym": "伫",
+   "token_id": 119625
+  },
+  {
+   "code": 82,
+   "sym": "伭",
+   "token_id": 122232
+  },
+  {
+   "code": 83,
+   "sym": "伯",
+   "token_id": 102044
+  },
+  {
+   "code": 84,
+   "sym": "伲",
+   "token_id": 122234
+  },
+  {
+   "code": 85,
+   "sym": "伶",
+   "token_id": 117350
+  },
+  {
+   "code": 86,
+   "sym": "伺",
+   "token_id": 103833
+  },
+  {
+   "code": 87,
+   "sym": "伽",
+   "token_id": 103502
+  },
+  {
+   "code": 88,
+   "sym": "伾",
+   "token_id": 122230
+  },
+  {
+   "code": 89,
+   "sym": "佁",
+   "token_id": 122235
+  },
+  {
+   "code": 90,
+   "sym": "佃",
+   "token_id": 119318
+  },
+  {
+   "code": 91,
+   "sym": "佈",
+   "token_id": 113778
+  },
+  {
+   "code": 92,
+   "sym": "佐",
+   "token_id": 105931
+  },
+  {
+   "code": 93,
+   "sym": "佑",
+   "token_id": 108395
+  },
+  {
+   "code": 94,
+   "sym": "佔",
+   "token_id": 118231
+  },
+  {
+   "code": 95,
+   "sym": "佖",
+   "token_id": 122233
+  },
+  {
+   "code": 96,
+   "sym": "佗",
+   "token_id": 119722
+  },
+  {
+   "code": 97,
+   "sym": "佘",
+   "token_id": 119724
+  },
+  {
+   "code": 98,
+   "sym": "佚",
+   "token_id": 119720
+  },
+  {
+   "code": 99,
+   "sym": "佝",
+   "token_id": 119721
+  },
+  {
+   "code": 100,
+   "sym": "佞",
+   "token_id": 119719
+  },
+  {
+   "code": 101,
+   "sym": "佟",
+   "token_id": 118392
+  },
+  {
+   "code": 102,
+   "sym": "佣",
+   "token_id": 101846
+  },
+  {
+   "code": 103,
+   "sym": "佤",
+   "token_id": 119620
+  },
+  {
+   "code": 104,
+   "sym": "佥",
+   "token_id": 119725
+  },
+  {
+   "code": 105,
+   "sym": "佩",
+   "token_id": 101453
+  },
+  {
+   "code": 106,
+   "sym": "佯",
+   "token_id": 119912
+  },
+  {
+   "code": 107,
+   "sym": "佰",
+   "token_id": 115709
+  },
+  {
+   "code": 108,
+   "sym": "佴",
+   "token_id": 122325
+  },
+  {
+   "code": 109,
+   "sym": "佶",
+   "token_id": 119901
+  },
+  {
+   "code": 110,
+   "sym": "佸",
+   "token_id": 122329
+  },
+  {
+   "code": 111,
+   "sym": "佺",
+   "token_id": 122330
+  },
+  {
+   "code": 112,
+   "sym": "佻",
+   "token_id": 119908
+  },
+  {
+   "code": 113,
+   "sym": "佼",
+   "token_id": 119911
+  },
+  {
+   "code": 114,
+   "sym": "佽",
+   "token_id": 122334
+  },
+  {
+   "code": 115,
+   "sym": "佾",
+   "token_id": 119909
+  },
+  {
+   "code": 116,
+   "sym": "侁",
+   "token_id": 122327
+  },
+  {
+   "code": 117,
+   "sym": "侂",
+   "token_id": 122333
+  },
+  {
+   "code": 118,
+   "sym": "侃",
+   "token_id": 103657
+  },
+  {
+   "code": 119,
+   "sym": "侄",
+   "token_id": 113043
+  },
+  {
+   "code": 120,
+   "sym": "侉",
+   "token_id": 119903
+  },
+  {
+   "code": 121,
+   "sym": "侍",
+   "token_id": 107010
+  },
+  {
+   "code": 122,
+   "sym": "侏",
+   "token_id": 119906
+  },
+  {
+   "code": 123,
+   "sym": "侑",
+   "token_id": 119902
+  },
+  {
+   "code": 124,
+   "sym": "侔",
+   "token_id": 119915
+  },
+  {
+   "code": 125,
+   "sym": "侗",
+   "token_id": 119905
+  },
+  {
+   "code": 126,
+   "sym": "侘",
+   "token_id": 122335
+  },
+  {
+   "code": 127,
+   "sym": "依",
+   "token_id": 99539
+  },
+  {
+   "code": 128,
+   "sym": "価",
+   "token_id": 93901
+  },
+  {
+   "code": 129,
+   "sym": "侥",
+   "token_id": 103851
+  },
+  {
+   "code": 130,
+   "sym": "侩",
+   "token_id": 119907
+  },
+  {
+   "code": 131,
+   "sym": "侪",
+   "token_id": 119910
+  },
+  {
+   "code": 132,
+   "sym": "侬",
+   "token_id": 119913
+  },
+  {
+   "code": 133,
+   "sym": "侮",
+   "token_id": 103733
+  },
+  {
+   "code": 134,
+   "sym": "侯",
+   "token_id": 102371
+  },
+  {
+   "code": 135,
+   "sym": "侴",
+   "token_id": 122498
+  },
+  {
+   "code": 136,
+   "sym": "侹",
+   "token_id": 122328
+  },
+  {
+   "code": 137,
+   "sym": "係",
+   "token_id": 103030
+  },
+  {
+   "code": 138,
+   "sym": "促",
+   "token_id": 100028
+  },
+  {
+   "code": 139,
+   "sym": "俅",
+   "token_id": 120157
+  },
+  {
+   "code": 140,
+   "sym": "俊",
+   "token_id": 104357
+  },
+  {
+   "code": 141,
+   "sym": "俍",
+   "token_id": 122493
+  },
+  {
+   "code": 142,
+   "sym": "俎",
+   "token_id": 120170
+  },
+  {
+   "code": 143,
+   "sym": "俏",
+   "token_id": 109535
+  },
+  {
+   "code": 144,
+   "sym": "俐",
+   "token_id": 118459
+  },
+  {
+   "code": 145,
+   "sym": "俑",
+   "token_id": 119146
+  },
+  {
+   "code": 146,
+   "sym": "俘",
+   "token_id": 116606
+  },
+  {
+   "code": 147,
+   "sym": "俙",
+   "token_id": 122492
+  },
+  {
+   "code": 148,
+   "sym": "俚",
+   "token_id": 120162
+  },
+  {
+   "code": 149,
+   "sym": "俜",
+   "token_id": 122491
+  },
+  {
+   "code": 150,
+   "sym": "俞",
+   "token_id": 109775
+  },
+  {
+   "code": 151,
+   "sym": "俟",
+   "token_id": 120164
+  },
+  {
+   "code": 152,
+   "sym": "俣",
+   "token_id": 120161
+  },
+  {
+   "code": 153,
+   "sym": "俦",
+   "token_id": 120155
+  },
+  {
+   "code": 154,
+   "sym": "俨",
+   "token_id": 120156
+  },
+  {
+   "code": 155,
+   "sym": "俩",
+   "token_id": 104882
+  },
+  {
+   "code": 156,
+   "sym": "俪",
+   "token_id": 119161
+  },
+  {
+   "code": 157,
+   "sym": "俫",
+   "token_id": 122489
+  },
+  {
+   "code": 158,
+   "sym": "俭",
+   "token_id": 110647
+  },
+  {
+   "code": 159,
+   "sym": "俯",
+   "token_id": 110607
+  },
+  {
+   "code": 160,
+   "sym": "俱",
+   "token_id": 101404
+  },
+  {
+   "code": 161,
+   "sym": "俳",
+   "token_id": 120428
+  },
+  {
+   "code": 162,
+   "sym": "俵",
+   "token_id": 120426
+  },
+  {
+   "code": 163,
+   "sym": "俶",
+   "token_id": 120429
+  },
+  {
+   "code": 164,
+   "sym": "俸",
+   "token_id": 120425
+  },
+  {
+   "code": 165,
+   "sym": "俺",
+   "token_id": 110931
+  },
+  {
+   "code": 166,
+   "sym": "俾",
+   "token_id": 120434
+  },
+  {
+   "code": 167,
+   "sym": "倌",
+   "token_id": 120438
+  },
+  {
+   "code": 168,
+   "sym": "倏",
+   "token_id": 120431
+  },
+  {
+   "code": 169,
+   "sym": "倓",
+   "token_id": 122661
+  },
+  {
+   "code": 170,
+   "sym": "倔",
+   "token_id": 119383
+  },
+  {
+   "code": 171,
+   "sym": "倕",
+   "token_id": 122657
+  },
+  {
+   "code": 172,
+   "sym": "倘",
+   "token_id": 103549
+  },
+  {
+   "code": 173,
+   "sym": "倚",
+   "token_id": 111229
+  },
+  {
+   "code": 174,
+   "sym": "倜",
+   "token_id": 120435
+  },
+  {
+   "code": 175,
+   "sym": "倞",
+   "token_id": 122658
+  },
+  {
+   "code": 176,
+   "sym": "倥",
+   "token_id": 120439
+  },
+  {
+   "code": 177,
+   "sym": "倦",
+   "token_id": 118087
+  },
+  {
+   "code": 178,
+   "sym": "倧",
+   "token_id": 122662
+  },
+  {
+   "code": 179,
+   "sym": "倨",
+   "token_id": 120442
+  },
+  {
+   "code": 180,
+   "sym": "倩",
+   "token_id": 109250
+  },
+  {
+   "code": 181,
+   "sym": "倪",
+   "token_id": 109696
+  },
+  {
+   "code": 182,
+   "sym": "倫",
+   "token_id": 113634
+  },
+  {
+   "code": 183,
+   "sym": "倬",
+   "token_id": 120430
+  },
+  {
+   "code": 184,
+   "sym": "倭",
+   "token_id": 120433
+  },
+  {
+   "code": 185,
+   "sym": "倮",
+   "token_id": 122656
+  },
+  {
+   "code": 186,
+   "sym": "倴",
+   "token_id": 122654
+  },
+  {
+   "code": 187,
+   "sym": "倻",
+   "token_id": 122653
+  },
+  {
+   "code": 188,
+   "sym": "倾",
+   "token_id": 100544
+  },
+  {
+   "code": 189,
+   "sym": "偁",
+   "token_id": 122842
+  },
+  {
+   "code": 190,
+   "sym": "偃",
+   "token_id": 120725
+  },
+  {
+   "code": 191,
+   "sym": "偈",
+   "token_id": 120727
+  },
+  {
+   "code": 192,
+   "sym": "偉",
+   "token_id": 116354
+  },
+  {
+   "code": 193,
+   "sym": "偌",
+   "token_id": 120427
+  },
+  {
+   "code": 194,
+   "sym": "偎",
+   "token_id": 119413
+  },
+  {
+   "code": 195,
+   "sym": "偓",
+   "token_id": 122846
+  },
+  {
+   "code": 196,
+   "sym": "偕",
+   "token_id": 120726
+  },
+  {
+   "code": 197,
+   "sym": "偡",
+   "token_id": 122838
+  },
+  {
+   "code": 198,
+   "sym": "偬",
+   "token_id": 120729
+  },
+  {
+   "code": 199,
+   "sym": "偭",
+   "token_id": 122840
+  },
+  {
+   "code": 200,
+   "sym": "偰",
+   "token_id": 122837
+  },
+  {
+   "code": 201,
+   "sym": "偲",
+   "token_id": 122841
+  },
+  {
+   "code": 202,
+   "sym": "側",
+   "token_id": 116153
+  },
+  {
+   "code": 203,
+   "sym": "偵",
+   "token_id": 119075
+  },
+  {
+   "code": 204,
+   "sym": "偶",
+   "token_id": 100583
+  },
+  {
+   "code": 205,
+   "sym": "偻",
+   "token_id": 120730
+  },
+  {
+   "code": 206,
+   "sym": "偾",
+   "token_id": 120724
+  },
+  {
+   "code": 207,
+   "sym": "傀",
+   "token_id": 120728
+  },
+  {
+   "code": 208,
+   "sym": "傃",
+   "token_id": 123047
+  },
+  {
+   "code": 209,
+   "sym": "傈",
+   "token_id": 120985
+  },
+  {
+   "code": 210,
+   "sym": "傉",
+   "token_id": 123048
+  },
+  {
+   "code": 211,
+   "sym": "傍",
+   "token_id": 103530
+  },
+  {
+   "code": 212,
+   "sym": "傑",
+   "token_id": 118518
+  },
+  {
+   "code": 213,
+   "sym": "傒",
+   "token_id": 123050
+  },
+  {
+   "code": 214,
+   "sym": "傕",
+   "token_id": 123051
+  },
+  {
+   "code": 215,
+   "sym": "傢",
+   "token_id": 117554
+  },
+  {
+   "code": 216,
+   "sym": "傣",
+   "token_id": 120984
+  },
+  {
+   "code": 217,
+   "sym": "傥",
+   "token_id": 120988
+  },
+  {
+   "code": 218,
+   "sym": "傧",
+   "token_id": 120989
+  },
+  {
+   "code": 219,
+   "sym": "傩",
+   "token_id": 120991
+  },
+  {
+   "code": 220,
+   "sym": "催",
+   "token_id": 101611
+  },
+  {
+   "code": 221,
+   "sym": "傲",
+   "token_id": 102744
+  },
+  {
+   "code": 222,
+   "sym": "傳",
+   "token_id": 101350
+  },
+  {
+   "code": 223,
+   "sym": "債",
+   "token_id": 103796
+  },
+  {
+   "code": 224,
+   "sym": "傷",
+   "token_id": 107567
+  },
+  {
+   "code": 225,
+   "sym": "傺",
+   "token_id": 123213
+  },
+  {
+   "code": 226,
+   "sym": "傻",
+   "token_id": 104888
+  },
+  {
+   "code": 227,
+   "sym": "傾",
+   "token_id": 117205
+  },
+  {
+   "code": 228,
+   "sym": "僇",
+   "token_id": 123215
+  },
+  {
+   "code": 229,
+   "sym": "働",
+   "token_id": 127901
+  },
+  {
+   "code": 230,
+   "sym": "僎",
+   "token_id": 123366
+  },
+  {
+   "code": 231,
+   "sym": "僔",
+   "token_id": 123365
+  },
+  {
+   "code": 232,
+   "sym": "僖",
+   "token_id": 121460
+  },
+  {
+   "code": 233,
+   "sym": "僚",
+   "token_id": 113680
+  },
+  {
+   "code": 234,
+   "sym": "僦",
+   "token_id": 123364
+  },
+  {
+   "code": 235,
+   "sym": "僧",
+   "token_id": 105967
+  },
+  {
+   "code": 236,
+   "sym": "僬",
+   "token_id": 123363
+  },
+  {
+   "code": 237,
+   "sym": "僭",
+   "token_id": 121463
+  },
+  {
+   "code": 238,
+   "sym": "僮",
+   "token_id": 121465
+  },
+  {
+   "code": 239,
+   "sym": "僰",
+   "token_id": 121390
+  },
+  {
+   "code": 240,
+   "sym": "僳",
+   "token_id": 121462
+  },
+  {
+   "code": 241,
+   "sym": "僵",
+   "token_id": 103390
+  },
+  {
+   "code": 242,
+   "sym": "價",
+   "token_id": 101585
+  },
+  {
+   "code": 243,
+   "sym": "僻",
+   "token_id": 118134
+  },
+  {
+   "code": 244,
+   "sym": "儀",
+   "token_id": 115139
+  },
+  {
+   "code": 245,
+   "sym": "億",
+   "token_id": 103726
+  },
+  {
+   "code": 246,
+   "sym": "儆",
+   "token_id": 121461
+  },
+  {
+   "code": 247,
+   "sym": "儇",
+   "token_id": 123466
+  },
+  {
+   "code": 248,
+   "sym": "儋",
+   "token_id": 121643
+  },
+  {
+   "code": 249,
+   "sym": "儒",
+   "token_id": 102907
+  },
+  {
+   "code": 250,
+   "sym": "儘",
+   "token_id": 116395
+  },
+  {
+   "code": 251,
+   "sym": "償",
+   "token_id": 116846
+  },
+  {
+   "code": 252,
+   "sym": "儡",
+   "token_id": 121909
+  },
+  {
+   "code": 253,
+   "sym": "儦",
+   "token_id": 123633
+  },
+  {
+   "code": 254,
+   "sym": "優",
+   "token_id": 103244
+  },
+  {
+   "code": 255,
+   "sym": "儲",
+   "token_id": 117840
+  },
+  {
+   "code": 256,
+   "sym": "儳",
+   "token_id": 123722
+  },
+  {
+   "code": 257,
+   "sym": "儴",
+   "token_id": 123723
+  },
+  {
+   "code": 258,
+   "sym": "兀",
+   "token_id": 119534
+  },
+  {
+   "code": 259,
+   "sym": "允",
+   "token_id": 101438
+  },
+  {
+   "code": 260,
+   "sym": "兆",
+   "token_id": 105796
+  },
+  {
+   "code": 261,
+   "sym": "兑",
+   "token_id": 101770
+  },
+  {
+   "code": 262,
+   "sym": "兔",
+   "token_id": 102757
+  },
+  {
+   "code": 263,
+   "sym": "兕",
+   "token_id": 119709
+  },
+  {
+   "code": 264,
+   "sym": "兖",
+   "token_id": 119939
+  },
+  {
+   "code": 265,
+   "sym": "兜",
+   "token_id": 108192
+  },
+  {
+   "code": 266,
+   "sym": "兢",
+   "token_id": 119467
+  },
+  {
+   "code": 267,
+   "sym": "兩",
+   "token_id": 101296
+  },
+  {
+   "code": 268,
+   "sym": "兮",
+   "token_id": 113774
+  },
+  {
+   "code": 269,
+   "sym": "兹",
+   "token_id": 105828
+  },
+  {
+   "code": 270,
+   "sym": "兼",
+   "token_id": 100258
+  },
+  {
+   "code": 271,
+   "sym": "兽",
+   "token_id": 101336
+  },
+  {
+   "code": 272,
+   "sym": "冀",
+   "token_id": 103288
+  },
+  {
+   "code": 273,
+   "sym": "冁",
+   "token_id": 123705
+  },
+  {
+   "code": 274,
+   "sym": "円",
+   "token_id": 34657
+  },
+  {
+   "code": 275,
+   "sym": "冈",
+   "token_id": 109693
+  },
+  {
+   "code": 276,
+   "sym": "冉",
+   "token_id": 110692
+  },
+  {
+   "code": 277,
+   "sym": "冊",
+   "token_id": 100999
+  },
+  {
+   "code": 278,
+   "sym": "冏",
+   "token_id": 122227
+  },
+  {
+   "code": 279,
+   "sym": "冔",
+   "token_id": 122628
+  },
+  {
+   "code": 280,
+   "sym": "冕",
+   "token_id": 116706
+  },
+  {
+   "code": 281,
+   "sym": "冗",
+   "token_id": 119256
+  },
+  {
+   "code": 282,
+   "sym": "冢",
+   "token_id": 119094
+  },
+  {
+   "code": 283,
+   "sym": "冤",
+   "token_id": 109744
+  },
+  {
+   "code": 284,
+   "sym": "冥",
+   "token_id": 107437
+  },
+  {
+   "code": 285,
+   "sym": "冮",
+   "token_id": 122139
+  },
+  {
+   "code": 286,
+   "sym": "冯",
+   "token_id": 104822
+  },
+  {
+   "code": 287,
+   "sym": "冰",
+   "token_id": 100038
+  },
+  {
+   "code": 288,
+   "sym": "冱",
+   "token_id": 122170
+  },
+  {
+   "code": 289,
+   "sym": "冲",
+   "token_id": 99907
+  },
+  {
+   "code": 290,
+   "sym": "冶",
+   "token_id": 101772
+  },
+  {
+   "code": 291,
+   "sym": "冼",
+   "token_id": 119935
+  },
+  {
+   "code": 292,
+   "sym": "冽",
+   "token_id": 119934
+  },
+  {
+   "code": 293,
+   "sym": "凄",
+   "token_id": 110733
+  },
+  {
+   "code": 294,
+   "sym": "凇",
+   "token_id": 120465
+  },
+  {
+   "code": 295,
+   "sym": "凋",
+   "token_id": 118630
+  },
+  {
+   "code": 296,
+   "sym": "凌",
+   "token_id": 100812
+  },
+  {
+   "code": 297,
+   "sym": "凑",
+   "token_id": 103005
+  },
+  {
+   "code": 298,
+   "sym": "凓",
+   "token_id": 123070
+  },
+  {
+   "code": 299,
+   "sym": "凘",
+   "token_id": 123384
+  },
+  {
+   "code": 300,
+   "sym": "凛",
+   "token_id": 116822
+  },
+  {
+   "code": 301,
+   "sym": "凤",
+   "token_id": 101269
+  },
+  {
+   "code": 302,
+   "sym": "凫",
+   "token_id": 119635
+  },
+  {
+   "code": 303,
+   "sym": "凭",
+   "token_id": 100284
+  },
+  {
+   "code": 304,
+   "sym": "凯",
+   "token_id": 104156
+  },
+  {
+   "code": 305,
+   "sym": "凱",
+   "token_id": 118305
+  },
+  {
+   "code": 306,
+   "sym": "凳",
+   "token_id": 116020
+  },
+  {
+   "code": 307,
+   "sym": "凶",
+   "token_id": 102604
+  },
+  {
+   "code": 308,
+   "sym": "凸",
+   "token_id": 103179
+  },
+  {
+   "code": 309,
+   "sym": "凹",
+   "token_id": 113672
+  },
+  {
+   "code": 310,
+   "sym": "凼",
+   "token_id": 119610
+  },
+  {
+   "code": 311,
+   "sym": "函",
+   "token_id": 105512
+  },
+  {
+   "code": 312,
+   "sym": "凿",
+   "token_id": 113316
+  },
+  {
+   "code": 313,
+   "sym": "刁",
+   "token_id": 116321
+  },
+  {
+   "code": 314,
+   "sym": "刃",
+   "token_id": 108675
+  },
+  {
+   "code": 315,
+   "sym": "刈",
+   "token_id": 119546
+  },
+  {
+   "code": 316,
+   "sym": "刍",
+   "token_id": 119573
+  },
+  {
+   "code": 317,
+   "sym": "刎",
+   "token_id": 119631
+  },
+  {
+   "code": 318,
+   "sym": "划",
+   "token_id": 99492
+  },
+  {
+   "code": 319,
+   "sym": "刖",
+   "token_id": 119628
+  },
+  {
+   "code": 320,
+   "sym": "刘",
+   "token_id": 100351
+  },
+  {
+   "code": 321,
+   "sym": "删",
+   "token_id": 109218
+  },
+  {
+   "code": 322,
+   "sym": "刨",
+   "token_id": 117848
+  },
+  {
+   "code": 323,
+   "sym": "刪",
+   "token_id": 111646
+  },
+  {
+   "code": 324,
+   "sym": "刬",
+   "token_id": 122185
+  },
+  {
+   "code": 325,
+   "sym": "刭",
+   "token_id": 119784
+  },
+  {
+   "code": 326,
+   "sym": "刮",
+   "token_id": 106366
+  },
+  {
+   "code": 327,
+   "sym": "刳",
+   "token_id": 119847
+  },
+  {
+   "code": 328,
+   "sym": "刹",
+   "token_id": 101796
+  },
+  {
+   "code": 329,
+   "sym": "刽",
+   "token_id": 119917
+  },
+  {
+   "code": 330,
+   "sym": "刿",
+   "token_id": 119883
+  },
+  {
+   "code": 331,
+   "sym": "剀",
+   "token_id": 119885
+  },
+  {
+   "code": 332,
+   "sym": "剁",
+   "token_id": 118607
+  },
+  {
+   "code": 333,
+   "sym": "剃",
+   "token_id": 118895
+  },
+  {
+   "code": 334,
+   "sym": "剅",
+   "token_id": 122439
+  },
+  {
+   "code": 335,
+   "sym": "削",
+   "token_id": 101778
+  },
+  {
+   "code": 336,
+   "sym": "剋",
+   "token_id": 120050
+  },
+  {
+   "code": 337,
+   "sym": "剌",
+   "token_id": 120073
+  },
+  {
+   "code": 338,
+   "sym": "剐",
+   "token_id": 120124
+  },
+  {
+   "code": 339,
+   "sym": "剑",
+   "token_id": 103954
+  },
+  {
+   "code": 340,
+   "sym": "剕",
+   "token_id": 122620
+  },
+  {
+   "code": 341,
+   "sym": "剖",
+   "token_id": 103310
+  },
+  {
+   "code": 342,
+   "sym": "剛",
+   "token_id": 108345
+  },
+  {
+   "code": 343,
+   "sym": "剜",
+   "token_id": 120514
+  },
+  {
+   "code": 344,
+   "sym": "剞",
+   "token_id": 120354
+  },
+  {
+   "code": 345,
+   "sym": "剟",
+   "token_id": 122734
+  },
+  {
+   "code": 346,
+   "sym": "剡",
+   "token_id": 120491
+  },
+  {
+   "code": 347,
+   "sym": "剥",
+   "token_id": 101819
+  },
+  {
+   "code": 348,
+   "sym": "創",
+   "token_id": 100608
+  },
+  {
+   "code": 349,
+   "sym": "剽",
+   "token_id": 121157
+  },
+  {
+   "code": 350,
+   "sym": "剿",
+   "token_id": 113626
+  },
+  {
+   "code": 351,
+   "sym": "劁",
+   "token_id": 121464
+  },
+  {
+   "code": 352,
+   "sym": "劂",
+   "token_id": 123336
+  },
+  {
+   "code": 353,
+   "sym": "劃",
+   "token_id": 101837
+  },
+  {
+   "code": 354,
+   "sym": "劄",
+   "token_id": 123362
+  },
+  {
+   "code": 355,
+   "sym": "劇",
+   "token_id": 107418
+  },
+  {
+   "code": 356,
+   "sym": "劈",
+   "token_id": 110336
+  },
+  {
+   "code": 357,
+   "sym": "劉",
+   "token_id": 111070
+  },
+  {
+   "code": 358,
+   "sym": "劍",
+   "token_id": 116029
+  },
+  {
+   "code": 359,
+   "sym": "劐",
+   "token_id": 123429
+  },
+  {
+   "code": 360,
+   "sym": "劑",
+   "token_id": 119016
+  },
+  {
+   "code": 361,
+   "sym": "劓",
+   "token_id": 121791
+  },
+  {
+   "code": 362,
+   "sym": "劝",
+   "token_id": 105029
+  },
+  {
+   "code": 363,
+   "sym": "劢",
+   "token_id": 119561
+  },
+  {
+   "code": 364,
+   "sym": "努",
+   "token_id": 100657
+  },
+  {
+   "code": 365,
+   "sym": "劬",
+   "token_id": 119730
+  },
+  {
+   "code": 366,
+   "sym": "劭",
+   "token_id": 119783
+  },
+  {
+   "code": 367,
+   "sym": "劼",
+   "token_id": 119804
+  },
+  {
+   "code": 368,
+   "sym": "劾",
+   "token_id": 119940
+  },
+  {
+   "code": 369,
+   "sym": "勁",
+   "token_id": 119165
+  },
+  {
+   "code": 370,
+   "sym": "勇",
+   "token_id": 100244
+  },
+  {
+   "code": 371,
+   "sym": "勉",
+   "token_id": 103356
+  },
+  {
+   "code": 372,
+   "sym": "勋",
+   "token_id": 103309
+  },
+  {
+   "code": 373,
+   "sym": "勍",
+   "token_id": 122681
+  },
+  {
+   "code": 374,
+   "sym": "勐",
+   "token_id": 120527
+  },
+  {
+   "code": 375,
+   "sym": "勒",
+   "token_id": 104240
+  },
+  {
+   "code": 376,
+   "sym": "勔",
+   "token_id": 122795
+  },
+  {
+   "code": 377,
+   "sym": "勖",
+   "token_id": 120647
+  },
+  {
+   "code": 378,
+   "sym": "勘",
+   "token_id": 101019
+  },
+  {
+   "code": 379,
+   "sym": "勚",
+   "token_id": 122769
+  },
+  {
+   "code": 380,
+   "sym": "勝",
+   "token_id": 109434
+  },
+  {
+   "code": 381,
+   "sym": "勞",
+   "token_id": 111776
+  },
+  {
+   "code": 382,
+   "sym": "勠",
+   "token_id": 123280
+  },
+  {
+   "code": 383,
+   "sym": "勢",
+   "token_id": 107686
+  },
+  {
+   "code": 384,
+   "sym": "勰",
+   "token_id": 121691
+  },
+  {
+   "code": 385,
+   "sym": "勺",
+   "token_id": 109148
+  },
+  {
+   "code": 386,
+   "sym": "勾",
+   "token_id": 105170
+  },
+  {
+   "code": 387,
+   "sym": "勿",
+   "token_id": 108710
+  },
+  {
+   "code": 388,
+   "sym": "匈",
+   "token_id": 103670
+  },
+  {
+   "code": 389,
+   "sym": "匍",
+   "token_id": 120186
+  },
+  {
+   "code": 390,
+   "sym": "匏",
+   "token_id": 120629
+  },
+  {
+   "code": 391,
+   "sym": "匐",
+   "token_id": 120744
+  },
+  {
+   "code": 392,
+   "sym": "匕",
+   "token_id": 119298
+  },
+  {
+   "code": 393,
+   "sym": "匙",
+   "token_id": 103081
+  },
+  {
+   "code": 394,
+   "sym": "匜",
+   "token_id": 119560
+  },
+  {
+   "code": 395,
+   "sym": "匝",
+   "token_id": 119291
+  },
+  {
+   "code": 396,
+   "sym": "匡",
+   "token_id": 117356
+  },
+  {
+   "code": 397,
+   "sym": "匣",
+   "token_id": 119143
+  },
+  {
+   "code": 398,
+   "sym": "匦",
+   "token_id": 119796
+  },
+  {
+   "code": 399,
+   "sym": "匪",
+   "token_id": 109642
+  },
+  {
+   "code": 400,
+   "sym": "匮",
+   "token_id": 103876
+  },
+  {
+   "code": 401,
+   "sym": "匯",
+   "token_id": 117283
+  },
+  {
+   "code": 402,
+   "sym": "匹",
+   "token_id": 101573
+  },
+  {
+   "code": 403,
+   "sym": "匼",
+   "token_id": 122301
+  },
+  {
+   "code": 404,
+   "sym": "匾",
+   "token_id": 118939
+  },
+  {
+   "code": 405,
+   "sym": "匿",
+   "token_id": 103736
+  },
+  {
+   "code": 406,
+   "sym": "卅",
+   "token_id": 119542
+  },
+  {
+   "code": 407,
+   "sym": "卉",
+   "token_id": 103216
+  },
+  {
+   "code": 408,
+   "sym": "卑",
+   "token_id": 103230
+  },
+  {
+   "code": 409,
+   "sym": "卒",
+   "token_id": 108608
+  },
+  {
+   "code": 410,
+   "sym": "協",
+   "token_id": 101795
+  },
+  {
+   "code": 411,
+   "sym": "卜",
+   "token_id": 101755
+  },
+  {
+   "code": 412,
+   "sym": "卞",
+   "token_id": 119548
+  },
+  {
+   "code": 413,
+   "sym": "卟",
+   "token_id": 119562
+  },
+  {
+   "code": 414,
+   "sym": "卢",
+   "token_id": 104654
+  },
+  {
+   "code": 415,
+   "sym": "卣",
+   "token_id": 119692
+  },
+  {
+   "code": 416,
+   "sym": "卤",
+   "token_id": 112416
+  },
+  {
+   "code": 417,
+   "sym": "卧",
+   "token_id": 102576
+  },
+  {
+   "code": 418,
+   "sym": "卬",
+   "token_id": 122129
+  },
+  {
+   "code": 419,
+   "sym": "卮",
+   "token_id": 119570
+  },
+  {
+   "code": 420,
+   "sym": "卯",
+   "token_id": 115501
+  },
+  {
+   "code": 421,
+   "sym": "危",
+   "token_id": 100087
+  },
+  {
+   "code": 422,
+   "sym": "卵",
+   "token_id": 101574
+  },
+  {
+   "code": 423,
+   "sym": "卸",
+   "token_id": 103025
+  },
+  {
+   "code": 424,
+   "sym": "卺",
+   "token_id": 122371
+  },
+  {
+   "code": 425,
+   "sym": "卻",
+   "token_id": 104667
+  },
+  {
+   "code": 426,
+   "sym": "卿",
+   "token_id": 106987
+  },
+  {
+   "code": 427,
+   "sym": "厄",
+   "token_id": 112803
+  },
+  {
+   "code": 428,
+   "sym": "厌",
+   "token_id": 101738
+  },
+  {
+   "code": 429,
+   "sym": "厍",
+   "token_id": 119601
+  },
+  {
+   "code": 430,
+   "sym": "厕",
+   "token_id": 102967
+  },
+  {
+   "code": 431,
+   "sym": "厖",
+   "token_id": 122442
+  },
+  {
+   "code": 432,
+   "sym": "厘",
+   "token_id": 102751
+  },
+  {
+   "code": 433,
+   "sym": "厝",
+   "token_id": 120344
+  },
+  {
+   "code": 434,
+   "sym": "厢",
+   "token_id": 103376
+  },
+  {
+   "code": 435,
+   "sym": "厣",
+   "token_id": 122788
+  },
+  {
+   "code": 436,
+   "sym": "厥",
+   "token_id": 118991
+  },
+  {
+   "code": 437,
+   "sym": "厨",
+   "token_id": 101434
+  },
+  {
+   "code": 438,
+   "sym": "厩",
+   "token_id": 120630
+  },
+  {
+   "code": 439,
+   "sym": "厭",
+   "token_id": 119106
+  },
+  {
+   "code": 440,
+   "sym": "厮",
+   "token_id": 115904
+  },
+  {
+   "code": 441,
+   "sym": "厲",
+   "token_id": 119154
+  },
+  {
+   "code": 442,
+   "sym": "厳",
+   "token_id": 142788
+  },
+  {
+   "code": 443,
+   "sym": "厾",
+   "token_id": 119648
+  },
+  {
+   "code": 444,
+   "sym": "叁",
+   "token_id": 119257
+  },
+  {
+   "code": 445,
+   "sym": "參",
+   "token_id": 101010
+  },
+  {
+   "code": 446,
+   "sym": "叆",
+   "token_id": 121351
+  },
+  {
+   "code": 447,
+   "sym": "叇",
+   "token_id": 123425
+  },
+  {
+   "code": 448,
+   "sym": "反",
+   "token_id": 94443
+  },
+  {
+   "code": 449,
+   "sym": "叕",
+   "token_id": 122378
+  },
+  {
+   "code": 450,
+   "sym": "叙",
+   "token_id": 101009
+  },
+  {
+   "code": 451,
+   "sym": "叚",
+   "token_id": 122543
+  },
+  {
+   "code": 452,
+   "sym": "叛",
+   "token_id": 103165
+  },
+  {
+   "code": 453,
+   "sym": "叟",
+   "token_id": 120158
+  },
+  {
+   "code": 454,
+   "sym": "另",
+   "token_id": 99628
+  },
+  {
+   "code": 455,
+   "sym": "叨",
+   "token_id": 115282
+  },
+  {
+   "code": 456,
+   "sym": "叩",
+   "token_id": 118446
+  },
+  {
+   "code": 457,
+   "sym": "叮",
+   "token_id": 103484
+  },
+  {
+   "code": 458,
+   "sym": "叱",
+   "token_id": 119563
+  },
+  {
+   "code": 459,
+   "sym": "叵",
+   "token_id": 119558
+  },
+  {
+   "code": 460,
+   "sym": "叻",
+   "token_id": 119564
+  },
+  {
+   "code": 461,
+   "sym": "叼",
+   "token_id": 119302
+  },
+  {
+   "code": 462,
+   "sym": "叽",
+   "token_id": 119301
+  },
+  {
+   "code": 463,
+   "sym": "各",
+   "token_id": 99200
+  },
+  {
+   "code": 464,
+   "sym": "吆",
+   "token_id": 119305
+  },
+  {
+   "code": 465,
+   "sym": "吉",
+   "token_id": 100188
+  },
+  {
+   "code": 466,
+   "sym": "吊",
+   "token_id": 102370
+  },
+  {
+   "code": 467,
+   "sym": "吏",
+   "token_id": 112395
+  },
+  {
+   "code": 468,
+   "sym": "吒",
+   "token_id": 122157
+  },
+  {
+   "code": 469,
+   "sym": "吓",
+   "token_id": 102636
+  },
+  {
+   "code": 470,
+   "sym": "吕",
+   "token_id": 102426
+  },
+  {
+   "code": 471,
+   "sym": "吖",
+   "token_id": 122158
+  },
+  {
+   "code": 472,
+   "sym": "君",
+   "token_id": 101956
+  },
+  {
+   "code": 473,
+   "sym": "吝",
+   "token_id": 119321
+  },
+  {
+   "code": 474,
+   "sym": "吞",
+   "token_id": 102840
+  },
+  {
+   "code": 475,
+   "sym": "吟",
+   "token_id": 108375
+  },
+  {
+   "code": 476,
+   "sym": "吠",
+   "token_id": 119314
+  },
+  {
+   "code": 477,
+   "sym": "吡",
+   "token_id": 119701
+  },
+  {
+   "code": 478,
+   "sym": "吣",
+   "token_id": 119704
+  },
+  {
+   "code": 479,
+   "sym": "吩",
+   "token_id": 103734
+  },
+  {
+   "code": 480,
+   "sym": "吭",
+   "token_id": 119315
+  },
+  {
+   "code": 481,
+   "sym": "吮",
+   "token_id": 119316
+  },
+  {
+   "code": 482,
+   "sym": "吱",
+   "token_id": 118159
+  },
+  {
+   "code": 483,
+   "sym": "吲",
+   "token_id": 119705
+  },
+  {
+   "code": 484,
+   "sym": "吳",
+   "token_id": 112965
+  },
+  {
+   "code": 485,
+   "sym": "吴",
+   "token_id": 103948
+  },
+  {
+   "code": 486,
+   "sym": "吹",
+   "token_id": 102203
+  },
+  {
+   "code": 487,
+   "sym": "吻",
+   "token_id": 107261
+  },
+  {
+   "code": 488,
+   "sym": "吼",
+   "token_id": 108953
+  },
+  {
+   "code": 489,
+   "sym": "吽",
+   "token_id": 119703
+  },
+  {
+   "code": 490,
+   "sym": "吾",
+   "token_id": 106046
+  },
+  {
+   "code": 491,
+   "sym": "呀",
+   "token_id": 104256
+  },
+  {
+   "code": 492,
+   "sym": "呃",
+   "token_id": 119108
+  },
+  {
+   "code": 493,
+   "sym": "呆",
+   "token_id": 104660
+  },
+  {
+   "code": 494,
+   "sym": "呇",
+   "token_id": 122226
+  },
+  {
+   "code": 495,
+   "sym": "呈",
+   "token_id": 100827
+  },
+  {
+   "code": 496,
+   "sym": "呋",
+   "token_id": 119695
+  },
+  {
+   "code": 497,
+   "sym": "呐",
+   "token_id": 117825
+  },
+  {
+   "code": 498,
+   "sym": "呒",
+   "token_id": 119696
+  },
+  {
+   "code": 499,
+   "sym": "呓",
+   "token_id": 119697
+  },
+  {
+   "code": 500,
+   "sym": "呔",
+   "token_id": 119698
+  },
+  {
+   "code": 501,
+   "sym": "呕",
+   "token_id": 103611
+  },
+  {
+   "code": 502,
+   "sym": "呖",
+   "token_id": 119699
+  },
+  {
+   "code": 503,
+   "sym": "呗",
+   "token_id": 111382
+  },
+  {
+   "code": 504,
+   "sym": "呙",
+   "token_id": 122218
+  },
+  {
+   "code": 505,
+   "sym": "呛",
+   "token_id": 119157
+  },
+  {
+   "code": 506,
+   "sym": "呜",
+   "token_id": 119176
+  },
+  {
+   "code": 507,
+   "sym": "呢",
+   "token_id": 101036
+  },
+  {
+   "code": 508,
+   "sym": "呣",
+   "token_id": 119874
+  },
+  {
+   "code": 509,
+   "sym": "呤",
+   "token_id": 119870
+  },
+  {
+   "code": 510,
+   "sym": "呦",
+   "token_id": 119024
+  },
+  {
+   "code": 511,
+   "sym": "呱",
+   "token_id": 119869
+  },
+  {
+   "code": 512,
+   "sym": "呲",
+   "token_id": 120115
+  },
+  {
+   "code": 513,
+   "sym": "呶",
+   "token_id": 119873
+  },
+  {
+   "code": 514,
+   "sym": "呷",
+   "token_id": 119867
+  },
+  {
+   "code": 515,
+   "sym": "呸",
+   "token_id": 119859
+  },
+  {
+   "code": 516,
+   "sym": "呻",
+   "token_id": 119332
+  },
+  {
+   "code": 517,
+   "sym": "咀",
+   "token_id": 119866
+  },
+  {
+   "code": 518,
+   "sym": "咂",
+   "token_id": 119858
+  },
+  {
+   "code": 519,
+   "sym": "咄",
+   "token_id": 119333
+  },
+  {
+   "code": 520,
+   "sym": "咆",
+   "token_id": 119871
+  },
+  {
+   "code": 521,
+   "sym": "咇",
+   "token_id": 122310
+  },
+  {
+   "code": 522,
+   "sym": "咉",
+   "token_id": 122309
+  },
+  {
+   "code": 523,
+   "sym": "咋",
+   "token_id": 108806
+  },
+  {
+   "code": 524,
+   "sym": "咍",
+   "token_id": 122311
+  },
+  {
+   "code": 525,
+   "sym": "咎",
+   "token_id": 119931
+  },
+  {
+   "code": 526,
+   "sym": "咏",
+   "token_id": 111572
+  },
+  {
+   "code": 527,
+   "sym": "咒",
+   "token_id": 107619
+  },
+  {
+   "code": 528,
+   "sym": "咔",
+   "token_id": 118474
+  },
+  {
+   "code": 529,
+   "sym": "咕",
+   "token_id": 113898
+  },
+  {
+   "code": 530,
+   "sym": "咚",
+   "token_id": 116028
+  },
+  {
+   "code": 531,
+   "sym": "咛",
+   "token_id": 119872
+  },
+  {
+   "code": 532,
+   "sym": "咝",
+   "token_id": 119875
+  },
+  {
+   "code": 533,
+   "sym": "咡",
+   "token_id": 122459
+  },
+  {
+   "code": 534,
+   "sym": "咣",
+   "token_id": 120122
+  },
+  {
+   "code": 535,
+   "sym": "咤",
+   "token_id": 120133
+  },
+  {
+   "code": 536,
+   "sym": "咥",
+   "token_id": 122466
+  },
+  {
+   "code": 537,
+   "sym": "咦",
+   "token_id": 120111
+  },
+  {
+   "code": 538,
+   "sym": "咧",
+   "token_id": 117176
+  },
+  {
+   "code": 539,
+   "sym": "咨",
+   "token_id": 100412
+  },
+  {
+   "code": 540,
+   "sym": "咩",
+   "token_id": 120132
+  },
+  {
+   "code": 541,
+   "sym": "咪",
+   "token_id": 103577
+  },
+  {
+   "code": 542,
+   "sym": "咫",
+   "token_id": 120261
+  },
+  {
+   "code": 543,
+   "sym": "咬",
+   "token_id": 105118
+  },
+  {
+   "code": 544,
+   "sym": "咯",
+   "token_id": 110789
+  },
+  {
+   "code": 545,
+   "sym": "咱",
+   "token_id": 102177
+  },
+  {
+   "code": 546,
+   "sym": "咳",
+   "token_id": 103298
+  },
+  {
+   "code": 547,
+   "sym": "咴",
+   "token_id": 120108
+  },
+  {
+   "code": 548,
+   "sym": "咸",
+   "token_id": 102805
+  },
+  {
+   "code": 549,
+   "sym": "咺",
+   "token_id": 122460
+  },
+  {
+   "code": 550,
+   "sym": "咻",
+   "token_id": 120126
+  },
+  {
+   "code": 551,
+   "sym": "咽",
+   "token_id": 103162
+  },
+  {
+   "code": 552,
+   "sym": "咿",
+   "token_id": 120128
+  },
+  {
+   "code": 553,
+   "sym": "哂",
+   "token_id": 120107
+  },
+  {
+   "code": 554,
+   "sym": "哃",
+   "token_id": 122470
+  },
+  {
+   "code": 555,
+   "sym": "哄",
+   "token_id": 108676
+  },
+  {
+   "code": 556,
+   "sym": "哆",
+   "token_id": 119356
+  },
+  {
+   "code": 557,
+   "sym": "哇",
+   "token_id": 108668
+  },
+  {
+   "code": 558,
+   "sym": "哉",
+   "token_id": 113722
+  },
+  {
+   "code": 559,
+   "sym": "哌",
+   "token_id": 120129
+  },
+  {
+   "code": 560,
+   "sym": "哎",
+   "token_id": 110030
+  },
+  {
+   "code": 561,
+   "sym": "哏",
+   "token_id": 120135
+  },
+  {
+   "code": 562,
+   "sym": "哐",
+   "token_id": 120097
+  },
+  {
+   "code": 563,
+   "sym": "哑",
+   "token_id": 106558
+  },
+  {
+   "code": 564,
+   "sym": "哒",
+   "token_id": 113572
+  },
+  {
+   "code": 565,
+   "sym": "哓",
+   "token_id": 120112
+  },
+  {
+   "code": 566,
+   "sym": "哔",
+   "token_id": 120113
+  },
+  {
+   "code": 567,
+   "sym": "哕",
+   "token_id": 120123
+  },
+  {
+   "code": 568,
+   "sym": "哗",
+   "token_id": 111701
+  },
+  {
+   "code": 569,
+   "sym": "哙",
+   "token_id": 120130
+  },
+  {
+   "code": 570,
+   "sym": "哚",
+   "token_id": 120131
+  },
+  {
+   "code": 571,
+   "sym": "哝",
+   "token_id": 120134
+  },
+  {
+   "code": 572,
+   "sym": "哞",
+   "token_id": 120136
+  },
+  {
+   "code": 573,
+   "sym": "哟",
+   "token_id": 111447
+  },
+  {
+   "code": 574,
+   "sym": "哢",
+   "token_id": 122622
+  },
+  {
+   "code": 575,
+   "sym": "哦",
+   "token_id": 104170
+  },
+  {
+   "code": 576,
+   "sym": "哧",
+   "token_id": 120367
+  },
+  {
+   "code": 577,
+   "sym": "哨",
+   "token_id": 109760
+  },
+  {
+   "code": 578,
+   "sym": "哩",
+   "token_id": 113974
+  },
+  {
+   "code": 579,
+   "sym": "哭",
+   "token_id": 101268
+  },
+  {
+   "code": 580,
+   "sym": "哮",
+   "token_id": 103668
+  },
+  {
+   "code": 581,
+   "sym": "哱",
+   "token_id": 122627
+  },
+  {
+   "code": 582,
+   "sym": "哲",
+   "token_id": 102607
+  },
+  {
+   "code": 583,
+   "sym": "哳",
+   "token_id": 122626
+  },
+  {
+   "code": 584,
+   "sym": "哺",
+   "token_id": 103746
+  },
+  {
+   "code": 585,
+   "sym": "哼",
+   "token_id": 107314
+  },
+  {
+   "code": 586,
+   "sym": "哽",
+   "token_id": 120368
+  },
+  {
+   "code": 587,
+   "sym": "哿",
+   "token_id": 122731
+  },
+  {
+   "code": 588,
+   "sym": "唁",
+   "token_id": 119381
+  },
+  {
+   "code": 589,
+   "sym": "唆",
+   "token_id": 119382
+  },
+  {
+   "code": 590,
+   "sym": "唉",
+   "token_id": 110370
+  },
+  {
+   "code": 591,
+   "sym": "唏",
+   "token_id": 120384
+  },
+  {
+   "code": 592,
+   "sym": "唑",
+   "token_id": 120386
+  },
+  {
+   "code": 593,
+   "sym": "唔",
+   "token_id": 118121
+  },
+  {
+   "code": 594,
+   "sym": "唛",
+   "token_id": 120365
+  },
+  {
+   "code": 595,
+   "sym": "唝",
+   "token_id": 122625
+  },
+  {
+   "code": 596,
+   "sym": "唠",
+   "token_id": 119375
+  },
+  {
+   "code": 597,
+   "sym": "唢",
+   "token_id": 120381
+  },
+  {
+   "code": 598,
+   "sym": "唣",
+   "token_id": 120383
+  },
+  {
+   "code": 599,
+   "sym": "唧",
+   "token_id": 119227
+  },
+  {
+   "code": 600,
+   "sym": "唪",
+   "token_id": 122799
+  },
+  {
+   "code": 601,
+   "sym": "唬",
+   "token_id": 119409
+  },
+  {
+   "code": 602,
+   "sym": "唯",
+   "token_id": 100473
+  },
+  {
+   "code": 603,
+   "sym": "唰",
+   "token_id": 120677
+  },
+  {
+   "code": 604,
+   "sym": "唳",
+   "token_id": 120676
+  },
+  {
+   "code": 605,
+   "sym": "唵",
+   "token_id": 120649
+  },
+  {
+   "code": 606,
+   "sym": "唷",
+   "token_id": 120671
+  },
+  {
+   "code": 607,
+   "sym": "唼",
+   "token_id": 120670
+  },
+  {
+   "code": 608,
+   "sym": "唾",
+   "token_id": 117974
+  },
+  {
+   "code": 609,
+   "sym": "唿",
+   "token_id": 120668
+  },
+  {
+   "code": 610,
+   "sym": "啁",
+   "token_id": 120666
+  },
+  {
+   "code": 611,
+   "sym": "啃",
+   "token_id": 114792
+  },
+  {
+   "code": 612,
+   "sym": "啄",
+   "token_id": 119406
+  },
+  {
+   "code": 613,
+   "sym": "啉",
+   "token_id": 120646
+  },
+  {
+   "code": 614,
+   "sym": "啊",
+   "token_id": 103924
+  },
+  {
+   "code": 615,
+   "sym": "問",
+   "token_id": 98297
+  },
+  {
+   "code": 616,
+   "sym": "啐",
+   "token_id": 120669
+  },
+  {
+   "code": 617,
+   "sym": "啕",
+   "token_id": 120667
+  },
+  {
+   "code": 618,
+   "sym": "啖",
+   "token_id": 120672
+  },
+  {
+   "code": 619,
+   "sym": "啜",
+   "token_id": 120678
+  },
+  {
+   "code": 620,
+   "sym": "啟",
+   "token_id": 103564
+  },
+  {
+   "code": 621,
+   "sym": "啤",
+   "token_id": 102886
+  },
+  {
+   "code": 622,
+   "sym": "啦",
+   "token_id": 104060
+  },
+  {
+   "code": 623,
+   "sym": "啧",
+   "token_id": 120640
+  },
+  {
+   "code": 624,
+   "sym": "啪",
+   "token_id": 116944
+  },
+  {
+   "code": 625,
+   "sym": "啫",
+   "token_id": 122800
+  },
+  {
+   "code": 626,
+   "sym": "啬",
+   "token_id": 120614
+  },
+  {
+   "code": 627,
+   "sym": "啭",
+   "token_id": 120651
+  },
+  {
+   "code": 628,
+   "sym": "啮",
+   "token_id": 120654
+  },
+  {
+   "code": 629,
+   "sym": "啰",
+   "token_id": 119297
+  },
+  {
+   "code": 630,
+   "sym": "啴",
+   "token_id": 122813
+  },
+  {
+   "code": 631,
+   "sym": "啵",
+   "token_id": 120673
+  },
+  {
+   "code": 632,
+   "sym": "啶",
+   "token_id": 120674
+  },
+  {
+   "code": 633,
+   "sym": "啷",
+   "token_id": 120675
+  },
+  {
+   "code": 634,
+   "sym": "啸",
+   "token_id": 111758
+  },
+  {
+   "code": 635,
+   "sym": "啻",
+   "token_id": 121030
+  },
+  {
+   "code": 636,
+   "sym": "啼",
+   "token_id": 118139
+  },
+  {
+   "code": 637,
+   "sym": "啾",
+   "token_id": 120935
+  },
+  {
+   "code": 638,
+   "sym": "喀",
+   "token_id": 110747
+  },
+  {
+   "code": 639,
+   "sym": "喁",
+   "token_id": 120933
+  },
+  {
+   "code": 640,
+   "sym": "喂",
+   "token_id": 105711
+  },
+  {
+   "code": 641,
+   "sym": "喃",
+   "token_id": 120912
+  },
+  {
+   "code": 642,
+   "sym": "喆",
+   "token_id": 122943
+  },
+  {
+   "code": 643,
+   "sym": "喇",
+   "token_id": 103719
+  },
+  {
+   "code": 644,
+   "sym": "喈",
+   "token_id": 120916
+  },
+  {
+   "code": 645,
+   "sym": "喊",
+   "token_id": 104611
+  },
+  {
+   "code": 646,
+   "sym": "喋",
+   "token_id": 120910
+  },
+  {
+   "code": 647,
+   "sym": "喏",
+   "token_id": 120645
+  },
+  {
+   "code": 648,
+   "sym": "喑",
+   "token_id": 120937
+  },
+  {
+   "code": 649,
+   "sym": "喔",
+   "token_id": 111539
+  },
+  {
+   "code": 650,
+   "sym": "喙",
+   "token_id": 120940
+  },
+  {
+   "code": 651,
+   "sym": "喝",
+   "token_id": 100399
+  },
+  {
+   "code": 652,
+   "sym": "喟",
+   "token_id": 120934
+  },
+  {
+   "code": 653,
+   "sym": "喤",
+   "token_id": 123013
+  },
+  {
+   "code": 654,
+   "sym": "喧",
+   "token_id": 114914
+  },
+  {
+   "code": 655,
+   "sym": "喪",
+   "token_id": 119127
+  },
+  {
+   "code": 656,
+   "sym": "喬",
+   "token_id": 119019
+  },
+  {
+   "code": 657,
+   "sym": "單",
+   "token_id": 101495
+  },
+  {
+   "code": 658,
+   "sym": "喱",
+   "token_id": 120913
+  },
+  {
+   "code": 659,
+   "sym": "喳",
+   "token_id": 119430
+  },
+  {
+   "code": 660,
+   "sym": "喵",
+   "token_id": 116198
+  },
+  {
+   "code": 661,
+   "sym": "喷",
+   "token_id": 102125
+  },
+  {
+   "code": 662,
+   "sym": "喹",
+   "token_id": 120914
+  },
+  {
+   "code": 663,
+   "sym": "喽",
+   "token_id": 119118
+  },
+  {
+   "code": 664,
+   "sym": "喾",
+   "token_id": 121064
+  },
+  {
+   "code": 665,
+   "sym": "嗄",
+   "token_id": 121188
+  },
+  {
+   "code": 666,
+   "sym": "嗅",
+   "token_id": 116496
+  },
+  {
+   "code": 667,
+   "sym": "嗉",
+   "token_id": 121177
+  },
+  {
+   "code": 668,
+   "sym": "嗌",
+   "token_id": 121209
+  },
+  {
+   "code": 669,
+   "sym": "嗍",
+   "token_id": 121210
+  },
+  {
+   "code": 670,
+   "sym": "嗎",
+   "token_id": 105793
+  },
+  {
+   "code": 671,
+   "sym": "嗐",
+   "token_id": 121211
+  },
+  {
+   "code": 672,
+   "sym": "嗑",
+   "token_id": 121182
+  },
+  {
+   "code": 673,
+   "sym": "嗒",
+   "token_id": 120911
+  },
+  {
+   "code": 674,
+   "sym": "嗓",
+   "token_id": 103751
+  },
+  {
+   "code": 675,
+   "sym": "嗔",
+   "token_id": 121185
+  },
+  {
+   "code": 676,
+   "sym": "嗖",
+   "token_id": 120936
+  },
+  {
+   "code": 677,
+   "sym": "嗜",
+   "token_id": 114732
+  },
+  {
+   "code": 678,
+   "sym": "嗝",
+   "token_id": 121186
+  },
+  {
+   "code": 679,
+   "sym": "嗞",
+   "token_id": 120939
+  },
+  {
+   "code": 680,
+   "sym": "嗟",
+   "token_id": 120938
+  },
+  {
+   "code": 681,
+   "sym": "嗡",
+   "token_id": 117377
+  },
+  {
+   "code": 682,
+   "sym": "嗣",
+   "token_id": 116860
+  },
+  {
+   "code": 683,
+   "sym": "嗤",
+   "token_id": 121212
+  },
+  {
+   "code": 684,
+   "sym": "嗥",
+   "token_id": 121206
+  },
+  {
+   "code": 685,
+   "sym": "嗦",
+   "token_id": 119454
+  },
+  {
+   "code": 686,
+   "sym": "嗨",
+   "token_id": 112488
+  },
+  {
+   "code": 687,
+   "sym": "嗪",
+   "token_id": 121174
+  },
+  {
+   "code": 688,
+   "sym": "嗫",
+   "token_id": 121183
+  },
+  {
+   "code": 689,
+   "sym": "嗬",
+   "token_id": 121184
+  },
+  {
+   "code": 690,
+   "sym": "嗯",
+   "token_id": 106287
+  },
+  {
+   "code": 691,
+   "sym": "嗲",
+   "token_id": 121207
+  },
+  {
+   "code": 692,
+   "sym": "嗳",
+   "token_id": 121208
+  },
+  {
+   "code": 693,
+   "sym": "嗵",
+   "token_id": 121213
+  },
+  {
+   "code": 694,
+   "sym": "嗷",
+   "token_id": 121176
+  },
+  {
+   "code": 695,
+   "sym": "嗾",
+   "token_id": 121430
+  },
+  {
+   "code": 696,
+   "sym": "嘀",
+   "token_id": 119471
+  },
+  {
+   "code": 697,
+   "sym": "嘁",
+   "token_id": 121410
+  },
+  {
+   "code": 698,
+   "sym": "嘈",
+   "token_id": 121408
+  },
+  {
+   "code": 699,
+   "sym": "嘉",
+   "token_id": 100731
+  },
+  {
+   "code": 700,
+   "sym": "嘌",
+   "token_id": 121409
+  },
+  {
+   "code": 701,
+   "sym": "嘎",
+   "token_id": 111947
+  },
+  {
+   "code": 702,
+   "sym": "嘏",
+   "token_id": 123314
+  },
+  {
+   "code": 703,
+   "sym": "嘘",
+   "token_id": 119021
+  },
+  {
+   "code": 704,
+   "sym": "嘚",
+   "token_id": 121429
+  },
+  {
+   "code": 705,
+   "sym": "嘞",
+   "token_id": 121407
+  },
+  {
+   "code": 706,
+   "sym": "嘟",
+   "token_id": 119235
+  },
+  {
+   "code": 707,
+   "sym": "嘡",
+   "token_id": 121425
+  },
+  {
+   "code": 708,
+   "sym": "嘣",
+   "token_id": 121427
+  },
+  {
+   "code": 709,
+   "sym": "嘤",
+   "token_id": 121428
+  },
+  {
+   "code": 710,
+   "sym": "嘧",
+   "token_id": 121431
+  },
+  {
+   "code": 711,
+   "sym": "嘬",
+   "token_id": 121618
+  },
+  {
+   "code": 712,
+   "sym": "嘭",
+   "token_id": 121594
+  },
+  {
+   "code": 713,
+   "sym": "嘲",
+   "token_id": 103721
+  },
+  {
+   "code": 714,
+   "sym": "嘴",
+   "token_id": 100457
+  },
+  {
+   "code": 715,
+   "sym": "嘶",
+   "token_id": 117084
+  },
+  {
+   "code": 716,
+   "sym": "嘹",
+   "token_id": 119483
+  },
+  {
+   "code": 717,
+   "sym": "噀",
+   "token_id": 123452
+  },
+  {
+   "code": 718,
+   "sym": "噂",
+   "token_id": 123451
+  },
+  {
+   "code": 719,
+   "sym": "噇",
+   "token_id": 123450
+  },
+  {
+   "code": 720,
+   "sym": "噌",
+   "token_id": 121622
+  },
+  {
+   "code": 721,
+   "sym": "噍",
+   "token_id": 121620
+  },
+  {
+   "code": 722,
+   "sym": "噎",
+   "token_id": 121595
+  },
+  {
+   "code": 723,
+   "sym": "噔",
+   "token_id": 121623
+  },
+  {
+   "code": 724,
+   "sym": "噗",
+   "token_id": 119224
+  },
+  {
+   "code": 725,
+   "sym": "噘",
+   "token_id": 121599
+  },
+  {
+   "code": 726,
+   "sym": "噙",
+   "token_id": 121621
+  },
+  {
+   "code": 727,
+   "sym": "噜",
+   "token_id": 119076
+  },
+  {
+   "code": 728,
+   "sym": "噢",
+   "token_id": 118401
+  },
+  {
+   "code": 729,
+   "sym": "噤",
+   "token_id": 121754
+  },
+  {
+   "code": 730,
+   "sym": "噩",
+   "token_id": 119499
+  },
+  {
+   "code": 731,
+   "sym": "噪",
+   "token_id": 101793
+  },
+  {
+   "code": 732,
+   "sym": "噫",
+   "token_id": 121768
+  },
+  {
+   "code": 733,
+   "sym": "噱",
+   "token_id": 121767
+  },
+  {
+   "code": 734,
+   "sym": "噴",
+   "token_id": 119225
+  },
+  {
+   "code": 735,
+   "sym": "噶",
+   "token_id": 121596
+  },
+  {
+   "code": 736,
+   "sym": "噻",
+   "token_id": 121769
+  },
+  {
+   "code": 737,
+   "sym": "噼",
+   "token_id": 121770
+  },
+  {
+   "code": 738,
+   "sym": "嚄",
+   "token_id": 121752
+  },
+  {
+   "code": 739,
+   "sym": "嚅",
+   "token_id": 121876
+  },
+  {
+   "code": 740,
+   "sym": "嚆",
+   "token_id": 121753
+  },
+  {
+   "code": 741,
+   "sym": "嚇",
+   "token_id": 119107
+  },
+  {
+   "code": 742,
+   "sym": "嚎",
+   "token_id": 119103
+  },
+  {
+   "code": 743,
+   "sym": "嚏",
+   "token_id": 121875
+  },
+  {
+   "code": 744,
+   "sym": "嚓",
+   "token_id": 121886
+  },
+  {
+   "code": 745,
+   "sym": "嚚",
+   "token_id": 123682
+  },
+  {
+   "code": 746,
+   "sym": "嚣",
+   "token_id": 119519
+  },
+  {
+   "code": 747,
+   "sym": "嚭",
+   "token_id": 123713
+  },
+  {
+   "code": 748,
+   "sym": "嚯",
+   "token_id": 122017
+  },
+  {
+   "code": 749,
+   "sym": "嚴",
+   "token_id": 103286
+  },
+  {
+   "code": 750,
+   "sym": "嚷",
+   "token_id": 115423
+  },
+  {
+   "code": 751,
+   "sym": "嚼",
+   "token_id": 116284
+  },
+  {
+   "code": 752,
+   "sym": "囊",
+   "token_id": 102781
+  },
+  {
+   "code": 753,
+   "sym": "囔",
+   "token_id": 122121
+  },
+  {
+   "code": 754,
+   "sym": "囚",
+   "token_id": 113372
+  },
+  {
+   "code": 755,
+   "sym": "囟",
+   "token_id": 119626
+  },
+  {
+   "code": 756,
+   "sym": "囡",
+   "token_id": 119611
+  },
+  {
+   "code": 757,
+   "sym": "囤",
+   "token_id": 117621
+  },
+  {
+   "code": 758,
+   "sym": "囫",
+   "token_id": 119711
+  },
+  {
+   "code": 759,
+   "sym": "困",
+   "token_id": 99629
+  },
+  {
+   "code": 760,
+   "sym": "囵",
+   "token_id": 119710
+  },
+  {
+   "code": 761,
+   "sym": "囷",
+   "token_id": 122319
+  },
+  {
+   "code": 762,
+   "sym": "囹",
+   "token_id": 119889
+  },
+  {
+   "code": 763,
+   "sym": "囿",
+   "token_id": 120127
+  },
+  {
+   "code": 764,
+   "sym": "圃",
+   "token_id": 118857
+  },
+  {
+   "code": 765,
+   "sym": "圄",
+   "token_id": 120382
+  },
+  {
+   "code": 766,
+   "sym": "圉",
+   "token_id": 120661
+  },
+  {
+   "code": 767,
+   "sym": "圊",
+   "token_id": 120644
+  },
+  {
+   "code": 768,
+   "sym": "圌",
+   "token_id": 123024
+  },
+  {
+   "code": 769,
+   "sym": "圍",
+   "token_id": 108703
+  },
+  {
+   "code": 770,
+   "sym": "圐",
+   "token_id": 123025
+  },
+  {
+   "code": 771,
+   "sym": "圓",
+   "token_id": 111365
+  },
+  {
+   "code": 772,
+   "sym": "圖",
+   "token_id": 102701
+  },
+  {
+   "code": 773,
+   "sym": "團",
+   "token_id": 101652
+  },
+  {
+   "code": 774,
+   "sym": "圙",
+   "token_id": 123347
+  },
+  {
+   "code": 775,
+   "sym": "圜",
+   "token_id": 121772
+  },
+  {
+   "code": 776,
+   "sym": "圢",
+   "token_id": 122135
+  },
+  {
+   "code": 777,
+   "sym": "圣",
+   "token_id": 100189
+  },
+  {
+   "code": 778,
+   "sym": "圩",
+   "token_id": 119033
+  },
+  {
+   "code": 779,
+   "sym": "圪",
+   "token_id": 119588
+  },
+  {
+   "code": 780,
+   "sym": "圫",
+   "token_id": 122149
+  },
+  {
+   "code": 781,
+   "sym": "圬",
+   "token_id": 119586
+  },
+  {
+   "code": 782,
+   "sym": "圭",
+   "token_id": 117436
+  },
+  {
+   "code": 783,
+   "sym": "圮",
+   "token_id": 119591
+  },
+  {
+   "code": 784,
+   "sym": "圯",
+   "token_id": 119592
+  },
+  {
+   "code": 785,
+   "sym": "圲",
+   "token_id": 122148
+  },
+  {
+   "code": 786,
+   "sym": "圹",
+   "token_id": 119589
+  },
+  {
+   "code": 787,
+   "sym": "圻",
+   "token_id": 119658
+  },
+  {
+   "code": 788,
+   "sym": "坂",
+   "token_id": 119145
+  },
+  {
+   "code": 789,
+   "sym": "坉",
+   "token_id": 122188
+  },
+  {
+   "code": 790,
+   "sym": "坋",
+   "token_id": 122191
+  },
+  {
+   "code": 791,
+   "sym": "坌",
+   "token_id": 119727
+  },
+  {
+   "code": 792,
+   "sym": "坍",
+   "token_id": 119659
+  },
+  {
+   "code": 793,
+   "sym": "坎",
+   "token_id": 103142
+  },
+  {
+   "code": 794,
+   "sym": "坑",
+   "token_id": 104527
+  },
+  {
+   "code": 795,
+   "sym": "坒",
+   "token_id": 122214
+  },
+  {
+   "code": 796,
+   "sym": "坛",
+   "token_id": 101152
+  },
+  {
+   "code": 797,
+   "sym": "坜",
+   "token_id": 122187
+  },
+  {
+   "code": 798,
+   "sym": "坝",
+   "token_id": 105147
+  },
+  {
+   "code": 799,
+   "sym": "坞",
+   "token_id": 103634
+  },
+  {
+   "code": 800,
+   "sym": "坟",
+   "token_id": 110435
+  },
+  {
+   "code": 801,
+   "sym": "坠",
+   "token_id": 107909
+  },
+  {
+   "code": 802,
+   "sym": "坥",
+   "token_id": 122282
+  },
+  {
+   "code": 803,
+   "sym": "坨",
+   "token_id": 119810
+  },
+  {
+   "code": 804,
+   "sym": "坩",
+   "token_id": 119797
+  },
+  {
+   "code": 805,
+   "sym": "坫",
+   "token_id": 119800
+  },
+  {
+   "code": 806,
+   "sym": "坬",
+   "token_id": 122284
+  },
+  {
+   "code": 807,
+   "sym": "坭",
+   "token_id": 119811
+  },
+  {
+   "code": 808,
+   "sym": "坯",
+   "token_id": 112989
+  },
+  {
+   "code": 809,
+   "sym": "坰",
+   "token_id": 122283
+  },
+  {
+   "code": 810,
+   "sym": "坳",
+   "token_id": 119813
+  },
+  {
+   "code": 811,
+   "sym": "坻",
+   "token_id": 119808
+  },
+  {
+   "code": 812,
+   "sym": "坼",
+   "token_id": 119807
+  },
+  {
+   "code": 813,
+   "sym": "坽",
+   "token_id": 122285
+  },
+  {
+   "code": 814,
+   "sym": "垂",
+   "token_id": 102566
+  },
+  {
+   "code": 815,
+   "sym": "垃",
+   "token_id": 100476
+  },
+  {
+   "code": 816,
+   "sym": "垄",
+   "token_id": 103177
+  },
+  {
+   "code": 817,
+   "sym": "垆",
+   "token_id": 119802
+  },
+  {
+   "code": 818,
+   "sym": "垈",
+   "token_id": 122326
+  },
+  {
+   "code": 819,
+   "sym": "垌",
+   "token_id": 120024
+  },
+  {
+   "code": 820,
+   "sym": "垍",
+   "token_id": 122405
+  },
+  {
+   "code": 821,
+   "sym": "垎",
+   "token_id": 122408
+  },
+  {
+   "code": 822,
+   "sym": "垏",
+   "token_id": 122414
+  },
+  {
+   "code": 823,
+   "sym": "垓",
+   "token_id": 120026
+  },
+  {
+   "code": 824,
+   "sym": "垕",
+   "token_id": 122494
+  },
+  {
+   "code": 825,
+   "sym": "垙",
+   "token_id": 122402
+  },
+  {
+   "code": 826,
+   "sym": "垚",
+   "token_id": 122400
+  },
+  {
+   "code": 827,
+   "sym": "垛",
+   "token_id": 119352
+  },
+  {
+   "code": 828,
+   "sym": "垞",
+   "token_id": 122411
+  },
+  {
+   "code": 829,
+   "sym": "垟",
+   "token_id": 122410
+  },
+  {
+   "code": 830,
+   "sym": "垠",
+   "token_id": 120028
+  },
+  {
+   "code": 831,
+   "sym": "垡",
+   "token_id": 120159
+  },
+  {
+   "code": 832,
+   "sym": "垢",
+   "token_id": 114389
+  },
+  {
+   "code": 833,
+   "sym": "垣",
+   "token_id": 117834
+  },
+  {
+   "code": 834,
+   "sym": "垤",
+   "token_id": 120020
+  },
+  {
+   "code": 835,
+   "sym": "垦",
+   "token_id": 113945
+  },
+  {
+   "code": 836,
+   "sym": "垧",
+   "token_id": 120025
+  },
+  {
+   "code": 837,
+   "sym": "垩",
+   "token_id": 120045
+  },
+  {
+   "code": 838,
+   "sym": "垭",
+   "token_id": 120017
+  },
+  {
+   "code": 839,
+   "sym": "垮",
+   "token_id": 112275
+  },
+  {
+   "code": 840,
+   "sym": "垯",
+   "token_id": 122401
+  },
+  {
+   "code": 841,
+   "sym": "垱",
+   "token_id": 120023
+  },
+  {
+   "code": 842,
+   "sym": "垲",
+   "token_id": 122403
+  },
+  {
+   "code": 843,
+   "sym": "垴",
+   "token_id": 122409
+  },
+  {
+   "code": 844,
+   "sym": "垵",
+   "token_id": 122413
+  },
+  {
+   "code": 845,
+   "sym": "垸",
+   "token_id": 120304
+  },
+  {
+   "code": 846,
+   "sym": "垺",
+   "token_id": 122581
+  },
+  {
+   "code": 847,
+   "sym": "垾",
+   "token_id": 122580
+  },
+  {
+   "code": 848,
+   "sym": "垿",
+   "token_id": 122583
+  },
+  {
+   "code": 849,
+   "sym": "埂",
+   "token_id": 119368
+  },
+  {
+   "code": 850,
+   "sym": "埃",
+   "token_id": 101499
+  },
+  {
+   "code": 851,
+   "sym": "埆",
+   "token_id": 122582
+  },
+  {
+   "code": 852,
+   "sym": "埇",
+   "token_id": 122585
+  },
+  {
+   "code": 853,
+   "sym": "埋",
+   "token_id": 105030
+  },
+  {
+   "code": 854,
+   "sym": "埌",
+   "token_id": 122584
+  },
+  {
+   "code": 855,
+   "sym": "埏",
+   "token_id": 122404
+  },
+  {
+   "code": 856,
+   "sym": "埒",
+   "token_id": 120301
+  },
+  {
+   "code": 857,
+   "sym": "埕",
+   "token_id": 120294
+  },
+  {
+   "code": 858,
+   "sym": "埗",
+   "token_id": 122579
+  },
+  {
+   "code": 859,
+   "sym": "埘",
+   "token_id": 120295
+  },
+  {
+   "code": 860,
+   "sym": "埙",
+   "token_id": 120296
+  },
+  {
+   "code": 861,
+   "sym": "埚",
+   "token_id": 120297
+  },
+  {
+   "code": 862,
+   "sym": "埝",
+   "token_id": 120569
+  },
+  {
+   "code": 863,
+   "sym": "埠",
+   "token_id": 103750
+  },
+  {
+   "code": 864,
+   "sym": "埤",
+   "token_id": 120566
+  },
+  {
+   "code": 865,
+   "sym": "埪",
+   "token_id": 122760
+  },
+  {
+   "code": 866,
+   "sym": "埫",
+   "token_id": 122754
+  },
+  {
+   "code": 867,
+   "sym": "埭",
+   "token_id": 120581
+  },
+  {
+   "code": 868,
+   "sym": "埯",
+   "token_id": 120559
+  },
+  {
+   "code": 869,
+   "sym": "埴",
+   "token_id": 120558
+  },
+  {
+   "code": 870,
+   "sym": "埵",
+   "token_id": 120564
+  },
+  {
+   "code": 871,
+   "sym": "執",
+   "token_id": 103552
+  },
+  {
+   "code": 872,
+   "sym": "埸",
+   "token_id": 120563
+  },
+  {
+   "code": 873,
+   "sym": "埼",
+   "token_id": 122752
+  },
+  {
+   "code": 874,
+   "sym": "埽",
+   "token_id": 120582
+  },
+  {
+   "code": 875,
+   "sym": "堃",
+   "token_id": 122874
+  },
+  {
+   "code": 876,
+   "sym": "堅",
+   "token_id": 103533
+  },
+  {
+   "code": 877,
+   "sym": "堇",
+   "token_id": 120588
+  },
+  {
+   "code": 878,
+   "sym": "堉",
+   "token_id": 120576
+  },
+  {
+   "code": 879,
+   "sym": "堋",
+   "token_id": 120570
+  },
+  {
+   "code": 880,
+   "sym": "堌",
+   "token_id": 122755
+  },
+  {
+   "code": 881,
+   "sym": "堍",
+   "token_id": 120571
+  },
+  {
+   "code": 882,
+   "sym": "堎",
+   "token_id": 122750
+  },
+  {
+   "code": 883,
+   "sym": "堐",
+   "token_id": 122751
+  },
+  {
+   "code": 884,
+   "sym": "堑",
+   "token_id": 120637
+  },
+  {
+   "code": 885,
+   "sym": "堕",
+   "token_id": 119022
+  },
+  {
+   "code": 886,
+   "sym": "堙",
+   "token_id": 120858
+  },
+  {
+   "code": 887,
+   "sym": "堞",
+   "token_id": 120854
+  },
+  {
+   "code": 888,
+   "sym": "堠",
+   "token_id": 122946
+  },
+  {
+   "code": 889,
+   "sym": "堤",
+   "token_id": 107617
+  },
+  {
+   "code": 890,
+   "sym": "堧",
+   "token_id": 122942
+  },
+  {
+   "code": 891,
+   "sym": "堨",
+   "token_id": 122944
+  },
+  {
+   "code": 892,
+   "sym": "堲",
+   "token_id": 122723
+  },
+  {
+   "code": 893,
+   "sym": "堼",
+   "token_id": 122939
+  },
+  {
+   "code": 894,
+   "sym": "堽",
+   "token_id": 123140
+  },
+  {
+   "code": 895,
+   "sym": "堾",
+   "token_id": 122938
+  },
+  {
+   "code": 896,
+   "sym": "塄",
+   "token_id": 120862
+  },
+  {
+   "code": 897,
+   "sym": "塅",
+   "token_id": 122945
+  },
+  {
+   "code": 898,
+   "sym": "塆",
+   "token_id": 120868
+  },
+  {
+   "code": 899,
+   "sym": "塊",
+   "token_id": 111145
+  },
+  {
+   "code": 900,
+   "sym": "塍",
+   "token_id": 121256
+  },
+  {
+   "code": 901,
+   "sym": "塑",
+   "token_id": 100289
+  },
+  {
+   "code": 902,
+   "sym": "塘",
+   "token_id": 104679
+  },
+  {
+   "code": 903,
+   "sym": "塝",
+   "token_id": 123143
+  },
+  {
+   "code": 904,
+   "sym": "塥",
+   "token_id": 123139
+  },
+  {
+   "code": 905,
+   "sym": "填",
+   "token_id": 68756
+  },
+  {
+   "code": 906,
+   "sym": "塬",
+   "token_id": 121103
+  },
+  {
+   "code": 907,
+   "sym": "塱",
+   "token_id": 123266
+  },
+  {
+   "code": 908,
+   "sym": "塵",
+   "token_id": 119098
+  },
+  {
+   "code": 909,
+   "sym": "塾",
+   "token_id": 121484
+  },
+  {
+   "code": 910,
+   "sym": "墀",
+   "token_id": 121558
+  },
+  {
+   "code": 911,
+   "sym": "墁",
+   "token_id": 121353
+  },
+  {
+   "code": 912,
+   "sym": "墈",
+   "token_id": 123296
+  },
+  {
+   "code": 913,
+   "sym": "墉",
+   "token_id": 121360
+  },
+  {
+   "code": 914,
+   "sym": "墐",
+   "token_id": 123297
+  },
+  {
+   "code": 915,
+   "sym": "墒",
+   "token_id": 121361
+  },
+  {
+   "code": 916,
+   "sym": "墓",
+   "token_id": 104575
+  },
+  {
+   "code": 917,
+   "sym": "墕",
+   "token_id": 123295
+  },
+  {
+   "code": 918,
+   "sym": "増",
+   "token_id": 127535
+  },
+  {
+   "code": 919,
+   "sym": "墘",
+   "token_id": 123298
+  },
+  {
+   "code": 920,
+   "sym": "墚",
+   "token_id": 123303
+  },
+  {
+   "code": 921,
+   "sym": "墟",
+   "token_id": 119230
+  },
+  {
+   "code": 922,
+   "sym": "墡",
+   "token_id": 123428
+  },
+  {
+   "code": 923,
+   "sym": "墣",
+   "token_id": 123426
+  },
+  {
+   "code": 924,
+   "sym": "墦",
+   "token_id": 123427
+  },
+  {
+   "code": 925,
+   "sym": "墩",
+   "token_id": 111570
+  },
+  {
+   "code": 926,
+   "sym": "墼",
+   "token_id": 121735
+  },
+  {
+   "code": 927,
+   "sym": "壅",
+   "token_id": 121823
+  },
+  {
+   "code": 928,
+   "sym": "壑",
+   "token_id": 121873
+  },
+  {
+   "code": 929,
+   "sym": "壓",
+   "token_id": 103243
+  },
+  {
+   "code": 930,
+   "sym": "壕",
+   "token_id": 121852
+  },
+  {
+   "code": 931,
+   "sym": "壞",
+   "token_id": 114115
+  },
+  {
+   "code": 932,
+   "sym": "壬",
+   "token_id": 118696
+  },
+  {
+   "code": 933,
+   "sym": "壯",
+   "token_id": 119077
+  },
+  {
+   "code": 934,
+   "sym": "売",
+   "token_id": 125988
+  },
+  {
+   "code": 935,
+   "sym": "壶",
+   "token_id": 106469
+  },
+  {
+   "code": 936,
+   "sym": "壸",
+   "token_id": 122761
+  },
+  {
+   "code": 937,
+   "sym": "壹",
+   "token_id": 106770
+  },
+  {
+   "code": 938,
+   "sym": "壽",
+   "token_id": 116349
+  },
+  {
+   "code": 939,
+   "sym": "変",
+   "token_id": 124994
+  },
+  {
+   "code": 940,
+   "sym": "夐",
+   "token_id": 123380
+  },
+  {
+   "code": 941,
+   "sym": "夔",
+   "token_id": 122087
+  },
+  {
+   "code": 942,
+   "sym": "夙",
+   "token_id": 119629
+  },
+  {
+   "code": 943,
+   "sym": "夠",
+   "token_id": 103043
+  },
+  {
+   "code": 944,
+   "sym": "夢",
+   "token_id": 108483
+  },
+  {
+   "code": 945,
+   "sym": "夤",
+   "token_id": 121481
+  },
+  {
+   "code": 946,
+   "sym": "夥",
+   "token_id": 123339
+  },
+  {
+   "code": 947,
+   "sym": "夬",
+   "token_id": 119551
+  },
+  {
+   "code": 948,
+   "sym": "夭",
+   "token_id": 117916
+  },
+  {
+   "code": 949,
+   "sym": "夯",
+   "token_id": 103417
+  },
+  {
+   "code": 950,
+   "sym": "夷",
+   "token_id": 109379
+  },
+  {
+   "code": 951,
+   "sym": "夸",
+   "token_id": 101651
+  },
+  {
+   "code": 952,
+   "sym": "夹",
+   "token_id": 104792
+  },
+  {
+   "code": 953,
+   "sym": "夼",
+   "token_id": 119602
+  },
+  {
+   "code": 954,
+   "sym": "奁",
+   "token_id": 119684
+  },
+  {
+   "code": 955,
+   "sym": "奂",
+   "token_id": 119729
+  },
+  {
+   "code": 956,
+   "sym": "奄",
+   "token_id": 119848
+  },
+  {
+   "code": 957,
+   "sym": "奉",
+   "token_id": 102423
+  },
+  {
+   "code": 958,
+   "sym": "奎",
+   "token_id": 109367
+  },
+  {
+   "code": 959,
+   "sym": "契",
+   "token_id": 100334
+  },
+  {
+   "code": 960,
+   "sym": "奓",
+   "token_id": 122447
+  },
+  {
+   "code": 961,
+   "sym": "奔",
+   "token_id": 100524
+  },
+  {
+   "code": 962,
+   "sym": "奕",
+   "token_id": 108645
+  },
+  {
+   "code": 963,
+   "sym": "奘",
+   "token_id": 120528
+  },
+  {
+   "code": 964,
+   "sym": "奚",
+   "token_id": 119166
+  },
+  {
+   "code": 965,
+   "sym": "奠",
+   "token_id": 100989
+  },
+  {
+   "code": 966,
+   "sym": "奡",
+   "token_id": 122990
+  },
+  {
+   "code": 967,
+   "sym": "奢",
+   "token_id": 101015
+  },
+  {
+   "code": 968,
+   "sym": "奧",
+   "token_id": 113124
+  },
+  {
+   "code": 969,
+   "sym": "奪",
+   "token_id": 119030
+  },
+  {
+   "code": 970,
+   "sym": "奭",
+   "token_id": 121548
+  },
+  {
+   "code": 971,
+   "sym": "奮",
+   "token_id": 117147
+  },
+  {
+   "code": 972,
+   "sym": "妁",
+   "token_id": 119649
+  },
+  {
+   "code": 973,
+   "sym": "妃",
+   "token_id": 106456
+  },
+  {
+   "code": 974,
+   "sym": "妄",
+   "token_id": 108682
+  },
+  {
+   "code": 975,
+   "sym": "妊",
+   "token_id": 103472
+  },
+  {
+   "code": 976,
+   "sym": "妍",
+   "token_id": 110270
+  },
+  {
+   "code": 977,
+   "sym": "妓",
+   "token_id": 119128
+  },
+  {
+   "code": 978,
+   "sym": "妖",
+   "token_id": 102409
+  },
+  {
+   "code": 979,
+   "sym": "妗",
+   "token_id": 119779
+  },
+  {
+   "code": 980,
+   "sym": "妘",
+   "token_id": 122266
+  },
+  {
+   "code": 981,
+   "sym": "妝",
+   "token_id": 118791
+  },
+  {
+   "code": 982,
+   "sym": "妞",
+   "token_id": 114049
+  },
+  {
+   "code": 983,
+   "sym": "妣",
+   "token_id": 119778
+  },
+  {
+   "code": 984,
+   "sym": "妤",
+   "token_id": 119782
+  },
+  {
+   "code": 985,
+   "sym": "妥",
+   "token_id": 100972
+  },
+  {
+   "code": 986,
+   "sym": "妧",
+   "token_id": 122265
+  },
+  {
+   "code": 987,
+   "sym": "妩",
+   "token_id": 119776
+  },
+  {
+   "code": 988,
+   "sym": "妪",
+   "token_id": 119777
+  },
+  {
+   "code": 989,
+   "sym": "妫",
+   "token_id": 119780
+  },
+  {
+   "code": 990,
+   "sym": "妭",
+   "token_id": 122373
+  },
+  {
+   "code": 991,
+   "sym": "妮",
+   "token_id": 105658
+  },
+  {
+   "code": 992,
+   "sym": "妯",
+   "token_id": 119993
+  },
+  {
+   "code": 993,
+   "sym": "妲",
+   "token_id": 119992
+  },
+  {
+   "code": 994,
+   "sym": "妳",
+   "token_id": 110768
+  },
+  {
+   "code": 995,
+   "sym": "妾",
+   "token_id": 114835
+  },
+  {
+   "code": 996,
+   "sym": "姈",
+   "token_id": 122374
+  },
+  {
+   "code": 997,
+   "sym": "姊",
+   "token_id": 103856
+  },
+  {
+   "code": 998,
+   "sym": "姑",
+   "token_id": 101371
+  },
+  {
+   "code": 999,
+   "sym": "姒",
+   "token_id": 119781
+  },
+  {
+   "code": 1000,
+   "sym": "姓",
+   "token_id": 101395
+  },
+  {
+   "code": 1001,
+   "sym": "姗",
+   "token_id": 119994
+  },
+  {
+   "code": 1002,
+   "sym": "姘",
+   "token_id": 120270
+  },
+  {
+   "code": 1003,
+   "sym": "姚",
+   "token_id": 102624
+  },
+  {
+   "code": 1004,
+   "sym": "姜",
+   "token_id": 102282
+  },
+  {
+   "code": 1005,
+   "sym": "姝",
+   "token_id": 120268
+  },
+  {
+   "code": 1006,
+   "sym": "姞",
+   "token_id": 122547
+  },
+  {
+   "code": 1007,
+   "sym": "姣",
+   "token_id": 120269
+  },
+  {
+   "code": 1008,
+   "sym": "姤",
+   "token_id": 122549
+  },
+  {
+   "code": 1009,
+   "sym": "姨",
+   "token_id": 103088
+  },
+  {
+   "code": 1010,
+   "sym": "姬",
+   "token_id": 107309
+  },
+  {
+   "code": 1011,
+   "sym": "姮",
+   "token_id": 120266
+  },
+  {
+   "code": 1012,
+   "sym": "姱",
+   "token_id": 122548
+  },
+  {
+   "code": 1013,
+   "sym": "姶",
+   "token_id": 122550
+  },
+  {
+   "code": 1014,
+   "sym": "姹",
+   "token_id": 120271
+  },
+  {
+   "code": 1015,
+   "sym": "姽",
+   "token_id": 122551
+  },
+  {
+   "code": 1016,
+   "sym": "姿",
+   "token_id": 100928
+  },
+  {
+   "code": 1017,
+   "sym": "娀",
+   "token_id": 122546
+  },
+  {
+   "code": 1018,
+   "sym": "娄",
+   "token_id": 116538
+  },
+  {
+   "code": 1019,
+   "sym": "娅",
+   "token_id": 111959
+  },
+  {
+   "code": 1020,
+   "sym": "娆",
+   "token_id": 120267
+  },
+  {
+   "code": 1021,
+   "sym": "娇",
+   "token_id": 105219
+  },
+  {
+   "code": 1022,
+   "sym": "娈",
+   "token_id": 120199
+  },
+  {
+   "code": 1023,
+   "sym": "娉",
+   "token_id": 120533
+  },
+  {
+   "code": 1024,
+   "sym": "娌",
+   "token_id": 120532
+  },
+  {
+   "code": 1025,
+   "sym": "娑",
+   "token_id": 120498
+  },
+  {
+   "code": 1026,
+   "sym": "娓",
+   "token_id": 120537
+  },
+  {
+   "code": 1027,
+   "sym": "娛",
+   "token_id": 118722
+  },
+  {
+   "code": 1028,
+   "sym": "娟",
+   "token_id": 107655
+  },
+  {
+   "code": 1029,
+   "sym": "娣",
+   "token_id": 120536
+  },
+  {
+   "code": 1030,
+   "sym": "娥",
+   "token_id": 116511
+  },
+  {
+   "code": 1031,
+   "sym": "娲",
+   "token_id": 120534
+  },
+  {
+   "code": 1032,
+   "sym": "娴",
+   "token_id": 120535
+  },
+  {
+   "code": 1033,
+   "sym": "娵",
+   "token_id": 122912
+  },
+  {
+   "code": 1034,
+   "sym": "娶",
+   "token_id": 107519
+  },
+  {
+   "code": 1035,
+   "sym": "娼",
+   "token_id": 120819
+  },
+  {
+   "code": 1036,
+   "sym": "婀",
+   "token_id": 120538
+  },
+  {
+   "code": 1037,
+   "sym": "婉",
+   "token_id": 106783
+  },
+  {
+   "code": 1038,
+   "sym": "婊",
+   "token_id": 120818
+  },
+  {
+   "code": 1039,
+   "sym": "婌",
+   "token_id": 122917
+  },
+  {
+   "code": 1040,
+   "sym": "婍",
+   "token_id": 122916
+  },
+  {
+   "code": 1041,
+   "sym": "婕",
+   "token_id": 119080
+  },
+  {
+   "code": 1042,
+   "sym": "婘",
+   "token_id": 122920
+  },
+  {
+   "code": 1043,
+   "sym": "婞",
+   "token_id": 122911
+  },
+  {
+   "code": 1044,
+   "sym": "婠",
+   "token_id": 122921
+  },
+  {
+   "code": 1045,
+   "sym": "婢",
+   "token_id": 120820
+  },
+  {
+   "code": 1046,
+   "sym": "婤",
+   "token_id": 122919
+  },
+  {
+   "code": 1047,
+   "sym": "婦",
+   "token_id": 111917
+  },
+  {
+   "code": 1048,
+   "sym": "婧",
+   "token_id": 118897
+  },
+  {
+   "code": 1049,
+   "sym": "婪",
+   "token_id": 103875
+  },
+  {
+   "code": 1050,
+   "sym": "婫",
+   "token_id": 122918
+  },
+  {
+   "code": 1051,
+   "sym": "婳",
+   "token_id": 122915
+  },
+  {
+   "code": 1052,
+   "sym": "婵",
+   "token_id": 120821
+  },
+  {
+   "code": 1053,
+   "sym": "婶",
+   "token_id": 118504
+  },
+  {
+   "code": 1054,
+   "sym": "婷",
+   "token_id": 107085
+  },
+  {
+   "code": 1055,
+   "sym": "婺",
+   "token_id": 119289
+  },
+  {
+   "code": 1056,
+   "sym": "婻",
+   "token_id": 123108
+  },
+  {
+   "code": 1057,
+   "sym": "婼",
+   "token_id": 122913
+  },
+  {
+   "code": 1058,
+   "sym": "婿",
+   "token_id": 119447
+  },
+  {
+   "code": 1059,
+   "sym": "媂",
+   "token_id": 123113
+  },
+  {
+   "code": 1060,
+   "sym": "媄",
+   "token_id": 123114
+  },
+  {
+   "code": 1061,
+   "sym": "媆",
+   "token_id": 123109
+  },
+  {
+   "code": 1062,
+   "sym": "媓",
+   "token_id": 123112
+  },
+  {
+   "code": 1063,
+   "sym": "媖",
+   "token_id": 122914
+  },
+  {
+   "code": 1064,
+   "sym": "媛",
+   "token_id": 109970
+  },
+  {
+   "code": 1065,
+   "sym": "媞",
+   "token_id": 123110
+  },
+  {
+   "code": 1066,
+   "sym": "媪",
+   "token_id": 121079
+  },
+  {
+   "code": 1067,
+   "sym": "媭",
+   "token_id": 120993
+  },
+  {
+   "code": 1068,
+   "sym": "媱",
+   "token_id": 123278
+  },
+  {
+   "code": 1069,
+   "sym": "媲",
+   "token_id": 121330
+  },
+  {
+   "code": 1070,
+   "sym": "媳",
+   "token_id": 103248
+  },
+  {
+   "code": 1071,
+   "sym": "媵",
+   "token_id": 121257
+  },
+  {
+   "code": 1072,
+   "sym": "媸",
+   "token_id": 121333
+  },
+  {
+   "code": 1073,
+   "sym": "媾",
+   "token_id": 121328
+  },
+  {
+   "code": 1074,
+   "sym": "嫁",
+   "token_id": 102583
+  },
+  {
+   "code": 1075,
+   "sym": "嫂",
+   "token_id": 109790
+  },
+  {
+   "code": 1076,
+   "sym": "嫄",
+   "token_id": 123277
+  },
+  {
+   "code": 1077,
+   "sym": "嫉",
+   "token_id": 103698
+  },
+  {
+   "code": 1078,
+   "sym": "嫒",
+   "token_id": 121331
+  },
+  {
+   "code": 1079,
+   "sym": "嫔",
+   "token_id": 121332
+  },
+  {
+   "code": 1080,
+   "sym": "嫕",
+   "token_id": 123415
+  },
+  {
+   "code": 1081,
+   "sym": "嫖",
+   "token_id": 121529
+  },
+  {
+   "code": 1082,
+   "sym": "嫘",
+   "token_id": 121532
+  },
+  {
+   "code": 1083,
+   "sym": "嫚",
+   "token_id": 121531
+  },
+  {
+   "code": 1084,
+   "sym": "嫜",
+   "token_id": 123417
+  },
+  {
+   "code": 1085,
+   "sym": "嫠",
+   "token_id": 121350
+  },
+  {
+   "code": 1086,
+   "sym": "嫡",
+   "token_id": 119093
+  },
+  {
+   "code": 1087,
+   "sym": "嫣",
+   "token_id": 113434
+  },
+  {
+   "code": 1088,
+   "sym": "嫦",
+   "token_id": 121530
+  },
+  {
+   "code": 1089,
+   "sym": "嫩",
+   "token_id": 105347
+  },
+  {
+   "code": 1090,
+   "sym": "嫪",
+   "token_id": 123418
+  },
+  {
+   "code": 1091,
+   "sym": "嫫",
+   "token_id": 121329
+  },
+  {
+   "code": 1092,
+   "sym": "嫭",
+   "token_id": 123416
+  },
+  {
+   "code": 1093,
+   "sym": "嫱",
+   "token_id": 121528
+  },
+  {
+   "code": 1094,
+   "sym": "嫽",
+   "token_id": 123504
+  },
+  {
+   "code": 1095,
+   "sym": "嬉",
+   "token_id": 119261
+  },
+  {
+   "code": 1096,
+   "sym": "嬖",
+   "token_id": 121840
+  },
+  {
+   "code": 1097,
+   "sym": "嬗",
+   "token_id": 121843
+  },
+  {
+   "code": 1098,
+   "sym": "嬛",
+   "token_id": 123591
+  },
+  {
+   "code": 1099,
+   "sym": "嬥",
+   "token_id": 123657
+  },
+  {
+   "code": 1100,
+   "sym": "嬬",
+   "token_id": 123656
+  },
+  {
+   "code": 1101,
+   "sym": "嬰",
+   "token_id": 119207
+  },
+  {
+   "code": 1102,
+   "sym": "嬴",
+   "token_id": 121822
+  },
+  {
+   "code": 1103,
+   "sym": "嬷",
+   "token_id": 121951
+  },
+  {
+   "code": 1104,
+   "sym": "嬿",
+   "token_id": 123733
+  },
+  {
+   "code": 1105,
+   "sym": "孀",
+   "token_id": 122077
+  },
+  {
+   "code": 1106,
+   "sym": "孅",
+   "token_id": 123756
+  },
+  {
+   "code": 1107,
+   "sym": "孑",
+   "token_id": 119536
+  },
+  {
+   "code": 1108,
+   "sym": "孓",
+   "token_id": 119537
+  },
+  {
+   "code": 1109,
+   "sym": "孖",
+   "token_id": 122178
+  },
+  {
+   "code": 1110,
+   "sym": "孚",
+   "token_id": 115125
+  },
+  {
+   "code": 1111,
+   "sym": "孛",
+   "token_id": 119681
+  },
+  {
+   "code": 1112,
+   "sym": "孜",
+   "token_id": 112561
+  },
+  {
+   "code": 1113,
+   "sym": "孝",
+   "token_id": 104826
+  },
+  {
+   "code": 1114,
+   "sym": "孟",
+   "token_id": 104600
+  },
+  {
+   "code": 1115,
+   "sym": "孢",
+   "token_id": 119044
+  },
+  {
+   "code": 1116,
+   "sym": "孤",
+   "token_id": 100548
+  },
+  {
+   "code": 1117,
+   "sym": "孥",
+   "token_id": 119996
+  },
+  {
+   "code": 1118,
+   "sym": "孪",
+   "token_id": 120198
+  },
+  {
+   "code": 1119,
+   "sym": "孫",
+   "token_id": 114636
+  },
+  {
+   "code": 1120,
+   "sym": "孬",
+   "token_id": 120345
+  },
+  {
+   "code": 1121,
+   "sym": "孰",
+   "token_id": 119114
+  },
+  {
+   "code": 1122,
+   "sym": "孱",
+   "token_id": 121075
+  },
+  {
+   "code": 1123,
+   "sym": "孳",
+   "token_id": 121038
+  },
+  {
+   "code": 1124,
+   "sym": "孵",
+   "token_id": 101671
+  },
+  {
+   "code": 1125,
+   "sym": "孺",
+   "token_id": 121949
+  },
+  {
+   "code": 1126,
+   "sym": "孽",
+   "token_id": 116875
+  },
+  {
+   "code": 1127,
+   "sym": "宄",
+   "token_id": 122144
+  },
+  {
+   "code": 1128,
+   "sym": "宏",
+   "token_id": 100481
+  },
+  {
+   "code": 1129,
+   "sym": "宓",
+   "token_id": 119971
+  },
+  {
+   "code": 1130,
+   "sym": "宕",
+   "token_id": 119969
+  },
+  {
+   "code": 1131,
+   "sym": "宛",
+   "token_id": 103654
+  },
+  {
+   "code": 1132,
+   "sym": "実",
+   "token_id": 127231
+  },
+  {
+   "code": 1133,
+   "sym": "宠",
+   "token_id": 101532
+  },
+  {
+   "code": 1134,
+   "sym": "宥",
+   "token_id": 120245
+  },
+  {
+   "code": 1135,
+   "sym": "宦",
+   "token_id": 119170
+  },
+  {
+   "code": 1136,
+   "sym": "宧",
+   "token_id": 122712
+  },
+  {
+   "code": 1137,
+   "sym": "宪",
+   "token_id": 103295
+  },
+  {
+   "code": 1138,
+   "sym": "宬",
+   "token_id": 122536
+  },
+  {
+   "code": 1139,
+   "sym": "宮",
+   "token_id": 108546
+  },
+  {
+   "code": 1140,
+   "sym": "宴",
+   "token_id": 101578
+  },
+  {
+   "code": 1141,
+   "sym": "宵",
+   "token_id": 111962
+  },
+  {
+   "code": 1142,
+   "sym": "宸",
+   "token_id": 115971
+  },
+  {
+   "code": 1143,
+   "sym": "寁",
+   "token_id": 122896
+  },
+  {
+   "code": 1144,
+   "sym": "寂",
+   "token_id": 101749
+  },
+  {
+   "code": 1145,
+   "sym": "寄",
+   "token_id": 101400
+  },
+  {
+   "code": 1146,
+   "sym": "寅",
+   "token_id": 111928
+  },
+  {
+   "code": 1147,
+   "sym": "寇",
+   "token_id": 113345
+  },
+  {
+   "code": 1148,
+   "sym": "寐",
+   "token_id": 121065
+  },
+  {
+   "code": 1149,
+   "sym": "寒",
+   "token_id": 100718
+  },
+  {
+   "code": 1150,
+   "sym": "寝",
+   "token_id": 103788
+  },
+  {
+   "code": 1151,
+   "sym": "寡",
+   "token_id": 108230
+  },
+  {
+   "code": 1152,
+   "sym": "寤",
+   "token_id": 121515
+  },
+  {
+   "code": 1153,
+   "sym": "寥",
+   "token_id": 119478
+  },
+  {
+   "code": 1154,
+   "sym": "寧",
+   "token_id": 112085
+  },
+  {
+   "code": 1155,
+   "sym": "審",
+   "token_id": 109544
+  },
+  {
+   "code": 1156,
+   "sym": "寫",
+   "token_id": 105244
+  },
+  {
+   "code": 1157,
+   "sym": "寬",
+   "token_id": 115592
+  },
+  {
+   "code": 1158,
+   "sym": "寮",
+   "token_id": 121682
+  },
+  {
+   "code": 1159,
+   "sym": "寰",
+   "token_id": 118082
+  },
+  {
+   "code": 1160,
+   "sym": "寵",
+   "token_id": 119239
+  },
+  {
+   "code": 1161,
+   "sym": "寶",
+   "token_id": 107283
+  },
+  {
+   "code": 1162,
+   "sym": "寺",
+   "token_id": 101277
+  },
+  {
+   "code": 1163,
+   "sym": "專",
+   "token_id": 101470
+  },
+  {
+   "code": 1164,
+   "sym": "尉",
+   "token_id": 111621
+  },
+  {
+   "code": 1165,
+   "sym": "尊",
+   "token_id": 100474
+  },
+  {
+   "code": 1166,
+   "sym": "尋",
+   "token_id": 114577
+  },
+  {
+   "code": 1167,
+   "sym": "對",
+   "token_id": 100163
+  },
+  {
+   "code": 1168,
+   "sym": "尕",
+   "token_id": 119581
+  },
+  {
+   "code": 1169,
+   "sym": "尜",
+   "token_id": 120096
+  },
+  {
+   "code": 1170,
+   "sym": "尢",
+   "token_id": 122127
+  },
+  {
+   "code": 1171,
+   "sym": "尤",
+   "token_id": 100207
+  },
+  {
+   "code": 1172,
+   "sym": "尥",
+   "token_id": 119604
+  },
+  {
+   "code": 1173,
+   "sym": "尧",
+   "token_id": 111599
+  },
+  {
+   "code": 1174,
+   "sym": "尨",
+   "token_id": 122211
+  },
+  {
+   "code": 1175,
+   "sym": "尪",
+   "token_id": 122210
+  },
+  {
+   "code": 1176,
+   "sym": "尴",
+   "token_id": 102731
+  },
+  {
+   "code": 1177,
+   "sym": "尹",
+   "token_id": 107504
+  },
+  {
+   "code": 1178,
+   "sym": "尺",
+   "token_id": 101489
+  },
+  {
+   "code": 1179,
+   "sym": "尻",
+   "token_id": 119579
+  },
+  {
+   "code": 1180,
+   "sym": "尾",
+   "token_id": 101143
+  },
+  {
+   "code": 1181,
+   "sym": "尿",
+   "token_id": 102395
+  },
+  {
+   "code": 1182,
+   "sym": "屁",
+   "token_id": 103352
+  },
+  {
+   "code": 1183,
+   "sym": "屃",
+   "token_id": 122258
+  },
+  {
+   "code": 1184,
+   "sym": "屆",
+   "token_id": 114266
+  },
+  {
+   "code": 1185,
+   "sym": "屉",
+   "token_id": 119342
+  },
+  {
+   "code": 1186,
+   "sym": "屍",
+   "token_id": 119164
+  },
+  {
+   "code": 1187,
+   "sym": "屎",
+   "token_id": 113845
+  },
+  {
+   "code": 1188,
+   "sym": "屏",
+   "token_id": 100254
+  },
+  {
+   "code": 1189,
+   "sym": "屐",
+   "token_id": 120524
+  },
+  {
+   "code": 1190,
+   "sym": "屙",
+   "token_id": 120525
+  },
+  {
+   "code": 1191,
+   "sym": "屠",
+   "token_id": 101780
+  },
+  {
+   "code": 1192,
+   "sym": "屡",
+   "token_id": 110437
+  },
+  {
+   "code": 1193,
+   "sym": "屣",
+   "token_id": 121526
+  },
+  {
+   "code": 1194,
+   "sym": "層",
+   "token_id": 106953
+  },
+  {
+   "code": 1195,
+   "sym": "履",
+   "token_id": 100834
+  },
+  {
+   "code": 1196,
+   "sym": "屦",
+   "token_id": 121690
+  },
+  {
+   "code": 1197,
+   "sym": "屬",
+   "token_id": 102944
+  },
+  {
+   "code": 1198,
+   "sym": "屯",
+   "token_id": 107551
+  },
+  {
+   "code": 1199,
+   "sym": "屹",
+   "token_id": 119306
+  },
+  {
+   "code": 1200,
+   "sym": "屺",
+   "token_id": 119609
+  },
+  {
+   "code": 1201,
+   "sym": "屼",
+   "token_id": 122159
+  },
+  {
+   "code": 1202,
+   "sym": "屾",
+   "token_id": 122160
+  },
+  {
+   "code": 1203,
+   "sym": "岂",
+   "token_id": 108558
+  },
+  {
+   "code": 1204,
+   "sym": "岈",
+   "token_id": 119707
+  },
+  {
+   "code": 1205,
+   "sym": "岊",
+   "token_id": 122261
+  },
+  {
+   "code": 1206,
+   "sym": "岌",
+   "token_id": 119608
+  },
+  {
+   "code": 1207,
+   "sym": "岍",
+   "token_id": 122221
+  },
+  {
+   "code": 1208,
+   "sym": "岐",
+   "token_id": 116183
+  },
+  {
+   "code": 1209,
+   "sym": "岑",
+   "token_id": 118500
+  },
+  {
+   "code": 1210,
+   "sym": "岔",
+   "token_id": 116096
+  },
+  {
+   "code": 1211,
+   "sym": "岖",
+   "token_id": 119317
+  },
+  {
+   "code": 1212,
+   "sym": "岘",
+   "token_id": 119708
+  },
+  {
+   "code": 1213,
+   "sym": "岙",
+   "token_id": 122229
+  },
+  {
+   "code": 1214,
+   "sym": "岚",
+   "token_id": 109512
+  },
+  {
+   "code": 1215,
+   "sym": "岜",
+   "token_id": 122225
+  },
+  {
+   "code": 1216,
+   "sym": "岞",
+   "token_id": 122315
+  },
+  {
+   "code": 1217,
+   "sym": "岠",
+   "token_id": 122224
+  },
+  {
+   "code": 1218,
+   "sym": "岢",
+   "token_id": 119876
+  },
+  {
+   "code": 1219,
+   "sym": "岣",
+   "token_id": 119881
+  },
+  {
+   "code": 1220,
+   "sym": "岨",
+   "token_id": 122314
+  },
+  {
+   "code": 1221,
+   "sym": "岩",
+   "token_id": 102137
+  },
+  {
+   "code": 1222,
+   "sym": "岫",
+   "token_id": 119879
+  },
+  {
+   "code": 1223,
+   "sym": "岬",
+   "token_id": 119878
+  },
+  {
+   "code": 1224,
+   "sym": "岭",
+   "token_id": 102288
+  },
+  {
+   "code": 1225,
+   "sym": "岱",
+   "token_id": 118180
+  },
+  {
+   "code": 1226,
+   "sym": "岳",
+   "token_id": 102413
+  },
+  {
+   "code": 1227,
+   "sym": "岵",
+   "token_id": 122312
+  },
+  {
+   "code": 1228,
+   "sym": "岷",
+   "token_id": 119884
+  },
+  {
+   "code": 1229,
+   "sym": "岽",
+   "token_id": 122313
+  },
+  {
+   "code": 1230,
+   "sym": "岿",
+   "token_id": 119877
+  },
+  {
+   "code": 1231,
+   "sym": "峁",
+   "token_id": 119882
+  },
+  {
+   "code": 1232,
+   "sym": "峂",
+   "token_id": 122316
+  },
+  {
+   "code": 1233,
+   "sym": "峃",
+   "token_id": 122357
+  },
+  {
+   "code": 1234,
+   "sym": "峄",
+   "token_id": 119887
+  },
+  {
+   "code": 1235,
+   "sym": "峋",
+   "token_id": 120141
+  },
+  {
+   "code": 1236,
+   "sym": "峒",
+   "token_id": 120139
+  },
+  {
+   "code": 1237,
+   "sym": "峗",
+   "token_id": 122475
+  },
+  {
+   "code": 1238,
+   "sym": "峘",
+   "token_id": 122471
+  },
+  {
+   "code": 1239,
+   "sym": "峙",
+   "token_id": 117409
+  },
+  {
+   "code": 1240,
+   "sym": "峛",
+   "token_id": 122473
+  },
+  {
+   "code": 1241,
+   "sym": "峣",
+   "token_id": 120137
+  },
+  {
+   "code": 1242,
+   "sym": "峤",
+   "token_id": 120140
+  },
+  {
+   "code": 1243,
+   "sym": "峥",
+   "token_id": 118114
+  },
+  {
+   "code": 1244,
+   "sym": "峦",
+   "token_id": 119253
+  },
+  {
+   "code": 1245,
+   "sym": "峧",
+   "token_id": 122476
+  },
+  {
+   "code": 1246,
+   "sym": "峨",
+   "token_id": 113271
+  },
+  {
+   "code": 1247,
+   "sym": "峪",
+   "token_id": 118996
+  },
+  {
+   "code": 1248,
+   "sym": "峭",
+   "token_id": 119156
+  },
+  {
+   "code": 1249,
+   "sym": "峱",
+   "token_id": 122677
+  },
+  {
+   "code": 1250,
+   "sym": "島",
+   "token_id": 109676
+  },
+  {
+   "code": 1251,
+   "sym": "峿",
+   "token_id": 122638
+  },
+  {
+   "code": 1252,
+   "sym": "崀",
+   "token_id": 122642
+  },
+  {
+   "code": 1253,
+   "sym": "崁",
+   "token_id": 122637
+  },
+  {
+   "code": 1254,
+   "sym": "崂",
+   "token_id": 120387
+  },
+  {
+   "code": 1255,
+   "sym": "崃",
+   "token_id": 120388
+  },
+  {
+   "code": 1256,
+   "sym": "崄",
+   "token_id": 122640
+  },
+  {
+   "code": 1257,
+   "sym": "崆",
+   "token_id": 120685
+  },
+  {
+   "code": 1258,
+   "sym": "崌",
+   "token_id": 122819
+  },
+  {
+   "code": 1259,
+   "sym": "崎",
+   "token_id": 114379
+  },
+  {
+   "code": 1260,
+   "sym": "崒",
+   "token_id": 122818
+  },
+  {
+   "code": 1261,
+   "sym": "崔",
+   "token_id": 105999
+  },
+  {
+   "code": 1262,
+   "sym": "崚",
+   "token_id": 120680
+  },
+  {
+   "code": 1263,
+   "sym": "崛",
+   "token_id": 102820
+  },
+  {
+   "code": 1264,
+   "sym": "崞",
+   "token_id": 122817
+  },
+  {
+   "code": 1265,
+   "sym": "崟",
+   "token_id": 122816
+  },
+  {
+   "code": 1266,
+   "sym": "崡",
+   "token_id": 122820
+  },
+  {
+   "code": 1267,
+   "sym": "崤",
+   "token_id": 120684
+  },
+  {
+   "code": 1268,
+   "sym": "崦",
+   "token_id": 120681
+  },
+  {
+   "code": 1269,
+   "sym": "崧",
+   "token_id": 122815
+  },
+  {
+   "code": 1270,
+   "sym": "崩",
+   "token_id": 103141
+  },
+  {
+   "code": 1271,
+   "sym": "崭",
+   "token_id": 112175
+  },
+  {
+   "code": 1272,
+   "sym": "崮",
+   "token_id": 120683
+  },
+  {
+   "code": 1273,
+   "sym": "崴",
+   "token_id": 120943
+  },
+  {
+   "code": 1274,
+   "sym": "崶",
+   "token_id": 123014
+  },
+  {
+   "code": 1275,
+   "sym": "崽",
+   "token_id": 119295
+  },
+  {
+   "code": 1276,
+   "sym": "崾",
+   "token_id": 123018
+  },
+  {
+   "code": 1277,
+   "sym": "崿",
+   "token_id": 123020
+  },
+  {
+   "code": 1278,
+   "sym": "嵁",
+   "token_id": 123015
+  },
+  {
+   "code": 1279,
+   "sym": "嵅",
+   "token_id": 123019
+  },
+  {
+   "code": 1280,
+   "sym": "嵇",
+   "token_id": 120977
+  },
+  {
+   "code": 1281,
+   "sym": "嵊",
+   "token_id": 121215
+  },
+  {
+   "code": 1282,
+   "sym": "嵋",
+   "token_id": 120953
+  },
+  {
+   "code": 1283,
+   "sym": "嵌",
+   "token_id": 103767
+  },
+  {
+   "code": 1284,
+   "sym": "嵎",
+   "token_id": 120946
+  },
+  {
+   "code": 1285,
+   "sym": "嵖",
+   "token_id": 120942
+  },
+  {
+   "code": 1286,
+   "sym": "嵘",
+   "token_id": 120941
+  },
+  {
+   "code": 1287,
+   "sym": "嵚",
+   "token_id": 123021
+  },
+  {
+   "code": 1288,
+   "sym": "嵛",
+   "token_id": 120948
+  },
+  {
+   "code": 1289,
+   "sym": "嵝",
+   "token_id": 120950
+  },
+  {
+   "code": 1290,
+   "sym": "嵩",
+   "token_id": 116627
+  },
+  {
+   "code": 1291,
+   "sym": "嵫",
+   "token_id": 120951
+  },
+  {
+   "code": 1292,
+   "sym": "嵬",
+   "token_id": 120947
+  },
+  {
+   "code": 1293,
+   "sym": "嵯",
+   "token_id": 120949
+  },
+  {
+   "code": 1294,
+   "sym": "嵲",
+   "token_id": 123189
+  },
+  {
+   "code": 1295,
+   "sym": "嵴",
+   "token_id": 121216
+  },
+  {
+   "code": 1296,
+   "sym": "嶂",
+   "token_id": 121435
+  },
+  {
+   "code": 1297,
+   "sym": "嶅",
+   "token_id": 123135
+  },
+  {
+   "code": 1298,
+   "sym": "嶍",
+   "token_id": 123346
+  },
+  {
+   "code": 1299,
+   "sym": "嶒",
+   "token_id": 123458
+  },
+  {
+   "code": 1300,
+   "sym": "嶓",
+   "token_id": 123455
+  },
+  {
+   "code": 1301,
+   "sym": "嶙",
+   "token_id": 121627
+  },
+  {
+   "code": 1302,
+   "sym": "嶝",
+   "token_id": 121628
+  },
+  {
+   "code": 1303,
+   "sym": "嶟",
+   "token_id": 123457
+  },
+  {
+   "code": 1304,
+   "sym": "嶦",
+   "token_id": 123549
+  },
+  {
+   "code": 1305,
+   "sym": "嶲",
+   "token_id": 123454
+  },
+  {
+   "code": 1306,
+   "sym": "嶷",
+   "token_id": 121889
+  },
+  {
+   "code": 1307,
+   "sym": "巅",
+   "token_id": 103281
+  },
+  {
+   "code": 1308,
+   "sym": "巇",
+   "token_id": 123742
+  },
+  {
+   "code": 1309,
+   "sym": "巉",
+   "token_id": 122062
+  },
+  {
+   "code": 1310,
+   "sym": "巍",
+   "token_id": 110889
+  },
+  {
+   "code": 1311,
+   "sym": "巡",
+   "token_id": 100119
+  },
+  {
+   "code": 1312,
+   "sym": "左",
+   "token_id": 77559
+  },
+  {
+   "code": 1313,
+   "sym": "巨",
+   "token_id": 99765
+  },
+  {
+   "code": 1314,
+   "sym": "巩",
+   "token_id": 102720
+  },
+  {
+   "code": 1315,
+   "sym": "巫",
+   "token_id": 107153
+  },
+  {
+   "code": 1316,
+   "sym": "巯",
+   "token_id": 121080
+  },
+  {
+   "code": 1317,
+   "sym": "己",
+   "token_id": 99270
+  },
+  {
+   "code": 1318,
+   "sym": "巳",
+   "token_id": 118778
+  },
+  {
+   "code": 1319,
+   "sym": "巷",
+   "token_id": 105486
+  },
+  {
+   "code": 1320,
+   "sym": "巽",
+   "token_id": 121077
+  },
+  {
+   "code": 1321,
+   "sym": "币",
+   "token_id": 99945
+  },
+  {
+   "code": 1322,
+   "sym": "帆",
+   "token_id": 106414
+  },
+  {
+   "code": 1323,
+   "sym": "希",
+   "token_id": 99658
+  },
+  {
+   "code": 1324,
+   "sym": "帏",
+   "token_id": 119706
+  },
+  {
+   "code": 1325,
+   "sym": "帐",
+   "token_id": 101686
+  },
+  {
+   "code": 1326,
+   "sym": "帑",
+   "token_id": 119995
+  },
+  {
+   "code": 1327,
+   "sym": "帔",
+   "token_id": 119886
+  },
+  {
+   "code": 1328,
+   "sym": "帕",
+   "token_id": 105091
+  },
+  {
+   "code": 1329,
+   "sym": "帖",
+   "token_id": 102843
+  },
+  {
+   "code": 1330,
+   "sym": "帘",
+   "token_id": 103287
+  },
+  {
+   "code": 1331,
+   "sym": "帙",
+   "token_id": 119880
+  },
+  {
+   "code": 1332,
+   "sym": "帚",
+   "token_id": 119341
+  },
+  {
+   "code": 1333,
+   "sym": "帛",
+   "token_id": 119914
+  },
+  {
+   "code": 1334,
+   "sym": "帡",
+   "token_id": 122477
+  },
+  {
+   "code": 1335,
+   "sym": "帥",
+   "token_id": 119236
+  },
+  {
+   "code": 1336,
+   "sym": "帧",
+   "token_id": 116226
+  },
+  {
+   "code": 1337,
+   "sym": "帨",
+   "token_id": 122641
+  },
+  {
+   "code": 1338,
+   "sym": "帮",
+   "token_id": 99663
+  },
+  {
+   "code": 1339,
+   "sym": "帰",
+   "token_id": 139639
+  },
+  {
+   "code": 1340,
+   "sym": "帱",
+   "token_id": 122636
+  },
+  {
+   "code": 1341,
+   "sym": "帳",
+   "token_id": 103694
+  },
+  {
+   "code": 1342,
+   "sym": "帶",
+   "token_id": 101443
+  },
+  {
+   "code": 1343,
+   "sym": "帷",
+   "token_id": 119410
+  },
+  {
+   "code": 1344,
+   "sym": "帻",
+   "token_id": 120679
+  },
+  {
+   "code": 1345,
+   "sym": "帼",
+   "token_id": 120682
+  },
+  {
+   "code": 1346,
+   "sym": "帽",
+   "token_id": 102663
+  },
+  {
+   "code": 1347,
+   "sym": "幄",
+   "token_id": 120952
+  },
+  {
+   "code": 1348,
+   "sym": "幌",
+   "token_id": 119460
+  },
+  {
+   "code": 1349,
+   "sym": "幔",
+   "token_id": 121434
+  },
+  {
+   "code": 1350,
+   "sym": "幖",
+   "token_id": 123345
+  },
+  {
+   "code": 1351,
+   "sym": "幛",
+   "token_id": 121436
+  },
+  {
+   "code": 1352,
+   "sym": "幞",
+   "token_id": 121625
+  },
+  {
+   "code": 1353,
+   "sym": "幡",
+   "token_id": 121626
+  },
+  {
+   "code": 1354,
+   "sym": "幢",
+   "token_id": 111551
+  },
+  {
+   "code": 1355,
+   "sym": "幣",
+   "token_id": 115136
+  },
+  {
+   "code": 1356,
+   "sym": "幪",
+   "token_id": 123546
+  },
+  {
+   "code": 1357,
+   "sym": "幫",
+   "token_id": 103307
+  },
+  {
+   "code": 1358,
+   "sym": "幹",
+   "token_id": 113776
+  },
+  {
+   "code": 1359,
+   "sym": "幺",
+   "token_id": 119538
+  },
+  {
+   "code": 1360,
+   "sym": "幼",
+   "token_id": 100503
+  },
+  {
+   "code": 1361,
+   "sym": "幽",
+   "token_id": 102517
+  },
+  {
+   "code": 1362,
+   "sym": "幾",
+   "token_id": 101458
+  },
+  {
+   "code": 1363,
+   "sym": "庇",
+   "token_id": 119320
+  },
+  {
+   "code": 1364,
+   "sym": "庋",
+   "token_id": 119738
+  },
+  {
+   "code": 1365,
+   "sym": "庐",
+   "token_id": 111833
+  },
+  {
+   "code": 1366,
+   "sym": "庑",
+   "token_id": 119737
+  },
+  {
+   "code": 1367,
+   "sym": "庖",
+   "token_id": 119936
+  },
+  {
+   "code": 1368,
+   "sym": "庚",
+   "token_id": 110954
+  },
+  {
+   "code": 1369,
+   "sym": "庞",
+   "token_id": 101625
+  },
+  {
+   "code": 1370,
+   "sym": "庠",
+   "token_id": 120205
+  },
+  {
+   "code": 1371,
+   "sym": "庤",
+   "token_id": 122510
+  },
+  {
+   "code": 1372,
+   "sym": "庥",
+   "token_id": 120200
+  },
+  {
+   "code": 1373,
+   "sym": "庫",
+   "token_id": 113034
+  },
+  {
+   "code": 1374,
+   "sym": "庱",
+   "token_id": 122868
+  },
+  {
+   "code": 1375,
+   "sym": "庳",
+   "token_id": 122870
+  },
+  {
+   "code": 1376,
+   "sym": "庵",
+   "token_id": 118016
+  },
+  {
+   "code": 1377,
+   "sym": "庶",
+   "token_id": 116785
+  },
+  {
+   "code": 1378,
+   "sym": "庸",
+   "token_id": 110097
+  },
+  {
+   "code": 1379,
+   "sym": "庹",
+   "token_id": 120754
+  },
+  {
+   "code": 1380,
+   "sym": "庼",
+   "token_id": 122869
+  },
+  {
+   "code": 1381,
+   "sym": "庾",
+   "token_id": 120755
+  },
+  {
+   "code": 1382,
+   "sym": "廆",
+   "token_id": 123075
+  },
+  {
+   "code": 1383,
+   "sym": "廊",
+   "token_id": 101701
+  },
+  {
+   "code": 1384,
+   "sym": "廋",
+   "token_id": 123074
+  },
+  {
+   "code": 1385,
+   "sym": "廑",
+   "token_id": 123385
+  },
+  {
+   "code": 1386,
+   "sym": "廒",
+   "token_id": 123237
+  },
+  {
+   "code": 1387,
+   "sym": "廓",
+   "token_id": 103727
+  },
+  {
+   "code": 1388,
+   "sym": "廖",
+   "token_id": 108368
+  },
+  {
+   "code": 1389,
+   "sym": "廙",
+   "token_id": 123386
+  },
+  {
+   "code": 1390,
+   "sym": "廚",
+   "token_id": 117155
+  },
+  {
+   "code": 1391,
+   "sym": "廛",
+   "token_id": 121660
+  },
+  {
+   "code": 1392,
+   "sym": "廟",
+   "token_id": 119100
+  },
+  {
+   "code": 1393,
+   "sym": "廠",
+   "token_id": 103360
+  },
+  {
+   "code": 1394,
+   "sym": "廢",
+   "token_id": 116971
+  },
+  {
+   "code": 1395,
+   "sym": "廣",
+   "token_id": 102958
+  },
+  {
+   "code": 1396,
+   "sym": "廨",
+   "token_id": 121811
+  },
+  {
+   "code": 1397,
+   "sym": "廪",
+   "token_id": 121814
+  },
+  {
+   "code": 1398,
+   "sym": "廳",
+   "token_id": 103637
+  },
+  {
+   "code": 1399,
+   "sym": "廿",
+   "token_id": 119540
+  },
+  {
+   "code": 1400,
+   "sym": "弁",
+   "token_id": 119582
+  },
+  {
+   "code": 1401,
+   "sym": "弄",
+   "token_id": 102115
+  },
+  {
+   "code": 1402,
+   "sym": "弆",
+   "token_id": 122286
+  },
+  {
+   "code": 1403,
+   "sym": "弇",
+   "token_id": 122497
+  },
+  {
+   "code": 1404,
+   "sym": "弋",
+   "token_id": 119535
+  },
+  {
+   "code": 1405,
+   "sym": "弑",
+   "token_id": 120995
+  },
+  {
+   "code": 1406,
+   "sym": "弓",
+   "token_id": 107955
+  },
+  {
+   "code": 1407,
+   "sym": "弗",
+   "token_id": 104985
+  },
+  {
+   "code": 1408,
+   "sym": "弘",
+   "token_id": 102859
+  },
+  {
+   "code": 1409,
+   "sym": "弢",
+   "token_id": 122365
+  },
+  {
+   "code": 1410,
+   "sym": "弥",
+   "token_id": 101639
+  },
+  {
+   "code": 1411,
+   "sym": "弦",
+   "token_id": 106514
+  },
+  {
+   "code": 1412,
+   "sym": "弧",
+   "token_id": 108718
+  },
+  {
+   "code": 1413,
+   "sym": "弨",
+   "token_id": 122366
+  },
+  {
+   "code": 1414,
+   "sym": "弩",
+   "token_id": 115141
+  },
+  {
+   "code": 1415,
+   "sym": "弭",
+   "token_id": 120262
+  },
+  {
+   "code": 1416,
+   "sym": "弯",
+   "token_id": 101418
+  },
+  {
+   "code": 1417,
+   "sym": "張",
+   "token_id": 102523
+  },
+  {
+   "code": 1418,
+   "sym": "弶",
+   "token_id": 122908
+  },
+  {
+   "code": 1419,
+   "sym": "弸",
+   "token_id": 122907
+  },
+  {
+   "code": 1420,
+   "sym": "弼",
+   "token_id": 121076
+  },
+  {
+   "code": 1421,
+   "sym": "彀",
+   "token_id": 121116
+  },
+  {
+   "code": 1422,
+   "sym": "彈",
+   "token_id": 112835
+  },
+  {
+   "code": 1423,
+   "sym": "彖",
+   "token_id": 122559
+  },
+  {
+   "code": 1424,
+   "sym": "彗",
+   "token_id": 120550
+  },
+  {
+   "code": 1425,
+   "sym": "彘",
+   "token_id": 121087
+  },
+  {
+   "code": 1426,
+   "sym": "彝",
+   "token_id": 119141
+  },
+  {
+   "code": 1427,
+   "sym": "彟",
+   "token_id": 123732
+  },
+  {
+   "code": 1428,
+   "sym": "彤",
+   "token_id": 109827
+  },
+  {
+   "code": 1429,
+   "sym": "彦",
+   "token_id": 107892
+  },
+  {
+   "code": 1430,
+   "sym": "彧",
+   "token_id": 120339
+  },
+  {
+   "code": 1431,
+   "sym": "彪",
+   "token_id": 111809
+  },
+  {
+   "code": 1432,
+   "sym": "彬",
+   "token_id": 107351
+  },
+  {
+   "code": 1433,
+   "sym": "彭",
+   "token_id": 104841
+  },
+  {
+   "code": 1434,
+   "sym": "彰",
+   "token_id": 101636
+  },
+  {
+   "code": 1435,
+   "sym": "彳",
+   "token_id": 122128
+  },
+  {
+   "code": 1436,
+   "sym": "彷",
+   "token_id": 119723
+  },
+  {
+   "code": 1437,
+   "sym": "彻",
+   "token_id": 100485
+  },
+  {
+   "code": 1438,
+   "sym": "彼",
+   "token_id": 101429
+  },
+  {
+   "code": 1439,
+   "sym": "征",
+   "token_id": 99543
+  },
+  {
+   "code": 1440,
+   "sym": "徂",
+   "token_id": 119916
+  },
+  {
+   "code": 1441,
+   "sym": "徇",
+   "token_id": 120166
+  },
+  {
+   "code": 1442,
+   "sym": "徉",
+   "token_id": 120167
+  },
+  {
+   "code": 1443,
+   "sym": "徐",
+   "token_id": 101957
+  },
+  {
+   "code": 1444,
+   "sym": "徑",
+   "token_id": 119061
+  },
+  {
+   "code": 1445,
+   "sym": "徕",
+   "token_id": 120445
+  },
+  {
+   "code": 1446,
+   "sym": "徘",
+   "token_id": 103716
+  },
+  {
+   "code": 1447,
+   "sym": "徙",
+   "token_id": 119414
+  },
+  {
+   "code": 1448,
+   "sym": "徛",
+   "token_id": 122847
+  },
+  {
+   "code": 1449,
+   "sym": "徜",
+   "token_id": 120734
+  },
+  {
+   "code": 1450,
+   "sym": "從",
+   "token_id": 104031
+  },
+  {
+   "code": 1451,
+   "sym": "徨",
+   "token_id": 120992
+  },
+  {
+   "code": 1452,
+   "sym": "復",
+   "token_id": 107479
+  },
+  {
+   "code": 1453,
+   "sym": "循",
+   "token_id": 100516
+  },
+  {
+   "code": 1454,
+   "sym": "徭",
+   "token_id": 121242
+  },
+  {
+   "code": 1455,
+   "sym": "徵",
+   "token_id": 111774
+  },
+  {
+   "code": 1456,
+   "sym": "徹",
+   "token_id": 117349
+  },
+  {
+   "code": 1457,
+   "sym": "徼",
+   "token_id": 121795
+  },
+  {
+   "code": 1458,
+   "sym": "忉",
+   "token_id": 122143
+  },
+  {
+   "code": 1459,
+   "sym": "忌",
+   "token_id": 102844
+  },
+  {
+   "code": 1460,
+   "sym": "忏",
+   "token_id": 119642
+  },
+  {
+   "code": 1461,
+   "sym": "忐",
+   "token_id": 119691
+  },
+  {
+   "code": 1462,
+   "sym": "忑",
+   "token_id": 119680
+  },
+  {
+   "code": 1463,
+   "sym": "忒",
+   "token_id": 119686
+  },
+  {
+   "code": 1464,
+   "sym": "忖",
+   "token_id": 119641
+  },
+  {
+   "code": 1465,
+   "sym": "忝",
+   "token_id": 119795
+  },
+  {
+   "code": 1466,
+   "sym": "忞",
+   "token_id": 122347
+  },
+  {
+   "code": 1467,
+   "sym": "忠",
+   "token_id": 101234
+  },
+  {
+   "code": 1468,
+   "sym": "忡",
+   "token_id": 119760
+  },
+  {
+   "code": 1469,
+   "sym": "忤",
+   "token_id": 119761
+  },
+  {
+   "code": 1470,
+   "sym": "忪",
+   "token_id": 119764
+  },
+  {
+   "code": 1471,
+   "sym": "忭",
+   "token_id": 119766
+  },
+  {
+   "code": 1472,
+   "sym": "忮",
+   "token_id": 122249
+  },
+  {
+   "code": 1473,
+   "sym": "忱",
+   "token_id": 119324
+  },
+  {
+   "code": 1474,
+   "sym": "忳",
+   "token_id": 122250
+  },
+  {
+   "code": 1475,
+   "sym": "忸",
+   "token_id": 119767
+  },
+  {
+   "code": 1476,
+   "sym": "忺",
+   "token_id": 122251
+  },
+  {
+   "code": 1477,
+   "sym": "忻",
+   "token_id": 119237
+  },
+  {
+   "code": 1478,
+   "sym": "忽",
+   "token_id": 100310
+  },
+  {
+   "code": 1479,
+   "sym": "忾",
+   "token_id": 119762
+  },
+  {
+   "code": 1480,
+   "sym": "忿",
+   "token_id": 119334
+  },
+  {
+   "code": 1481,
+   "sym": "怂",
+   "token_id": 119162
+  },
+  {
+   "code": 1482,
+   "sym": "怃",
+   "token_id": 119758
+  },
+  {
+   "code": 1483,
+   "sym": "怄",
+   "token_id": 119759
+  },
+  {
+   "code": 1484,
+   "sym": "怅",
+   "token_id": 119763
+  },
+  {
+   "code": 1485,
+   "sym": "怆",
+   "token_id": 119765
+  },
+  {
+   "code": 1486,
+   "sym": "怊",
+   "token_id": 122356
+  },
+  {
+   "code": 1487,
+   "sym": "怍",
+   "token_id": 119963
+  },
+  {
+   "code": 1488,
+   "sym": "怎",
+   "token_id": 99387
+  },
+  {
+   "code": 1489,
+   "sym": "怏",
+   "token_id": 119962
+  },
+  {
+   "code": 1490,
+   "sym": "怔",
+   "token_id": 114938
+  },
+  {
+   "code": 1491,
+   "sym": "怙",
+   "token_id": 119958
+  },
+  {
+   "code": 1492,
+   "sym": "怛",
+   "token_id": 119961
+  },
+  {
+   "code": 1493,
+   "sym": "怠",
+   "token_id": 117258
+  },
+  {
+   "code": 1494,
+   "sym": "怡",
+   "token_id": 106433
+  },
+  {
+   "code": 1495,
+   "sym": "怦",
+   "token_id": 119960
+  },
+  {
+   "code": 1496,
+   "sym": "怩",
+   "token_id": 119966
+  },
+  {
+   "code": 1497,
+   "sym": "怫",
+   "token_id": 119967
+  },
+  {
+   "code": 1498,
+   "sym": "怯",
+   "token_id": 114655
+  },
+  {
+   "code": 1499,
+   "sym": "怵",
+   "token_id": 119959
+  },
+  {
+   "code": 1500,
+   "sym": "怼",
+   "token_id": 118125
+  },
+  {
+   "code": 1501,
+   "sym": "怿",
+   "token_id": 119968
+  },
+  {
+   "code": 1502,
+   "sym": "恁",
+   "token_id": 120432
+  },
+  {
+   "code": 1503,
+   "sym": "恂",
+   "token_id": 120242
+  },
+  {
+   "code": 1504,
+   "sym": "恃",
+   "token_id": 119362
+  },
+  {
+   "code": 1505,
+   "sym": "恍",
+   "token_id": 119079
+  },
+  {
+   "code": 1506,
+   "sym": "恐",
+   "token_id": 100312
+  },
+  {
+   "code": 1507,
+   "sym": "恓",
+   "token_id": 120238
+  },
+  {
+   "code": 1508,
+   "sym": "恔",
+   "token_id": 122535
+  },
+  {
+   "code": 1509,
+   "sym": "恕",
+   "token_id": 114932
+  },
+  {
+   "code": 1510,
+   "sym": "恙",
+   "token_id": 120486
+  },
+  {
+   "code": 1511,
+   "sym": "恚",
+   "token_id": 120293
+  },
+  {
+   "code": 1512,
+   "sym": "恝",
+   "token_id": 122561
+  },
+  {
+   "code": 1513,
+   "sym": "恢",
+   "token_id": 101154
+  },
+  {
+   "code": 1514,
+   "sym": "恣",
+   "token_id": 120478
+  },
+  {
+   "code": 1515,
+   "sym": "恤",
+   "token_id": 112259
+  },
+  {
+   "code": 1516,
+   "sym": "恧",
+   "token_id": 122611
+  },
+  {
+   "code": 1517,
+   "sym": "恪",
+   "token_id": 120243
+  },
+  {
+   "code": 1518,
+   "sym": "恫",
+   "token_id": 120240
+  },
+  {
+   "code": 1519,
+   "sym": "恬",
+   "token_id": 118252
+  },
+  {
+   "code": 1520,
+   "sym": "恭",
+   "token_id": 101739
+  },
+  {
+   "code": 1521,
+   "sym": "恳",
+   "token_id": 113717
+  },
+  {
+   "code": 1522,
+   "sym": "恸",
+   "token_id": 120237
+  },
+  {
+   "code": 1523,
+   "sym": "恹",
+   "token_id": 120239
+  },
+  {
+   "code": 1524,
+   "sym": "恺",
+   "token_id": 116191
+  },
+  {
+   "code": 1525,
+   "sym": "恻",
+   "token_id": 120241
+  },
+  {
+   "code": 1526,
+   "sym": "恽",
+   "token_id": 120244
+  },
+  {
+   "code": 1527,
+   "sym": "恿",
+   "token_id": 120825
+  },
+  {
+   "code": 1528,
+   "sym": "悃",
+   "token_id": 122709
+  },
+  {
+   "code": 1529,
+   "sym": "悅",
+   "token_id": 119174
+  },
+  {
+   "code": 1530,
+   "sym": "悆",
+   "token_id": 122852
+  },
+  {
+   "code": 1531,
+   "sym": "悈",
+   "token_id": 122708
+  },
+  {
+   "code": 1532,
+   "sym": "悌",
+   "token_id": 120511
+  },
+  {
+   "code": 1533,
+   "sym": "悒",
+   "token_id": 120510
+  },
+  {
+   "code": 1534,
+   "sym": "悖",
+   "token_id": 119056
+  },
+  {
+   "code": 1535,
+   "sym": "悚",
+   "token_id": 120507
+  },
+  {
+   "code": 1536,
+   "sym": "悛",
+   "token_id": 120512
+  },
+  {
+   "code": 1537,
+   "sym": "悝",
+   "token_id": 120509
+  },
+  {
+   "code": 1538,
+   "sym": "悢",
+   "token_id": 122710
+  },
+  {
+   "code": 1539,
+   "sym": "患",
+   "token_id": 99811
+  },
+  {
+   "code": 1540,
+   "sym": "悩",
+   "token_id": 134242
+  },
+  {
+   "code": 1541,
+   "sym": "悪",
+   "token_id": 132429
+  },
+  {
+   "code": 1542,
+   "sym": "悫",
+   "token_id": 120580
+  },
+  {
+   "code": 1543,
+   "sym": "悬",
+   "token_id": 100588
+  },
+  {
+   "code": 1544,
+   "sym": "悭",
+   "token_id": 120508
+  },
+  {
+   "code": 1545,
+   "sym": "悯",
+   "token_id": 119393
+  },
+  {
+   "code": 1546,
+   "sym": "悰",
+   "token_id": 122894
+  },
+  {
+   "code": 1547,
+   "sym": "悱",
+   "token_id": 120790
+  },
+  {
+   "code": 1548,
+   "sym": "悴",
+   "token_id": 119421
+  },
+  {
+   "code": 1549,
+   "sym": "悸",
+   "token_id": 119074
+  },
+  {
+   "code": 1550,
+   "sym": "悻",
+   "token_id": 120789
+  },
+  {
+   "code": 1551,
+   "sym": "悼",
+   "token_id": 116209
+  },
+  {
+   "code": 1552,
+   "sym": "惆",
+   "token_id": 120793
+  },
+  {
+   "code": 1553,
+   "sym": "惇",
+   "token_id": 120795
+  },
+  {
+   "code": 1554,
+   "sym": "惋",
+   "token_id": 119422
+  },
+  {
+   "code": 1555,
+   "sym": "惎",
+   "token_id": 122953
+  },
+  {
+   "code": 1556,
+   "sym": "惔",
+   "token_id": 122893
+  },
+  {
+   "code": 1557,
+   "sym": "惕",
+   "token_id": 103114
+  },
+  {
+   "code": 1558,
+   "sym": "惘",
+   "token_id": 120792
+  },
+  {
+   "code": 1559,
+   "sym": "惙",
+   "token_id": 122895
+  },
+  {
+   "code": 1560,
+   "sym": "惚",
+   "token_id": 120794
+  },
+  {
+   "code": 1561,
+   "sym": "惛",
+   "token_id": 122892
+  },
+  {
+   "code": 1562,
+   "sym": "惝",
+   "token_id": 120791
+  },
+  {
+   "code": 1563,
+   "sym": "惟",
+   "token_id": 107289
+  },
+  {
+   "code": 1564,
+   "sym": "惡",
+   "token_id": 108545
+  },
+  {
+   "code": 1565,
+   "sym": "惦",
+   "token_id": 119249
+  },
+  {
+   "code": 1566,
+   "sym": "惨",
+   "token_id": 105003
+  },
+  {
+   "code": 1567,
+   "sym": "惩",
+   "token_id": 101445
+  },
+  {
+   "code": 1568,
+   "sym": "惫",
+   "token_id": 103469
+  },
+  {
+   "code": 1569,
+   "sym": "惬",
+   "token_id": 103747
+  },
+  {
+   "code": 1570,
+   "sym": "惭",
+   "token_id": 119420
+  },
+  {
+   "code": 1571,
+   "sym": "惮",
+   "token_id": 120796
+  },
+  {
+   "code": 1572,
+   "sym": "惰",
+   "token_id": 119443
+  },
+  {
+   "code": 1573,
+   "sym": "惴",
+   "token_id": 121060
+  },
+  {
+   "code": 1574,
+   "sym": "惶",
+   "token_id": 114894
+  },
+  {
+   "code": 1575,
+   "sym": "惹",
+   "token_id": 105771
+  },
+  {
+   "code": 1576,
+   "sym": "惺",
+   "token_id": 121058
+  },
+  {
+   "code": 1577,
+   "sym": "愀",
+   "token_id": 121061
+  },
+  {
+   "code": 1578,
+   "sym": "愁",
+   "token_id": 105153
+  },
+  {
+   "code": 1579,
+   "sym": "愃",
+   "token_id": 123101
+  },
+  {
+   "code": 1580,
+   "sym": "愆",
+   "token_id": 121243
+  },
+  {
+   "code": 1581,
+   "sym": "愉",
+   "token_id": 101645
+  },
+  {
+   "code": 1582,
+   "sym": "愍",
+   "token_id": 123276
+  },
+  {
+   "code": 1583,
+   "sym": "愎",
+   "token_id": 121062
+  },
+  {
+   "code": 1584,
+   "sym": "愐",
+   "token_id": 123100
+  },
+  {
+   "code": 1585,
+   "sym": "愔",
+   "token_id": 121063
+  },
+  {
+   "code": 1586,
+   "sym": "愕",
+   "token_id": 119037
+  },
+  {
+   "code": 1587,
+   "sym": "愚",
+   "token_id": 103324
+  },
+  {
+   "code": 1588,
+   "sym": "愠",
+   "token_id": 121057
+  },
+  {
+   "code": 1589,
+   "sym": "愣",
+   "token_id": 107399
+  },
+  {
+   "code": 1590,
+   "sym": "愤",
+   "token_id": 103188
+  },
+  {
+   "code": 1591,
+   "sym": "愦",
+   "token_id": 121059
+  },
+  {
+   "code": 1592,
+   "sym": "愧",
+   "token_id": 103521
+  },
+  {
+   "code": 1593,
+   "sym": "愫",
+   "token_id": 121315
+  },
+  {
+   "code": 1594,
+   "sym": "愭",
+   "token_id": 123263
+  },
+  {
+   "code": 1595,
+   "sym": "慆",
+   "token_id": 123265
+  },
+  {
+   "code": 1596,
+   "sym": "慈",
+   "token_id": 101530
+  },
+  {
+   "code": 1597,
+   "sym": "慊",
+   "token_id": 121316
+  },
+  {
+   "code": 1598,
+   "sym": "態",
+   "token_id": 101008
+  },
+  {
+   "code": 1599,
+   "sym": "慕",
+   "token_id": 101576
+  },
+  {
+   "code": 1600,
+   "sym": "慝",
+   "token_id": 121349
+  },
+  {
+   "code": 1601,
+   "sym": "慣",
+   "token_id": 139734
+  },
+  {
+   "code": 1602,
+   "sym": "慥",
+   "token_id": 123264
+  },
+  {
+   "code": 1603,
+   "sym": "慬",
+   "token_id": 123405
+  },
+  {
+   "code": 1604,
+   "sym": "慭",
+   "token_id": 123439
+  },
+  {
+   "code": 1605,
+   "sym": "慮",
+   "token_id": 103818
+  },
+  {
+   "code": 1606,
+   "sym": "慵",
+   "token_id": 121512
+  },
+  {
+   "code": 1607,
+   "sym": "慶",
+   "token_id": 111948
+  },
+  {
+   "code": 1608,
+   "sym": "慷",
+   "token_id": 103858
+  },
+  {
+   "code": 1609,
+   "sym": "憂",
+   "token_id": 118511
+  },
+  {
+   "code": 1610,
+   "sym": "憋",
+   "token_id": 112173
+  },
+  {
+   "code": 1611,
+   "sym": "憎",
+   "token_id": 119066
+  },
+  {
+   "code": 1612,
+   "sym": "憑",
+   "token_id": 118543
+  },
+  {
+   "code": 1613,
+   "sym": "憔",
+   "token_id": 119495
+  },
+  {
+   "code": 1614,
+   "sym": "憕",
+   "token_id": 123498
+  },
+  {
+   "code": 1615,
+   "sym": "憙",
+   "token_id": 123510
+  },
+  {
+   "code": 1616,
+   "sym": "憧",
+   "token_id": 103831
+  },
+  {
+   "code": 1617,
+   "sym": "憨",
+   "token_id": 118375
+  },
+  {
+   "code": 1618,
+   "sym": "憩",
+   "token_id": 117972
+  },
+  {
+   "code": 1619,
+   "sym": "憭",
+   "token_id": 123497
+  },
+  {
+   "code": 1620,
+   "sym": "憶",
+   "token_id": 119173
+  },
+  {
+   "code": 1621,
+   "sym": "憷",
+   "token_id": 123587
+  },
+  {
+   "code": 1622,
+   "sym": "憺",
+   "token_id": 123588
+  },
+  {
+   "code": 1623,
+   "sym": "憾",
+   "token_id": 102964
+  },
+  {
+   "code": 1624,
+   "sym": "懊",
+   "token_id": 119096
+  },
+  {
+   "code": 1625,
+   "sym": "懋",
+   "token_id": 121864
+  },
+  {
+   "code": 1626,
+   "sym": "懑",
+   "token_id": 121937
+  },
+  {
+   "code": 1627,
+   "sym": "懒",
+   "token_id": 102956
+  },
+  {
+   "code": 1628,
+   "sym": "懔",
+   "token_id": 123589
+  },
+  {
+   "code": 1629,
+   "sym": "懦",
+   "token_id": 119518
+  },
+  {
+   "code": 1630,
+   "sym": "懵",
+   "token_id": 116713
+  },
+  {
+   "code": 1631,
+   "sym": "懷",
+   "token_id": 108429
+  },
+  {
+   "code": 1632,
+   "sym": "懿",
+   "token_id": 114139
+  },
+  {
+   "code": 1633,
+   "sym": "戀",
+   "token_id": 114905
+  },
+  {
+   "code": 1634,
+   "sym": "戆",
+   "token_id": 122123
+  },
+  {
+   "code": 1635,
+   "sym": "戈",
+   "token_id": 105662
+  },
+  {
+   "code": 1636,
+   "sym": "戊",
+   "token_id": 116913
+  },
+  {
+   "code": 1637,
+   "sym": "戋",
+   "token_id": 122134
+  },
+  {
+   "code": 1638,
+   "sym": "戌",
+   "token_id": 118249
+  },
+  {
+   "code": 1639,
+   "sym": "戍",
+   "token_id": 119603
+  },
+  {
+   "code": 1640,
+   "sym": "戎",
+   "token_id": 117369
+  },
+  {
+   "code": 1641,
+   "sym": "戕",
+   "token_id": 119990
+  },
+  {
+   "code": 1642,
+   "sym": "或",
+   "token_id": 57191
+  },
+  {
+   "code": 1643,
+   "sym": "戗",
+   "token_id": 119921
+  },
+  {
+   "code": 1644,
+   "sym": "戛",
+   "token_id": 119232
+  },
+  {
+   "code": 1645,
+   "sym": "戟",
+   "token_id": 117777
+  },
+  {
+   "code": 1646,
+   "sym": "戡",
+   "token_id": 121121
+  },
+  {
+   "code": 1647,
+   "sym": "戢",
+   "token_id": 120909
+  },
+  {
+   "code": 1648,
+   "sym": "戣",
+   "token_id": 123281
+  },
+  {
+   "code": 1649,
+   "sym": "戤",
+   "token_id": 123279
+  },
+  {
+   "code": 1650,
+   "sym": "戥",
+   "token_id": 121187
+  },
+  {
+   "code": 1651,
+   "sym": "戬",
+   "token_id": 121374
+  },
+  {
+   "code": 1652,
+   "sym": "戭",
+   "token_id": 123500
+  },
+  {
+   "code": 1653,
+   "sym": "戮",
+   "token_id": 121692
+  },
+  {
+   "code": 1654,
+   "sym": "戰",
+   "token_id": 105488
+  },
+  {
+   "code": 1655,
+   "sym": "戲",
+   "token_id": 103402
+  },
+  {
+   "code": 1656,
+   "sym": "戳",
+   "token_id": 111420
+  },
+  {
+   "code": 1657,
+   "sym": "戽",
+   "token_id": 119978
+  },
+  {
+   "code": 1658,
+   "sym": "戾",
+   "token_id": 119976
+  },
+  {
+   "code": 1659,
+   "sym": "扁",
+   "token_id": 109770
+  },
+  {
+   "code": 1660,
+   "sym": "扂",
+   "token_id": 122538
+  },
+  {
+   "code": 1661,
+   "sym": "扃",
+   "token_id": 120246
+  },
+  {
+   "code": 1662,
+   "sym": "扅",
+   "token_id": 122716
+  },
+  {
+   "code": 1663,
+   "sym": "扆",
+   "token_id": 122717
+  },
+  {
+   "code": 1664,
+   "sym": "扇",
+   "token_id": 102741
+  },
+  {
+   "code": 1665,
+   "sym": "扈",
+   "token_id": 120799
+  },
+  {
+   "code": 1666,
+   "sym": "扉",
+   "token_id": 119149
+  },
+  {
+   "code": 1667,
+   "sym": "扊",
+   "token_id": 123105
+  },
+  {
+   "code": 1668,
+   "sym": "扑",
+   "token_id": 102498
+  },
+  {
+   "code": 1669,
+   "sym": "扒",
+   "token_id": 111129
+  },
+  {
+   "code": 1670,
+   "sym": "扔",
+   "token_id": 105603
+  },
+  {
+   "code": 1671,
+   "sym": "払",
+   "token_id": 140733
+  },
+  {
+   "code": 1672,
+   "sym": "扛",
+   "token_id": 108278
+  },
+  {
+   "code": 1673,
+   "sym": "扞",
+   "token_id": 122147
+  },
+  {
+   "code": 1674,
+   "sym": "扦",
+   "token_id": 119587
+  },
+  {
+   "code": 1675,
+   "sym": "执",
+   "token_id": 99645
+  },
+  {
+   "code": 1676,
+   "sym": "扩",
+   "token_id": 99834
+  },
+  {
+   "code": 1677,
+   "sym": "扪",
+   "token_id": 119590
+  },
+  {
+   "code": 1678,
+   "sym": "扭",
+   "token_id": 100952
+  },
+  {
+   "code": 1679,
+   "sym": "扯",
+   "token_id": 105948
+  },
+  {
+   "code": 1680,
+   "sym": "扳",
+   "token_id": 113490
+  },
+  {
+   "code": 1681,
+   "sym": "扺",
+   "token_id": 122192
+  },
+  {
+   "code": 1682,
+   "sym": "扼",
+   "token_id": 117225
+  },
+  {
+   "code": 1683,
+   "sym": "扽",
+   "token_id": 122189
+  },
+  {
+   "code": 1684,
+   "sym": "抃",
+   "token_id": 119660
+  },
+  {
+   "code": 1685,
+   "sym": "抄",
+   "token_id": 102867
+  },
+  {
+   "code": 1686,
+   "sym": "抉",
+   "token_id": 103836
+  },
+  {
+   "code": 1687,
+   "sym": "抒",
+   "token_id": 116117
+  },
+  {
+   "code": 1688,
+   "sym": "抔",
+   "token_id": 119657
+  },
+  {
+   "code": 1689,
+   "sym": "抖",
+   "token_id": 101654
+  },
+  {
+   "code": 1690,
+   "sym": "抛",
+   "token_id": 102599
+  },
+  {
+   "code": 1691,
+   "sym": "抜",
+   "token_id": 134725
+  },
+  {
+   "code": 1692,
+   "sym": "抟",
+   "token_id": 119656
+  },
+  {
+   "code": 1693,
+   "sym": "抠",
+   "token_id": 119135
+  },
+  {
+   "code": 1694,
+   "sym": "抡",
+   "token_id": 119312
+  },
+  {
+   "code": 1695,
+   "sym": "抢",
+   "token_id": 100076
+  },
+  {
+   "code": 1696,
+   "sym": "抨",
+   "token_id": 119798
+  },
+  {
+   "code": 1697,
+   "sym": "披",
+   "token_id": 101488
+  },
+  {
+   "code": 1698,
+   "sym": "抬",
+   "token_id": 100922
+  },
+  {
+   "code": 1699,
+   "sym": "抵",
+   "token_id": 99990
+  },
+  {
+   "code": 1700,
+   "sym": "抻",
+   "token_id": 119803
+  },
+  {
+   "code": 1701,
+   "sym": "抽",
+   "token_id": 99950
+  },
+  {
+   "code": 1702,
+   "sym": "抿",
+   "token_id": 119812
+  },
+  {
+   "code": 1703,
+   "sym": "拂",
+   "token_id": 112419
+  },
+  {
+   "code": 1704,
+   "sym": "拃",
+   "token_id": 119805
+  },
+  {
+   "code": 1705,
+   "sym": "拄",
+   "token_id": 119325
+  },
+  {
+   "code": 1706,
+   "sym": "拆",
+   "token_id": 101348
+  },
+  {
+   "code": 1707,
+   "sym": "拇",
+   "token_id": 103660
+  },
+  {
+   "code": 1708,
+   "sym": "拈",
+   "token_id": 119801
+  },
+  {
+   "code": 1709,
+   "sym": "拊",
+   "token_id": 119806
+  },
+  {
+   "code": 1710,
+   "sym": "拎",
+   "token_id": 115232
+  },
+  {
+   "code": 1711,
+   "sym": "拐",
+   "token_id": 107770
+  },
+  {
+   "code": 1712,
+   "sym": "拖",
+   "token_id": 101325
+  },
+  {
+   "code": 1713,
+   "sym": "拗",
+   "token_id": 119326
+  },
+  {
+   "code": 1714,
+   "sym": "拘",
+   "token_id": 103089
+  },
+  {
+   "code": 1715,
+   "sym": "拙",
+   "token_id": 114374
+  },
+  {
+   "code": 1716,
+   "sym": "招",
+   "token_id": 99452
+  },
+  {
+   "code": 1717,
+   "sym": "拢",
+   "token_id": 109738
+  },
+  {
+   "code": 1718,
+   "sym": "拣",
+   "token_id": 119099
+  },
+  {
+   "code": 1719,
+   "sym": "拤",
+   "token_id": 119799
+  },
+  {
+   "code": 1720,
+   "sym": "拥",
+   "token_id": 100151
+  },
+  {
+   "code": 1721,
+   "sym": "拦",
+   "token_id": 103122
+  },
+  {
+   "code": 1722,
+   "sym": "拧",
+   "token_id": 115068
+  },
+  {
+   "code": 1723,
+   "sym": "拨",
+   "token_id": 102561
+  },
+  {
+   "code": 1724,
+   "sym": "拮",
+   "token_id": 120016
+  },
+  {
+   "code": 1725,
+   "sym": "拯",
+   "token_id": 103367
+  },
+  {
+   "code": 1726,
+   "sym": "拱",
+   "token_id": 108110
+  },
+  {
+   "code": 1727,
+   "sym": "拳",
+   "token_id": 101363
+  },
+  {
+   "code": 1728,
+   "sym": "拴",
+   "token_id": 119351
+  },
+  {
+   "code": 1729,
+   "sym": "拶",
+   "token_id": 122415
+  },
+  {
+   "code": 1730,
+   "sym": "拷",
+   "token_id": 119111
+  },
+  {
+   "code": 1731,
+   "sym": "拽",
+   "token_id": 113676
+  },
+  {
+   "code": 1732,
+   "sym": "挈",
+   "token_id": 120282
+  },
+  {
+   "code": 1733,
+   "sym": "按",
+   "token_id": 59879
+  },
+  {
+   "code": 1734,
+   "sym": "挎",
+   "token_id": 119350
+  },
+  {
+   "code": 1735,
+   "sym": "挑",
+   "token_id": 100428
+  },
+  {
+   "code": 1736,
+   "sym": "挓",
+   "token_id": 122412
+  },
+  {
+   "code": 1737,
+   "sym": "挖",
+   "token_id": 101413
+  },
+  {
+   "code": 1738,
+   "sym": "挚",
+   "token_id": 118915
+  },
+  {
+   "code": 1739,
+   "sym": "挛",
+   "token_id": 120466
+  },
+  {
+   "code": 1740,
+   "sym": "挝",
+   "token_id": 120018
+  },
+  {
+   "code": 1741,
+   "sym": "挞",
+   "token_id": 120019
+  },
+  {
+   "code": 1742,
+   "sym": "挟",
+   "token_id": 117823
+  },
+  {
+   "code": 1743,
+   "sym": "挠",
+   "token_id": 114283
+  },
+  {
+   "code": 1744,
+   "sym": "挣",
+   "token_id": 101707
+  },
+  {
+   "code": 1745,
+   "sym": "挦",
+   "token_id": 120027
+  },
+  {
+   "code": 1746,
+   "sym": "挨",
+   "token_id": 107597
+  },
+  {
+   "code": 1747,
+   "sym": "挪",
+   "token_id": 103477
+  },
+  {
+   "code": 1748,
+   "sym": "挫",
+   "token_id": 103289
+  },
+  {
+   "code": 1749,
+   "sym": "挲",
+   "token_id": 120779
+  },
+  {
+   "code": 1750,
+   "sym": "挹",
+   "token_id": 120298
+  },
+  {
+   "code": 1751,
+   "sym": "挺",
+   "token_id": 101174
+  },
+  {
+   "code": 1752,
+   "sym": "挽",
+   "token_id": 101821
+  },
+  {
+   "code": 1753,
+   "sym": "捂",
+   "token_id": 112443
+  },
+  {
+   "code": 1754,
+   "sym": "捃",
+   "token_id": 120305
+  },
+  {
+   "code": 1755,
+   "sym": "捅",
+   "token_id": 118404
+  },
+  {
+   "code": 1756,
+   "sym": "捆",
+   "token_id": 103813
+  },
+  {
+   "code": 1757,
+   "sym": "捋",
+   "token_id": 120302
+  },
+  {
+   "code": 1758,
+   "sym": "捌",
+   "token_id": 119370
+  },
+  {
+   "code": 1759,
+   "sym": "捍",
+   "token_id": 103835
+  },
+  {
+   "code": 1760,
+   "sym": "捎",
+   "token_id": 119369
+  },
+  {
+   "code": 1761,
+   "sym": "捏",
+   "token_id": 107208
+  },
+  {
+   "code": 1762,
+   "sym": "捐",
+   "token_id": 100586
+  },
+  {
+   "code": 1763,
+   "sym": "捞",
+   "token_id": 109869
+  },
+  {
+   "code": 1764,
+   "sym": "捡",
+   "token_id": 106591
+  },
+  {
+   "code": 1765,
+   "sym": "捣",
+   "token_id": 111686
+  },
+  {
+   "code": 1766,
+   "sym": "捧",
+   "token_id": 102894
+  },
+  {
+   "code": 1767,
+   "sym": "捨",
+   "token_id": 137820
+  },
+  {
+   "code": 1768,
+   "sym": "捩",
+   "token_id": 120578
+  },
+  {
+   "code": 1769,
+   "sym": "捭",
+   "token_id": 120567
+  },
+  {
+   "code": 1770,
+   "sym": "捯",
+   "token_id": 120560
+  },
+  {
+   "code": 1771,
+   "sym": "捶",
+   "token_id": 119399
+  },
+  {
+   "code": 1772,
+   "sym": "捺",
+   "token_id": 119398
+  },
+  {
+   "code": 1773,
+   "sym": "捻",
+   "token_id": 119400
+  },
+  {
+   "code": 1774,
+   "sym": "捽",
+   "token_id": 120574
+  },
+  {
+   "code": 1775,
+   "sym": "掀",
+   "token_id": 103246
+  },
+  {
+   "code": 1776,
+   "sym": "掂",
+   "token_id": 119401
+  },
+  {
+   "code": 1777,
+   "sym": "掃",
+   "token_id": 116897
+  },
+  {
+   "code": 1778,
+   "sym": "掇",
+   "token_id": 120583
+  },
+  {
+   "code": 1779,
+   "sym": "掊",
+   "token_id": 120575
+  },
+  {
+   "code": 1780,
+   "sym": "掎",
+   "token_id": 122753
+  },
+  {
+   "code": 1781,
+   "sym": "掏",
+   "token_id": 103401
+  },
+  {
+   "code": 1782,
+   "sym": "掐",
+   "token_id": 114175
+  },
+  {
+   "code": 1783,
+   "sym": "掖",
+   "token_id": 119062
+  },
+  {
+   "code": 1784,
+   "sym": "掛",
+   "token_id": 114678
+  },
+  {
+   "code": 1785,
+   "sym": "掞",
+   "token_id": 122759
+  },
+  {
+   "code": 1786,
+   "sym": "掠",
+   "token_id": 111924
+  },
+  {
+   "code": 1787,
+   "sym": "採",
+   "token_id": 103392
+  },
+  {
+   "code": 1788,
+   "sym": "掣",
+   "token_id": 120967
+  },
+  {
+   "code": 1789,
+   "sym": "掩",
+   "token_id": 101702
+  },
+  {
+   "code": 1790,
+   "sym": "掬",
+   "token_id": 120572
+  },
+  {
+   "code": 1791,
+   "sym": "掭",
+   "token_id": 122749
+  },
+  {
+   "code": 1792,
+   "sym": "掮",
+   "token_id": 120579
+  },
+  {
+   "code": 1793,
+   "sym": "掰",
+   "token_id": 119059
+  },
+  {
+   "code": 1794,
+   "sym": "掳",
+   "token_id": 120561
+  },
+  {
+   "code": 1795,
+   "sym": "掴",
+   "token_id": 120562
+  },
+  {
+   "code": 1796,
+   "sym": "掷",
+   "token_id": 113024
+  },
+  {
+   "code": 1797,
+   "sym": "掸",
+   "token_id": 120577
+  },
+  {
+   "code": 1798,
+   "sym": "掺",
+   "token_id": 114824
+  },
+  {
+   "code": 1799,
+   "sym": "掼",
+   "token_id": 120584
+  },
+  {
+   "code": 1800,
+   "sym": "掾",
+   "token_id": 120871
+  },
+  {
+   "code": 1801,
+   "sym": "揄",
+   "token_id": 120865
+  },
+  {
+   "code": 1802,
+   "sym": "揆",
+   "token_id": 120870
+  },
+  {
+   "code": 1803,
+   "sym": "揉",
+   "token_id": 107775
+  },
+  {
+   "code": 1804,
+   "sym": "揍",
+   "token_id": 118634
+  },
+  {
+   "code": 1805,
+   "sym": "插",
+   "token_id": 101255
+  },
+  {
+   "code": 1806,
+   "sym": "揕",
+   "token_id": 122940
+  },
+  {
+   "code": 1807,
+   "sym": "揖",
+   "token_id": 120860
+  },
+  {
+   "code": 1808,
+   "sym": "揚",
+   "token_id": 113332
+  },
+  {
+   "code": 1809,
+   "sym": "換",
+   "token_id": 107466
+  },
+  {
+   "code": 1810,
+   "sym": "揠",
+   "token_id": 120857
+  },
+  {
+   "code": 1811,
+   "sym": "揣",
+   "token_id": 112336
+  },
+  {
+   "code": 1812,
+   "sym": "揩",
+   "token_id": 119424
+  },
+  {
+   "code": 1813,
+   "sym": "揪",
+   "token_id": 114707
+  },
+  {
+   "code": 1814,
+   "sym": "揭",
+   "token_id": 100125
+  },
+  {
+   "code": 1815,
+   "sym": "揮",
+   "token_id": 103889
+  },
+  {
+   "code": 1816,
+   "sym": "揳",
+   "token_id": 120853
+  },
+  {
+   "code": 1817,
+   "sym": "揶",
+   "token_id": 120557
+  },
+  {
+   "code": 1818,
+   "sym": "揸",
+   "token_id": 120856
+  },
+  {
+   "code": 1819,
+   "sym": "揽",
+   "token_id": 106855
+  },
+  {
+   "code": 1820,
+   "sym": "揿",
+   "token_id": 120863
+  },
+  {
+   "code": 1821,
+   "sym": "搀",
+   "token_id": 119425
+  },
+  {
+   "code": 1822,
+   "sym": "搁",
+   "token_id": 113562
+  },
+  {
+   "code": 1823,
+   "sym": "搂",
+   "token_id": 115451
+  },
+  {
+   "code": 1824,
+   "sym": "搅",
+   "token_id": 103308
+  },
+  {
+   "code": 1825,
+   "sym": "搋",
+   "token_id": 121110
+  },
+  {
+   "code": 1826,
+   "sym": "搌",
+   "token_id": 123145
+  },
+  {
+   "code": 1827,
+   "sym": "損",
+   "token_id": 103531
+  },
+  {
+   "code": 1828,
+   "sym": "搐",
+   "token_id": 121112
+  },
+  {
+   "code": 1829,
+   "sym": "搒",
+   "token_id": 123144
+  },
+  {
+   "code": 1830,
+   "sym": "搓",
+   "token_id": 112099
+  },
+  {
+   "code": 1831,
+   "sym": "搔",
+   "token_id": 119426
+  },
+  {
+   "code": 1832,
+   "sym": "搖",
+   "token_id": 115244
+  },
+  {
+   "code": 1833,
+   "sym": "搛",
+   "token_id": 121113
+  },
+  {
+   "code": 1834,
+   "sym": "搞",
+   "token_id": 100460
+  },
+  {
+   "code": 1835,
+   "sym": "搠",
+   "token_id": 121114
+  },
+  {
+   "code": 1836,
+   "sym": "搡",
+   "token_id": 121119
+  },
+  {
+   "code": 1837,
+   "sym": "搦",
+   "token_id": 121118
+  },
+  {
+   "code": 1838,
+   "sym": "搪",
+   "token_id": 121111
+  },
+  {
+   "code": 1839,
+   "sym": "搬",
+   "token_id": 100561
+  },
+  {
+   "code": 1840,
+   "sym": "搭",
+   "token_id": 100095
+  },
+  {
+   "code": 1841,
+   "sym": "搴",
+   "token_id": 121513
+  },
+  {
+   "code": 1842,
+   "sym": "搶",
+   "token_id": 114930
+  },
+  {
+   "code": 1843,
+   "sym": "携",
+   "token_id": 100914
+  },
+  {
+   "code": 1844,
+   "sym": "搽",
+   "token_id": 120855
+  },
+  {
+   "code": 1845,
+   "sym": "摁",
+   "token_id": 121108
+  },
+  {
+   "code": 1846,
+   "sym": "摅",
+   "token_id": 121107
+  },
+  {
+   "code": 1847,
+   "sym": "摆",
+   "token_id": 100805
+  },
+  {
+   "code": 1848,
+   "sym": "摈",
+   "token_id": 121115
+  },
+  {
+   "code": 1849,
+   "sym": "摊",
+   "token_id": 105199
+  },
+  {
+   "code": 1850,
+   "sym": "摏",
+   "token_id": 123294
+  },
+  {
+   "code": 1851,
+   "sym": "摒",
+   "token_id": 120869
+  },
+  {
+   "code": 1852,
+   "sym": "摔",
+   "token_id": 103036
+  },
+  {
+   "code": 1853,
+   "sym": "摘",
+   "token_id": 100889
+  },
+  {
+   "code": 1854,
+   "sym": "摛",
+   "token_id": 123142
+  },
+  {
+   "code": 1855,
+   "sym": "摞",
+   "token_id": 121355
+  },
+  {
+   "code": 1856,
+   "sym": "摧",
+   "token_id": 103659
+  },
+  {
+   "code": 1857,
+   "sym": "摭",
+   "token_id": 121359
+  },
+  {
+   "code": 1858,
+   "sym": "摴",
+   "token_id": 123299
+  },
+  {
+   "code": 1859,
+   "sym": "摹",
+   "token_id": 119042
+  },
+  {
+   "code": 1860,
+   "sym": "摽",
+   "token_id": 121352
+  },
+  {
+   "code": 1861,
+   "sym": "撂",
+   "token_id": 121354
+  },
+  {
+   "code": 1862,
+   "sym": "撄",
+   "token_id": 121356
+  },
+  {
+   "code": 1863,
+   "sym": "撅",
+   "token_id": 121552
+  },
+  {
+   "code": 1864,
+   "sym": "撇",
+   "token_id": 112547
+  },
+  {
+   "code": 1865,
+   "sym": "撐",
+   "token_id": 119191
+  },
+  {
+   "code": 1866,
+   "sym": "撒",
+   "token_id": 104856
+  },
+  {
+   "code": 1867,
+   "sym": "撕",
+   "token_id": 107495
+  },
+  {
+   "code": 1868,
+   "sym": "撖",
+   "token_id": 123304
+  },
+  {
+   "code": 1869,
+   "sym": "撙",
+   "token_id": 121556
+  },
+  {
+   "code": 1870,
+   "sym": "撞",
+   "token_id": 101340
+  },
+  {
+   "code": 1871,
+   "sym": "撤",
+   "token_id": 101509
+  },
+  {
+   "code": 1872,
+   "sym": "撥",
+   "token_id": 119049
+  },
+  {
+   "code": 1873,
+   "sym": "撩",
+   "token_id": 112320
+  },
+  {
+   "code": 1874,
+   "sym": "撬",
+   "token_id": 119481
+  },
+  {
+   "code": 1875,
+   "sym": "撮",
+   "token_id": 119078
+  },
+  {
+   "code": 1876,
+   "sym": "撰",
+   "token_id": 103375
+  },
+  {
+   "code": 1877,
+   "sym": "撵",
+   "token_id": 119480
+  },
+  {
+   "code": 1878,
+   "sym": "撷",
+   "token_id": 121551
+  },
+  {
+   "code": 1879,
+   "sym": "撸",
+   "token_id": 121554
+  },
+  {
+   "code": 1880,
+   "sym": "撺",
+   "token_id": 121557
+  },
+  {
+   "code": 1881,
+   "sym": "撼",
+   "token_id": 103049
+  },
+  {
+   "code": 1882,
+   "sym": "擀",
+   "token_id": 121711
+  },
+  {
+   "code": 1883,
+   "sym": "擁",
+   "token_id": 110848
+  },
+  {
+   "code": 1884,
+   "sym": "擂",
+   "token_id": 118472
+  },
+  {
+   "code": 1885,
+   "sym": "擅",
+   "token_id": 101678
+  },
+  {
+   "code": 1886,
+   "sym": "擐",
+   "token_id": 123511
+  },
+  {
+   "code": 1887,
+   "sym": "擒",
+   "token_id": 115440
+  },
+  {
+   "code": 1888,
+   "sym": "擔",
+   "token_id": 103808
+  },
+  {
+   "code": 1889,
+   "sym": "擘",
+   "token_id": 121948
+  },
+  {
+   "code": 1890,
+   "sym": "擞",
+   "token_id": 121713
+  },
+  {
+   "code": 1891,
+   "sym": "擠",
+   "token_id": 119277
+  },
+  {
+   "code": 1892,
+   "sym": "擢",
+   "token_id": 121855
+  },
+  {
+   "code": 1893,
+   "sym": "擤",
+   "token_id": 121851
+  },
+  {
+   "code": 1894,
+   "sym": "擬",
+   "token_id": 119027
+  },
+  {
+   "code": 1895,
+   "sym": "擴",
+   "token_id": 113454
+  },
+  {
+   "code": 1896,
+   "sym": "擺",
+   "token_id": 114514
+  },
+  {
+   "code": 1897,
+   "sym": "擾",
+   "token_id": 115808
+  },
+  {
+   "code": 1898,
+   "sym": "擿",
+   "token_id": 123600
+  },
+  {
+   "code": 1899,
+   "sym": "攀",
+   "token_id": 101648
+  },
+  {
+   "code": 1900,
+   "sym": "攉",
+   "token_id": 122004
+  },
+  {
+   "code": 1901,
+   "sym": "攒",
+   "token_id": 113087
+  },
+  {
+   "code": 1902,
+   "sym": "攘",
+   "token_id": 122053
+  },
+  {
+   "code": 1903,
+   "sym": "攝",
+   "token_id": 119043
+  },
+  {
+   "code": 1904,
+   "sym": "攥",
+   "token_id": 122107
+  },
+  {
+   "code": 1905,
+   "sym": "攫",
+   "token_id": 122106
+  },
+  {
+   "code": 1906,
+   "sym": "攮",
+   "token_id": 122120
+  },
+  {
+   "code": 1907,
+   "sym": "攸",
+   "token_id": 119032
+  },
+  {
+   "code": 1908,
+   "sym": "攽",
+   "token_id": 122340
+  },
+  {
+   "code": 1909,
+   "sym": "敉",
+   "token_id": 122689
+  },
+  {
+   "code": 1910,
+   "sym": "敔",
+   "token_id": 122787
+  },
+  {
+   "code": 1911,
+   "sym": "敕",
+   "token_id": 120616
+  },
+  {
+   "code": 1912,
+   "sym": "敖",
+   "token_id": 113735
+  },
+  {
+   "code": 1913,
+   "sym": "敗",
+   "token_id": 115263
+  },
+  {
+   "code": 1914,
+   "sym": "敝",
+   "token_id": 119023
+  },
+  {
+   "code": 1915,
+   "sym": "敩",
+   "token_id": 123102
+  },
+  {
+   "code": 1916,
+   "sym": "敫",
+   "token_id": 121241
+  },
+  {
+   "code": 1917,
+   "sym": "敲",
+   "token_id": 105353
+  },
+  {
+   "code": 1918,
+   "sym": "敵",
+   "token_id": 115482
+  },
+  {
+   "code": 1919,
+   "sym": "敷",
+   "token_id": 107659
+  },
+  {
+   "code": 1920,
+   "sym": "數",
+   "token_id": 102260
+  },
+  {
+   "code": 1921,
+   "sym": "斋",
+   "token_id": 109000
+  },
+  {
+   "code": 1922,
+   "sym": "斌",
+   "token_id": 105074
+  },
+  {
+   "code": 1923,
+   "sym": "斐",
+   "token_id": 112251
+  },
+  {
+   "code": 1924,
+   "sym": "斑",
+   "token_id": 100876
+  },
+  {
+   "code": 1925,
+   "sym": "斛",
+   "token_id": 120748
+  },
+  {
+   "code": 1926,
+   "sym": "斝",
+   "token_id": 123012
+  },
+  {
+   "code": 1927,
+   "sym": "斟",
+   "token_id": 119450
+  },
+  {
+   "code": 1928,
+   "sym": "斠",
+   "token_id": 123293
+  },
+  {
+   "code": 1929,
+   "sym": "斡",
+   "token_id": 121378
+  },
+  {
+   "code": 1930,
+   "sym": "斧",
+   "token_id": 112541
+  },
+  {
+   "code": 1931,
+   "sym": "斩",
+   "token_id": 102861
+  },
+  {
+   "code": 1932,
+   "sym": "斫",
+   "token_id": 120080
+  },
+  {
+   "code": 1933,
+   "sym": "斶",
+   "token_id": 123635
+  },
+  {
+   "code": 1934,
+   "sym": "旁",
+   "token_id": 100484
+  },
+  {
+   "code": 1935,
+   "sym": "旃",
+   "token_id": 120481
+  },
+  {
+   "code": 1936,
+   "sym": "旄",
+   "token_id": 120480
+  },
+  {
+   "code": 1937,
+   "sym": "旆",
+   "token_id": 120479
+  },
+  {
+   "code": 1938,
+   "sym": "旋",
+   "token_id": 100917
+  },
+  {
+   "code": 1939,
+   "sym": "旌",
+   "token_id": 120759
+  },
+  {
+   "code": 1940,
+   "sym": "旎",
+   "token_id": 120760
+  },
+  {
+   "code": 1941,
+   "sym": "旐",
+   "token_id": 123079
+  },
+  {
+   "code": 1942,
+   "sym": "旒",
+   "token_id": 121281
+  },
+  {
+   "code": 1943,
+   "sym": "旖",
+   "token_id": 121489
+  },
+  {
+   "code": 1944,
+   "sym": "旞",
+   "token_id": 123703
+  },
+  {
+   "code": 1945,
+   "sym": "既",
+   "token_id": 99929
+  },
+  {
+   "code": 1946,
+   "sym": "旬",
+   "token_id": 101777
+  },
+  {
+   "code": 1947,
+   "sym": "旭",
+   "token_id": 105495
+  },
+  {
+   "code": 1948,
+   "sym": "旮",
+   "token_id": 119630
+  },
+  {
+   "code": 1949,
+   "sym": "旯",
+   "token_id": 119606
+  },
+  {
+   "code": 1950,
+   "sym": "旰",
+   "token_id": 119694
+  },
+  {
+   "code": 1951,
+   "sym": "旴",
+   "token_id": 122216
+  },
+  {
+   "code": 1952,
+   "sym": "旵",
+   "token_id": 122217
+  },
+  {
+   "code": 1953,
+   "sym": "旷",
+   "token_id": 111520
+  },
+  {
+   "code": 1954,
+   "sym": "旸",
+   "token_id": 119700
+  },
+  {
+   "code": 1955,
+   "sym": "旻",
+   "token_id": 119861
+  },
+  {
+   "code": 1956,
+   "sym": "旿",
+   "token_id": 122305
+  },
+  {
+   "code": 1957,
+   "sym": "昀",
+   "token_id": 119860
+  },
+  {
+   "code": 1958,
+   "sym": "昂",
+   "token_id": 101584
+  },
+  {
+   "code": 1959,
+   "sym": "昃",
+   "token_id": 119857
+  },
+  {
+   "code": 1960,
+   "sym": "昄",
+   "token_id": 122306
+  },
+  {
+   "code": 1961,
+   "sym": "昆",
+   "token_id": 100584
+  },
+  {
+   "code": 1962,
+   "sym": "昇",
+   "token_id": 119219
+  },
+  {
+   "code": 1963,
+   "sym": "昈",
+   "token_id": 122308
+  },
+  {
+   "code": 1964,
+   "sym": "昉",
+   "token_id": 119862
+  },
+  {
+   "code": 1965,
+   "sym": "昊",
+   "token_id": 107160
+  },
+  {
+   "code": 1966,
+   "sym": "昏",
+   "token_id": 101616
+  },
+  {
+   "code": 1967,
+   "sym": "昒",
+   "token_id": 122307
+  },
+  {
+   "code": 1968,
+   "sym": "昔",
+   "token_id": 103435
+  },
+  {
+   "code": 1969,
+   "sym": "昕",
+   "token_id": 112350
+  },
+  {
+   "code": 1970,
+   "sym": "昙",
+   "token_id": 119855
+  },
+  {
+   "code": 1971,
+   "sym": "昝",
+   "token_id": 120194
+  },
+  {
+   "code": 1972,
+   "sym": "昡",
+   "token_id": 122465
+  },
+  {
+   "code": 1973,
+   "sym": "昣",
+   "token_id": 122462
+  },
+  {
+   "code": 1974,
+   "sym": "昤",
+   "token_id": 122463
+  },
+  {
+   "code": 1975,
+   "sym": "昨",
+   "token_id": 100823
+  },
+  {
+   "code": 1976,
+   "sym": "昪",
+   "token_id": 122467
+  },
+  {
+   "code": 1977,
+   "sym": "昫",
+   "token_id": 122464
+  },
+  {
+   "code": 1978,
+   "sym": "昭",
+   "token_id": 105805
+  },
+  {
+   "code": 1979,
+   "sym": "昱",
+   "token_id": 116772
+  },
+  {
+   "code": 1980,
+   "sym": "昳",
+   "token_id": 122461
+  },
+  {
+   "code": 1981,
+   "sym": "昴",
+   "token_id": 120110
+  },
+  {
+   "code": 1982,
+   "sym": "昵",
+   "token_id": 119072
+  },
+  {
+   "code": 1983,
+   "sym": "昶",
+   "token_id": 120260
+  },
+  {
+   "code": 1984,
+   "sym": "昺",
+   "token_id": 122454
+  },
+  {
+   "code": 1985,
+   "sym": "昼",
+   "token_id": 103873
+  },
+  {
+   "code": 1986,
+   "sym": "昽",
+   "token_id": 122457
+  },
+  {
+   "code": 1987,
+   "sym": "晁",
+   "token_id": 120369
+  },
+  {
+   "code": 1988,
+   "sym": "晃",
+   "token_id": 106482
+  },
+  {
+   "code": 1989,
+   "sym": "晅",
+   "token_id": 122623
+  },
+  {
+   "code": 1990,
+   "sym": "晊",
+   "token_id": 122624
+  },
+  {
+   "code": 1991,
+   "sym": "晋",
+   "token_id": 100850
+  },
+  {
+   "code": 1992,
+   "sym": "晌",
+   "token_id": 119376
+  },
+  {
+   "code": 1993,
+   "sym": "晏",
+   "token_id": 115330
+  },
+  {
+   "code": 1994,
+   "sym": "晐",
+   "token_id": 122630
+  },
+  {
+   "code": 1995,
+   "sym": "晒",
+   "token_id": 102488
+  },
+  {
+   "code": 1996,
+   "sym": "晔",
+   "token_id": 122629
+  },
+  {
+   "code": 1997,
+   "sym": "晖",
+   "token_id": 109117
+  },
+  {
+   "code": 1998,
+   "sym": "晗",
+   "token_id": 120650
+  },
+  {
+   "code": 1999,
+   "sym": "晙",
+   "token_id": 122804
+  },
+  {
+   "code": 2000,
+   "sym": "晞",
+   "token_id": 120648
+  },
+  {
+   "code": 2001,
+   "sym": "晟",
+   "token_id": 113337
+  },
+  {
+   "code": 2002,
+   "sym": "晡",
+   "token_id": 120641
+  },
+  {
+   "code": 2003,
+   "sym": "晢",
+   "token_id": 122756
+  },
+  {
+   "code": 2004,
+   "sym": "晤",
+   "token_id": 120642
+  },
+  {
+   "code": 2005,
+   "sym": "晦",
+   "token_id": 117505
+  },
+  {
+   "code": 2006,
+   "sym": "晪",
+   "token_id": 123005
+  },
+  {
+   "code": 2007,
+   "sym": "晫",
+   "token_id": 123004
+  },
+  {
+   "code": 2008,
+   "sym": "普",
+   "token_id": 99537
+  },
+  {
+   "code": 2009,
+   "sym": "晱",
+   "token_id": 123006
+  },
+  {
+   "code": 2010,
+   "sym": "晴",
+   "token_id": 105212
+  },
+  {
+   "code": 2011,
+   "sym": "晷",
+   "token_id": 120915
+  },
+  {
+   "code": 2012,
+   "sym": "晾",
+   "token_id": 114158
+  },
+  {
+   "code": 2013,
+   "sym": "暂",
+   "token_id": 100559
+  },
+  {
+   "code": 2014,
+   "sym": "暄",
+   "token_id": 121190
+  },
+  {
+   "code": 2015,
+   "sym": "暅",
+   "token_id": 123185
+  },
+  {
+   "code": 2016,
+   "sym": "暇",
+   "token_id": 116435
+  },
+  {
+   "code": 2017,
+   "sym": "暌",
+   "token_id": 121192
+  },
+  {
+   "code": 2018,
+   "sym": "暑",
+   "token_id": 101722
+  },
+  {
+   "code": 2019,
+   "sym": "暕",
+   "token_id": 123180
+  },
+  {
+   "code": 2020,
+   "sym": "暝",
+   "token_id": 121411
+  },
+  {
+   "code": 2021,
+   "sym": "暢",
+   "token_id": 119071
+  },
+  {
+   "code": 2022,
+   "sym": "暧",
+   "token_id": 103724
+  },
+  {
+   "code": 2023,
+   "sym": "暨",
+   "token_id": 104665
+  },
+  {
+   "code": 2024,
+   "sym": "暫",
+   "token_id": 116811
+  },
+  {
+   "code": 2025,
+   "sym": "暮",
+   "token_id": 109803
+  },
+  {
+   "code": 2026,
+   "sym": "暲",
+   "token_id": 123442
+  },
+  {
+   "code": 2027,
+   "sym": "暴",
+   "token_id": 99956
+  },
+  {
+   "code": 2028,
+   "sym": "暵",
+   "token_id": 123441
+  },
+  {
+   "code": 2029,
+   "sym": "暶",
+   "token_id": 123443
+  },
+  {
+   "code": 2030,
+   "sym": "暹",
+   "token_id": 121598
+  },
+  {
+   "code": 2031,
+   "sym": "暾",
+   "token_id": 121755
+  },
+  {
+   "code": 2032,
+   "sym": "暿",
+   "token_id": 123536
+  },
+  {
+   "code": 2033,
+   "sym": "曈",
+   "token_id": 123538
+  },
+  {
+   "code": 2034,
+   "sym": "曉",
+   "token_id": 117490
+  },
+  {
+   "code": 2035,
+   "sym": "曌",
+   "token_id": 123537
+  },
+  {
+   "code": 2036,
+   "sym": "曙",
+   "token_id": 103741
+  },
+  {
+   "code": 2037,
+   "sym": "曛",
+   "token_id": 121972
+  },
+  {
+   "code": 2038,
+   "sym": "曜",
+   "token_id": 119131
+  },
+  {
+   "code": 2039,
+   "sym": "曝",
+   "token_id": 102378
+  },
+  {
+   "code": 2040,
+   "sym": "曦",
+   "token_id": 110147
+  },
+  {
+   "code": 2041,
+   "sym": "曩",
+   "token_id": 122084
+  },
+  {
+   "code": 2042,
+   "sym": "曰",
+   "token_id": 104769
+  },
+  {
+   "code": 2043,
+   "sym": "曳",
+   "token_id": 119607
+  },
+  {
+   "code": 2044,
+   "sym": "曷",
+   "token_id": 120109
+  },
+  {
+   "code": 2045,
+   "sym": "曹",
+   "token_id": 102263
+  },
+  {
+   "code": 2046,
+   "sym": "曼",
+   "token_id": 101267
+  },
+  {
+   "code": 2047,
+   "sym": "朋",
+   "token_id": 99574
+  }
+ ]
+}

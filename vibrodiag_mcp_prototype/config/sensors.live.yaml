@@ -1,0 +1,47 @@
+# Live building-vibration sensor registry.
+# Six connected IIS3DWB boards: one reference/baseline plus five targets.
+
+baseline_sensor_id: baseline
+
+sensors:
+  - sensor_id: baseline
+    location: live_reference_position
+    role: baseline
+    acquisition_folder: ../../stdatalog_examples/live_baseline
+    hsd_sensor_name: iis3dwb_acc
+    axis: z
+
+  - sensor_id: target_1
+    location: live_target_position_1
+    role: target
+    acquisition_folder: ../../stdatalog_examples/live_target_1
+    hsd_sensor_name: iis3dwb_acc
+    axis: z
+
+  - sensor_id: target_2
+    location: live_target_position_2
+    role: target
+    acquisition_folder: ../../stdatalog_examples/live_target_2
+    hsd_sensor_name: iis3dwb_acc
+    axis: z
+
+  - sensor_id: target_3
+    location: live_target_position_3
+    role: target
+    acquisition_folder: ../../stdatalog_examples/live_target_3
+    hsd_sensor_name: iis3dwb_acc
+    axis: z
+
+  - sensor_id: target_4
+    location: live_target_position_4
+    role: target
+    acquisition_folder: ../../stdatalog_examples/live_target_4
+    hsd_sensor_name: iis3dwb_acc
+    axis: z
+
+  - sensor_id: target_5
+    location: live_target_position_5
+    role: target
+    acquisition_folder: ../../stdatalog_examples/live_target_5
+    hsd_sensor_name: iis3dwb_acc
+    axis: z

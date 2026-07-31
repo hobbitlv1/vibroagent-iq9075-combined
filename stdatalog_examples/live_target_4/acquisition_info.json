@@ -1,0 +1,13 @@
+{
+    "tags": [],
+    "name": "vibroagent_target_4",
+    "description": "",
+    "uuid": "6fa7232b-5e63-49a4-9e5c-adb40397e279",
+    "start_time": "2026-07-08T16:04:17.000Z",
+    "end_time": "2026-07-09T16:04:17.000Z",
+    "data_ext": ".dat",
+    "data_fmt": "HSD_2.0.0",
+    "interface": 1,
+    "schema_version": "2.0.0",
+    "c_type": 2
+}

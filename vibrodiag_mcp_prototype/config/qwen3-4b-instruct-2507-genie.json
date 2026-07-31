@@ -1,0 +1,52 @@
+{
+  "dialog": {
+    "version": 1,
+    "type": "basic",
+    "stop-sequence": [
+      "<|im_end|>",
+      "<|endoftext|>"
+    ],
+    "max-num-tokens": 256,
+    "context": {
+      "version": 1,
+      "size": 4096,
+      "n-vocab": 151936,
+      "bos-token": 151643,
+      "eos-token": 151645
+    },
+    "sampler": {
+      "version": 1,
+      "seed": 42,
+      "temp": 0.7,
+      "top-k": 20,
+      "top-p": 0.8,
+      "greedy": false
+    },
+    "tokenizer": {
+      "version": 1,
+      "path": "/home/ubuntu/Downloads/stdatalog-pysdk/models/Qwen3-4B-Instruct-2507/tokenizer.json"
+    },
+    "engine": {
+      "version": 1,
+      "n-threads": 6,
+      "backend": {
+        "version": 1,
+        "type": "QnnGenAiTransformer",
+        "QnnGenAiTransformer": {
+          "version": 1,
+          "n-kv-heads": 8,
+          "kv-quantization": false,
+          "shared-engine": false
+        }
+      },
+      "model": {
+        "version": 1,
+        "type": "library",
+        "library": {
+          "version": 1,
+          "model-bin": "/home/ubuntu/Downloads/stdatalog-pysdk/models/qairt-qwen3-4b-instruct-2507-f32.bin"
+        }
+      }
+    }
+  }
+}

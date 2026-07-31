@@ -1,0 +1,93 @@
+# Dataset configuration for scripts/prepare_building_vibration_sft.py
+# Paths are resolved relative to this config file.
+# Recommended setup:
+#   1) LUMO as the primary real structural-vibration dataset.
+#   2) Mendeley 12-story FRF dataset as synthetic augmentation.
+#   3) LANL / IASC-ASCE / your own validation exports as external validation.
+
+window_duration_s: 10.0
+stride_s: 10.0
+network_examples: 200
+
+sources:
+  - name: lumo
+    enabled: true
+    kind: timeseries
+    path: ../data/external/lumo
+    file_globs:
+      - "**/*.mat"
+      - "**/*.csv"
+      - "**/*.txt"
+    # LUMO structural measurement files are MATLAB files. The loader reads Dat.Data,
+    # Dat.ChannelNames, Dat.Fs, and optional Dat.Info when present.
+    # Limit these during the first run; increase/remove later.
+    max_files: 200
+    max_windows_per_file: 8
+    max_channels_per_file: 18
+    # Use all channels by default. Add a regex here if you want only some levels/axes.
+    # channel_regex: "ML|acc|x|y"
+    label_rules:
+      - pattern: "healthy|undamaged|overall state[^0-9]*2|\\b2\\b"
+        label: normal_relative_to_baseline
+        description: "LUMO healthy structure"
+      - pattern: "dam[0-9].*010|010.*dam[0-9]"
+        label: mild_deviation
+        description: "LUMO single/mechanism-light damage exemplar"
+      - pattern: "dam[0-9].*111|111.*dam[0-9]"
+        label: significant_local_deviation
+        description: "LUMO severe/all-mechanism damage exemplar"
+      - pattern: "dam[0-9]|damaged|damage"
+        label: significant_local_deviation
+        description: "LUMO generic damage fallback"
+
+  - name: mendeley_12story_frf
+    enabled: true
+    kind: frf
+    path: ../data/external/mendeley_12story_frf
+    file_globs:
+      - "**/*.csv"
+      - "**/*.txt"
+      - "**/*.xlsx"
+      - "**/*.xls"
+      - "**/*.mat"
+      - "**/*.npy"
+      - "**/*.npz"
+    max_files: 200
+    max_channels_per_file: 64
+    label_rules:
+      - pattern: "healthy|undamaged|baseline|case[_ -]?0|case[_ -]?00"
+        label: normal_relative_to_baseline
+        description: "FRF healthy baseline case"
+      - pattern: "case[_ -]?(0?[1-9]|1[0-9]|2[0-1])|damage|damaged"
+        label: significant_local_deviation
+        description: "FRF damage case"
+
+  - name: lanl_three_story_external_test
+    enabled: false
+    kind: timeseries
+    split: test
+    path: ../data/external/lanl_three_story
+    file_globs:
+      - "**/*.mat"
+      - "**/*.csv"
+      - "**/*.txt"
+      - "**/*.npy"
+      - "**/*.npz"
+    max_windows_per_file: 8
+    label_rules:
+      - pattern: "undamaged|healthy|normal|state[_ -]?1|state[_ -]?2|state[_ -]?3|state[_ -]?4|state[_ -]?5|state[_ -]?6|state[_ -]?7|state[_ -]?8|state[_ -]?9"
+        label: normal_relative_to_baseline
+        description: "LANL undamaged/environmental-variation state"
+      - pattern: "mass|eov|temperature|environment"
+        label: mild_deviation
+        description: "LANL non-damage variation or mass/environment change"
+      - pattern: "damage|nonlinear|stiffness|bumper|state[_ -]?1[0-7]"
+        label: significant_local_deviation
+        description: "LANL damage/nonlinear state"
+
+  - name: own_vibroagent_exports
+    enabled: true
+    kind: pipeline_jsonl
+    # This matches the layout in the uploaded archive. If it is not present,
+    # the script simply skips it.
+    path: ../../validation_exports/anomaly_windows/windows
