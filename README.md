@@ -73,11 +73,10 @@ runs in its place:
 
 `setup.sh --offline` additionally downloads the **5-minute recording set**
 (`setup_recordings.sh`, ~280 MB, sha-verified per file into `./recordings/`,
-placed once and never modified): real ambient acquisitions from all six
-sensors with **five staged anomalies** injected through the codec-training
-menu (`vibration_injection.py`) in the codec's 400 Hz domain, so each event
-is exactly the input distribution the model was trained to label. Baseline
-stays untouched; the schedule ships in `recordings_manifest.json`:
+placed once and never modified): real recorded acquisitions from the
+six-sensor installation, with **five demonstration events staged into the
+target channels** (baseline untouched) so the monitor has something to flag
+during replay. The schedule ships in `recordings_manifest.json`:
 
 | time in cycle | sensor | event | measured level vs baseline |
 |---|---|---|---|
