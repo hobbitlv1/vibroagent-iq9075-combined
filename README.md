@@ -196,7 +196,7 @@ Inference is event-driven in offline mode:
 1. The graph continues to replay fixed waveform and PSD windows between scheduled events; codec and model inference do not run during those intervals.
 2. At each supplied timestamp, the monitor claims that event once for the current replay cycle and reads the same exact 10-second window from the baseline and all five targets.
 3. The isolated CPU worker runs the frozen codec-v1 checkpoint and emits 250 symbols for each sensor plus target levels relative to the baseline.
-4. The byte-exact codes_v3 prompt is sent to the required GenieX model. Its schema-validated response updates monitor history and produces the normal or anomaly popup.
+4. The trained codes_v3 prompt prefix and bounded popup instruction are sent to the required GenieX model in one request. Its schema-validated response contains both the verdict and the complete operator-facing popup message.
 5. If acquisition, codec, or model inference fails, the event claim is released so the next monitor attempt retries it. A deterministic prepass is never shown as a codes_v3 verdict.
 
 The preferred schedule fields are explicit timestamps:
@@ -274,13 +274,13 @@ flowchart TD
     K --> L[250 symbols per sensor<br/>plus relative level in dB]
     L --> M[Byte-exact codes_v3 prompt]
     M --> N[Fine-tuned Qwen3-4B<br/>GenieX on Hexagon]
-    N --> O[Strict JSON-schema validation]
-    O --> P[Webchat, monitor history,<br/>alerts and popups]
+    N --> O[Strict verdict and<br/>popup-message validation]
+    O --> P[Verbatim model popup,<br/>webchat and monitor history]
 ```
 
 The architecture separates acquisition, window selection, signal representation, language-model inference, and presentation. Live mode resolves the mutable `stdatalog_examples/live_*` folders and analyzes the latest synchronized window. Offline mode remaps the same six logical sensor IDs to immutable `recordings/live_*` folders, then supplies an explicit virtual `start_time_s`. Both modes use the same calibrated decoder and the same codec-v1 → codes_v3 decision path.
 
-Waveform and PSD rendering branches before inference. In offline mode those endpoints advance continuously with the replay clock, but the expensive codec and NPU path is entered only at a manifest timestamp. The popup is built from the validated codes_v3 response, not from the graph renderer or deterministic signal features.
+Waveform and PSD rendering branches before inference. In offline mode those endpoints advance continuously with the replay clock, but the expensive codec and NPU path is entered only at a manifest timestamp. The model writes the complete popup body inside the same structured verdict response. The web server validates and displays that body verbatim; the graph renderer and deterministic signal features do not compose or rewrite it.
 
 ### 3.2 Long-running services
 
@@ -354,19 +354,20 @@ This prevents amplitude from being lost during normalization while keeping the p
 
 ### 3.6 Prompt and model inference
 
-`vibroagent_mcp.live_codes` loads `assets/codes_v3_prompt_template.json` and constructs the same byte-level prompt format used for fine-tuning. A six-sensor request contains:
+`vibroagent_mcp.live_codes` loads `assets/codes_v3_prompt_template.json` and reconstructs the byte-level prompt used for fine-tuning. The production monitor preserves that trained prefix and extends its final instruction and response schema with one bounded `popup_message` field. A six-sensor request contains:
 
 - the 250-symbol reference sequence;
 - one 250-symbol sequence for each of five targets;
 - one `level_rel_db` value per target;
 - the fixed interpretation instructions;
 - the required JSON response shape.
+- an instruction for a complete, concise operator message written entirely by the model in the same response.
 
-The prompt is not regenerated from a drifting training script. Tests bind the runtime asset to the immutable training format and reject changes in ordering, whitespace, symbol count, or schema.
+The trained base prompt is not regenerated from a drifting training script. Golden tests bind that base to the immutable training format and reject changes in ordering, whitespace, or symbol count; separate tests bind the small production popup extension and its schema.
 
 The model is `qwen3_4b_codes_v3_Q4_0_embq8.gguf`, based on Qwen3-4B-Instruct-2507 and fine-tuned for the `codes_v3` representation. GenieX loads the Q4_0 GGUF directly through its llama.cpp Hexagon backend. The production configuration uses two Hexagon sessions, `llama_cpp:HTP0,HTP1`, and a 6,144-token context.
 
-The web application requests greedy, schema-constrained inference. The GenieX adapter compiles the response schema into a grammar and rejects prompts that would exceed the configured context instead of silently truncating them.
+The web application requests one greedy, schema-constrained inference for the verdict and popup message together. The GenieX adapter compiles the response schema into a grammar and rejects prompts that would exceed the configured context instead of silently truncating them.
 
 ### 3.7 Verdict validation
 
@@ -389,7 +390,9 @@ mild_multi_sensor_deviation
 multi_sensor_building_wide_vibration_event
 ```
 
-The response must contain every requested target exactly once, use only the fixed labels, provide only known target IDs in `affected_sensor_ids`, and contain no unexpected top-level keys. Invalid JSON, missing sensors, unknown labels, timeouts, stale data, failed reads, codec errors, and hash mismatches are surfaced as failures. They are not silently converted into a successful model verdict.
+The response must contain every requested target exactly once, use only the fixed labels, provide only known target IDs in `affected_sensor_ids`, include `popup_message`, and contain no unexpected top-level keys. The message is limited to 60 words and 480 characters, must name exactly the affected target IDs, must not expose implementation names, and must not make a certified structural-safety claim. Invalid JSON, missing fields or sensors, unknown labels, invalid message text, timeouts, stale data, failed reads, codec errors, and hash mismatches are surfaced as failures. They are not silently converted into a successful model verdict.
+
+After validation, the popup body is the model's string with only surrounding whitespace removed. The server does not prepend a diagnosis, append history, or paraphrase it. The fixed popup title and separate status, affected-sensor, history, and confidence metadata remain deterministic UI fields.
 
 Deterministic checks remain authoritative for missing, stale, flat, or otherwise invalid sensor data. They protect the data path and constrain what reaches inference; they do not invent a replacement language-model decision.
 
@@ -453,6 +456,7 @@ The baseline serial is also checked by `vibroagent.sh` before acquisition begins
 | `VIBRO_CODES_WORKER_PYTHON` | `~/codec-cpu-venv/bin/python` | Codec environment |
 | `VIBRO_CODES_WORKER_TIMEOUT_S` | `90` | Codec subprocess timeout |
 | `AGENT_MONITOR_MODEL_TIMEOUT_S` | `60` | Timeout for each required codes_v3 monitor verdict |
+| `AGENT_MONITOR_MAX_TOKENS` | `256` | Bounded output budget for the verdict and complete popup message |
 | `VIBRO_CODES_AXES` | Unset | Optional comma-separated single-axis passes, such as `x,y,z` |
 | `WEB_HOST` | Default-route IPv4 address | Web bind address |
 | `WEB_PORT` | `7860` | Web application port |

@@ -29,10 +29,10 @@ The supported monitoring path is:
 3. sdk_vibrometer returns calibrated, measured-rate windows: latest windows for live data or explicit fixed timestamps for replay.
 4. The web server calls scripts/live_codes_worker.py for the latest live 10 seconds or once at each scheduled offline timestamp.
 5. The worker resamples each selected axis to 400 Hz, loads the frozen architecture from scripts/codec_runtime.py, and encodes it with the pinned codec-v1 checkpoint.
-6. live_codes.py builds the byte-exact codes_v3 prompt from 250 symbols per sensor plus relative level values.
+6. live_codes.py reconstructs the byte-exact trained prompt from 250 symbols per sensor plus relative level values, then adds the bounded production instruction for a complete operator popup message.
 7. geniex_openai_server.py serves the fine-tuned Qwen3-4B GGUF on Hexagon through an OpenAI-compatible loopback endpoint.
-8. Strict schema and label validation accepts the verdict or exposes the failure to the operator.
-9. webchat_server.py renders live waveforms, PSD views, chat, monitor history, and alerts.
+8. Strict schema, label, and popup-text validation accepts the verdict or exposes the failure to the operator.
+9. webchat_server.py displays the model's popup body verbatim and renders live waveforms, PSD views, chat, monitor history, and deterministic alert metadata.
 
 The waveform and PSD display path branches before codec inference. Display filters do not alter the acquisition stream or the model input. During offline replay, graphs follow the monotonic virtual position continuously while codec-v1 and codes_v3 remain idle between inference timestamps.
 
@@ -55,7 +55,7 @@ Offline anomalies are already encoded in the supplied target `.dat` files. `offl
 | src/vibroagent_mcp/webchat_server.py | HTTP API, monitoring coordinator, and UI |
 | tests/ | Hardware-independent regression suite |
 
-Raw acceleration stays local. Only codec symbols, relative level values, fixed instructions, and the response schema are sent to the loopback model service. Deterministic data-quality checks remain authoritative.
+Raw acceleration stays local. Only codec symbols, relative level values, bounded instructions, and the response schema are sent to the loopback model service. The verdict and complete popup message are produced in one NPU call. Deterministic data-quality checks remain authoritative.
 
 ## Tests
 

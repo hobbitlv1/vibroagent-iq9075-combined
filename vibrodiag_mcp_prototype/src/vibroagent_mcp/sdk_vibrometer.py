@@ -490,12 +490,18 @@ class _PersistentLiveBoardDecoder:
         else:
             caught_up = True
 
-        anchor_raw_gap_s = raw_gap_s
+        # Establish the sample-count/timestamp anchor before calibrating the
+        # gap; otherwise the legacy full-file estimate can become a huge
+        # calibration that masks all subsequent file growth as decoder lag.
+        self._set_initial_duration_anchor_locked()
+        anchored_duration_hint_s = self._estimate_data_duration_s_locked()
+        anchor_raw_gap_s = self._raw_latest_timestamp_gap_s_locked(
+            anchored_duration_hint_s
+        )
         if anchor_raw_gap_s is None:
-            anchor_raw_gap_s = self._raw_latest_timestamp_gap_s_locked(duration_hint_s)
+            anchor_raw_gap_s = raw_gap_s
         if anchor_raw_gap_s is not None:
             self._set_gap_calibration_locked(float(anchor_raw_gap_s))
-        self._set_initial_duration_anchor_locked()
         suffix = "catch_up" if caught_up else "catch_up_partial"
         self.last_sdk_read_strategy = f"{seed_strategy}+{suffix}"
         self.last_sdk_read_attempts = seed_attempts

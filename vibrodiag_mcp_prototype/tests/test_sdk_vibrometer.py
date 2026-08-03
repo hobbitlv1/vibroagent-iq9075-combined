@@ -1202,3 +1202,48 @@ def test_reset_clears_duration_anchor(tmp_path, monkeypatch):
     monkeypatch.setattr(decoder, "_reload_sdk_handles_locked", lambda: None)
     decoder._reset_locked()
     assert decoder.duration_anchor_ts_s is None and decoder.duration_anchor_samples is None
+
+
+def test_seed_anchor_recalibrates_gap_on_anchored_clock(tmp_path, monkeypatch):
+    decoder = _PersistentLiveBoardDecoder(tmp_path, "iis3dwb_acc")
+    decoder.configured_sampling_rate = 10
+    decoder.sensor_status = {"samples_per_ts": 5}
+    decoder.timestamps_s = np.arange(100, dtype=np.float64) / 10.0
+    decoder.samples_2d = np.zeros((100, 3), dtype=np.float64)
+    decoder.latest_timestamp_s = float(decoder.timestamps_s[-1])
+    decoder.last_sdk_read_strategy = "persistent_live_seed:test"
+    decoder.last_sdk_read_attempts = []
+
+    monkeypatch.setattr(
+        sdk_vibrometer,
+        "_estimate_file_sample_count",
+        lambda **_kwargs: 1_000,
+    )
+    monkeypatch.setattr(
+        decoder,
+        "_estimate_data_duration_s_locked",
+        lambda: (
+            decoder.latest_timestamp_s
+            if decoder.duration_anchor_ts_s is not None
+            else decoder.latest_timestamp_s + 100.0
+        ),
+    )
+    monkeypatch.setattr(
+        decoder,
+        "_append_new_data_locked",
+        lambda **_kwargs: None,
+    )
+
+    decoder._catch_up_after_seed_locked(
+        duration_s=1.0,
+        duration_hint_s=decoder.latest_timestamp_s + 100.0,
+    )
+
+    assert decoder.duration_anchor_ts_s == pytest.approx(
+        decoder.latest_timestamp_s
+    )
+    assert decoder.latest_gap_calibration_s == pytest.approx(0.0)
+    anchored_hint = decoder._estimate_data_duration_s_locked()
+    assert decoder._normalized_latest_timestamp_gap_s_locked(
+        decoder._raw_latest_timestamp_gap_s_locked(anchored_hint)
+    ) == pytest.approx(0.0)

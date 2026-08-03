@@ -116,6 +116,9 @@ def _call():
 
 
 def test_codes_decision_merges_verdict(codes_env):
+    model_message = (
+        "Mild deviation at target_3. Immediate next step: verify the sensor response."
+    )
     _FakeModelClient.reply = json.dumps({
         "sensor_reports": [
             {"sensor_id": slot,
@@ -124,6 +127,7 @@ def test_codes_decision_merges_verdict(codes_env):
             for slot in live_codes.LIVE_SLOTS],
         "network_status": "mild_local_deviation",
         "affected_sensor_ids": ["target_3"],
+        "popup_message": model_message,
     })
     result = _call()
     metadata = result["model_metadata"]
@@ -133,20 +137,33 @@ def test_codes_decision_merges_verdict(codes_env):
     assessment = result["network_assessment"]
     assert assessment["network_label"] == "mild_local_deviation"
     assert assessment["affected_sensor_ids"] == ["target_3"]
+    assert assessment["mild_sensor_ids"] == ["target_3"]
+    assert assessment["significant_sensor_ids"] == []
     labels = {report["sensor_id"]: report["small_agent_label"]
               for report in result["sensor_agent_reports"]}
     assert labels["target_3"] == "mild_deviation"
     assert labels["target_1"] == "normal_relative_to_baseline"
-    assert "not a certified structural safety assessment" in \
-        assessment["explanation"]
+    assert assessment["explanation"] == model_message
+    assert assessment["explanation_source"] == "model"
+    assert assessment["popup_message_source"] == "model"
+    popup = W._build_agent_popup(result)
+    assert popup["show_popup"] is True
+    assert popup["severity"] == "notice"
+    assert popup["mild_sensor_ids"] == ["target_3"]
+    assert popup["message"] == model_message
+    assert popup["message_source"] == "model"
+    assert "codes" not in json.dumps(popup).lower()
     # the exact SFT system message and grammar rode along
     assert _FakeModelClient.last_call["system"] == \
         live_codes.system_message()
+    assert _FakeModelClient.last_kwargs["max_tokens"] == 256
     fmt = _FakeModelClient.last_call["extra_body"]["response_format"]
     assert fmt["json_schema"]["name"] == "building_vibration_all_sensor"
-    # prompt is the byte-faithful v3 template
+    assert "popup_message" in fmt["json_schema"]["schema"]["required"]
+    # The trained prefix remains intact; the runtime suffix asks for popup prose.
     assert _FakeModelClient.last_call["prompt"].startswith(
         "Building-vibration check from discrete vibration codes.")
+    assert "entirely in your own words" in _FakeModelClient.last_call["prompt"]
 
 
 def test_codes_decision_accepts_per_sensor_native_rates(codes_env, monkeypatch):
@@ -190,6 +207,7 @@ def test_codes_decision_accepts_per_sensor_native_rates(codes_env, monkeypatch):
             for slot in live_codes.LIVE_SLOTS],
         "network_status": "normal_relative_to_reference_sensor",
         "affected_sensor_ids": [],
+        "popup_message": "All monitored sensors match the reference. Continue routine monitoring.",
     })
 
     result = _call()
@@ -216,6 +234,7 @@ def test_fixed_replay_reads_exact_ten_second_windows(codes_env, monkeypatch):
             for slot in live_codes.LIVE_SLOTS],
         "network_status": "normal_relative_to_reference_sensor",
         "affected_sensor_ids": [],
+        "popup_message": "All monitored sensors match the reference. Continue routine monitoring.",
     })
 
     result = W._apply_codes_monitor_decision(
@@ -242,6 +261,7 @@ def test_codes_decision_rejects_bad_model_output(codes_env):
             for slot in live_codes.LIVE_SLOTS],
         "network_status": "mild_local_deviation",
         "affected_sensor_ids": [],
+        "popup_message": "No target-specific deviation was identified.",
     })
     result = _call()
     metadata = result["model_metadata"]
@@ -300,6 +320,11 @@ def test_axis_sweep_combines_worst_case(codes_env, monkeypatch):
                        extra_body=None, system=None):
         axis = next(order)
         spec = replies[axis]
+        message = (
+            f"Deviation detected at {spec['affected'][0]}. Verify sensor response."
+            if spec["affected"]
+            else "All monitored sensors match the reference. Continue monitoring."
+        )
         payload = {
             "sensor_reports": [
                 {"sensor_id": slot,
@@ -308,6 +333,7 @@ def test_axis_sweep_combines_worst_case(codes_env, monkeypatch):
                 for slot in live_codes.LIVE_SLOTS],
             "network_status": spec["network"],
             "affected_sensor_ids": spec["affected"],
+            "popup_message": message,
         }
         import json as _json
         from types import SimpleNamespace as NS
@@ -334,7 +360,10 @@ def test_axis_sweep_combines_worst_case(codes_env, monkeypatch):
     assessment = result["network_assessment"]
     assert assessment["network_label"] == "localized_vibration_deviation"
     assert assessment["affected_sensor_ids"] == ["target_2", "target_4"]
-    assert "axes x, y, z" in assessment["explanation"]
+    assert codes_meta["popup_message_axis"] == "y"
+    assert assessment["explanation"].startswith(
+        "Deviation detected at target_4.")
+    assert W._build_agent_popup(result)["message"] == assessment["explanation"]
 
 
 def test_axis_sweep_rejects_norm(codes_env, monkeypatch):
@@ -342,3 +371,111 @@ def test_axis_sweep_rejects_norm(codes_env, monkeypatch):
     result = _call()
     assert "bad_axis" in \
         result["model_metadata"]["monitor_llm_fallback_reason"]
+
+
+def _target_2_dominant_result():
+    result = _base_result()
+    metrics_by_target = {
+        "target_1": (0.303048, 0.01600),
+        "target_2": (5.580280, 0.04857),
+        "target_3": (0.110288, 0.01253),
+        "target_4": (0.115656, 0.01200),
+        "target_5": (0.112728, 0.01210),
+    }
+    for report in result["sensor_agent_reports"]:
+        p2p_g, rms_g = metrics_by_target[report["sensor_id"]]
+        report["metrics"] = {
+            "acceleration_peak_to_peak_g": p2p_g,
+            "acceleration_rms_g": rms_g,
+        }
+    return result
+
+
+def _call_with_result(result):
+    return W._apply_codes_monitor_decision(
+        result,
+        model_base_url="http://127.0.0.1:18181/v1",
+        model_api_key="EMPTY",
+        model="codes-v3",
+        model_timeout_s=60.0,
+    )
+
+
+def test_measurement_identity_guard_pins_captured_target_2():
+    guard = W._codes_measurement_identity_guard(_target_2_dominant_result())
+
+    assert guard["active"] is True
+    assert guard["reason"] == "localized_measurement_dominance"
+    assert guard["required_affected_sensor_ids"] == ["target_2"]
+    assert guard["measurements"]["target_2"]["p2p_g"] == pytest.approx(5.58028)
+    assert guard["measurements"]["target_3"]["p2p_g"] == pytest.approx(0.110288)
+    assert guard["measurements"]["target_2"]["p2p_to_target_median"] > 40.0
+
+
+def test_codes_decision_applies_target_2_identity_guard(codes_env):
+    model_message = (
+        "A strong localized impulse was detected at target_2. "
+        "Inspect its mounting and repeat the controlled vibration check."
+    )
+    _FakeModelClient.reply = json.dumps({
+        "sensor_reports": [
+            {
+                "sensor_id": slot,
+                "local_status": (
+                    "significant_local_deviation"
+                    if slot == "target_2"
+                    else "normal_relative_to_baseline"
+                ),
+            }
+            for slot in live_codes.LIVE_SLOTS
+        ],
+        "network_status": "localized_vibration_deviation",
+        "affected_sensor_ids": ["target_2"],
+        "popup_message": model_message,
+    })
+
+    result = _call_with_result(_target_2_dominant_result())
+
+    assert result["network_assessment"]["affected_sensor_ids"] == ["target_2"]
+    assert result["network_assessment"]["popup_message"] == model_message
+    assert result["network_assessment"]["popup_message_source"] == "model"
+    guard = result["model_metadata"]["codes_monitor"]["identity_guard"]
+    assert guard["active"] is True
+    assert guard["required_affected_sensor_ids"] == ["target_2"]
+    prompt = _FakeModelClient.last_call["prompt"]
+    assert 'affected_sensor_ids must be exactly ["target_2"]' in prompt
+    schema = _FakeModelClient.last_call["extra_body"]["response_format"] \
+        ["json_schema"]["schema"]
+    assert schema["properties"]["affected_sensor_ids"]["items"]["enum"] == \
+        ["target_2"]
+    assert schema["properties"]["affected_sensor_ids"]["minItems"] == 1
+    assert schema["properties"]["affected_sensor_ids"]["maxItems"] == 1
+
+
+def test_codes_decision_rejects_model_target_substitution(codes_env):
+    _FakeModelClient.reply = json.dumps({
+        "sensor_reports": [
+            {
+                "sensor_id": slot,
+                "local_status": (
+                    "significant_local_deviation"
+                    if slot == "target_3"
+                    else "normal_relative_to_baseline"
+                ),
+            }
+            for slot in live_codes.LIVE_SLOTS
+        ],
+        "network_status": "localized_vibration_deviation",
+        "affected_sensor_ids": ["target_3"],
+        "popup_message": (
+            "A strong localized impulse was detected at target_3. "
+            "Inspect its mounting and repeat the controlled vibration check."
+        ),
+    })
+
+    result = _call_with_result(_target_2_dominant_result())
+
+    metadata = result["model_metadata"]
+    assert metadata["monitor_llm_model_used"] is False
+    assert "expected identity-guarded IDs ['target_2']" in \
+        metadata["monitor_llm_fallback_reason"]

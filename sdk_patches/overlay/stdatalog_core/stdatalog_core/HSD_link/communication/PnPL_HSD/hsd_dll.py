@@ -361,6 +361,10 @@ class HSD_Dll:
         # threads may call them. If these objects are garbage-collected, the next
         # native callback can crash the process.
         self._data_ready_callbacks = {}
+        # Device_COM retains the component-name pointer alongside the callback.
+        # A temporary c_char_p becomes dangling as soon as registration returns,
+        # so keep one stable, NUL-terminated buffer per registration as well.
+        self._data_ready_component_names = {}
 
     def hs_datalog_register_usb_hotplug_callback(self, plug_callback, unplug_callback) -> bool:
         try:
@@ -745,14 +749,18 @@ class HSD_Dll:
         and return 0 on success. Pass ``None`` to unregister the callback.
         """
         dIdC = ctypes.c_int(dId)
-        comp_nameC = ctypes.c_char_p(comp_name.encode('utf-8'))
         key = (int(dId), str(comp_name))
+        comp_name_buffer = self._data_ready_component_names.get(key)
+        if comp_name_buffer is None:
+            comp_name_buffer = ctypes.create_string_buffer(comp_name.encode('utf-8'))
+        comp_nameC = ctypes.cast(comp_name_buffer, ctypes.c_char_p)
 
         if callback is None:
             callbackC = HSD_DATA_READY_CALLBACK()
             res = self.hsd_wrapper.hs_datalog_set_data_ready_callback(dIdC, comp_nameC, callbackC)
             if res == ST_HS_DATALOG_OK:
                 self._data_ready_callbacks.pop(key, None)
+                self._data_ready_component_names.pop(key, None)
             return res == ST_HS_DATALOG_OK
 
         if isinstance(callback, ctypes._CFuncPtr):
@@ -763,4 +771,5 @@ class HSD_Dll:
         res = self.hsd_wrapper.hs_datalog_set_data_ready_callback(dIdC, comp_nameC, callbackC)
         if res == ST_HS_DATALOG_OK:
             self._data_ready_callbacks[key] = callbackC
+            self._data_ready_component_names[key] = comp_name_buffer
         return res == ST_HS_DATALOG_OK
