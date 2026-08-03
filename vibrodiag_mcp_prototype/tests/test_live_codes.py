@@ -84,6 +84,23 @@ def test_prompt_rebuild_is_byte_exact():
         checked += 1
     assert checked >= 100
 
+def test_popup_prompt_extends_trained_shape_without_mutating_base():
+    codes = "x" * live_codes.CODES_PER_WINDOW
+    targets = [(slot, 0.0, codes) for slot in live_codes.LIVE_SLOTS]
+    trained = live_codes.build_codes_user_prompt(
+        codes, targets, aligned=True)
+    prompt = live_codes.build_codes_popup_prompt(
+        codes, targets, aligned=True)
+    marker = "Return one compact strict JSON object only, exactly this shape:\n"
+    trained_prefix, _ = trained.rsplit(marker, 1)
+    popup_prefix, popup_shape = prompt.rsplit(marker, 1)
+    assert popup_prefix.startswith(trained_prefix)
+    assert "entirely in your own words" in popup_prefix
+    assert popup_shape.endswith(
+        ',"popup_message":"<complete operator-facing message>"}'
+    )
+
+
 
 def test_assistant_labels_within_vocabulary():
     for example, _n in _examples(limit_per_shape=200):
@@ -149,9 +166,125 @@ def test_parse_rejects_drift():
         live_codes.parse_codes_reply("no json here", targets)
 
 
+def test_parse_requires_and_validates_model_popup_message():
+    targets = list(live_codes.LIVE_SLOTS)
+    payload = {
+        "sensor_reports": [
+            {"sensor_id": slot,
+             "local_status": (
+                 "significant_local_deviation"
+                 if slot in {"target_2", "target_4"}
+                 else "normal_relative_to_baseline")}
+            for slot in targets
+        ],
+        "network_status": "localized_vibration_deviation",
+        "affected_sensor_ids": ["target_2", "target_4"],
+        "popup_message": (
+            "Localized vibration deviation detected at target_2 and target_4. "
+            "Impulsive or shock event likely occurred. Immediate next step: "
+            "verify sensor integrity under controlled loading conditions."
+        ),
+    }
+    parsed = live_codes.parse_codes_reply(
+        json.dumps(payload), targets, require_popup_message=True)
+    assert parsed["popup_message"] == payload["popup_message"]
+
+    for message in (
+        "Codes_v3 reports deviations at target_2 and target_4.",
+        "Deviation detected only at target_2.",
+        "The building is unsafe; deviations affect target_2 and target_4.",
+        " ".join(["word"] * 61) + " target_2 target_4",
+    ):
+        bad = json.loads(json.dumps(payload))
+        bad["popup_message"] = message
+        with pytest.raises(ValueError):
+            live_codes.parse_codes_reply(
+                json.dumps(bad), targets, require_popup_message=True)
+
+    missing = json.loads(json.dumps(payload))
+    missing.pop("popup_message")
+    with pytest.raises(ValueError):
+        live_codes.parse_codes_reply(
+            json.dumps(missing), targets, require_popup_message=True)
+
+
 def test_response_format_schema_shape():
     fmt = live_codes.codes_response_format(live_codes.LIVE_SLOTS)
     schema = fmt["json_schema"]["schema"]
     assert schema["properties"]["sensor_reports"]["minItems"] == 5
+    assert schema["properties"]["popup_message"]["maxLength"] == \
+        live_codes.POPUP_MESSAGE_MAX_CHARS
+    assert schema["additionalProperties"] is False
     assert set(schema["required"]) == {
-        "sensor_reports", "network_status", "affected_sensor_ids"}
+        "sensor_reports", "network_status", "affected_sensor_ids",
+        "popup_message"}
+
+
+def test_identity_guard_constrains_prompt_schema_and_parser():
+    targets = list(live_codes.LIVE_SLOTS)
+    codes = "x" * live_codes.CODES_PER_WINDOW
+    target_rows = [(slot, 0.0, codes) for slot in targets]
+
+    prompt = live_codes.build_codes_popup_prompt(
+        codes,
+        target_rows,
+        aligned=True,
+        required_affected_sensor_ids=["target_2"],
+    )
+    assert 'affected_sensor_ids must be exactly ["target_2"]' in prompt
+    assert "write the complete interpretation and operator message yourself" in prompt
+
+    response_format = live_codes.codes_response_format(
+        targets,
+        required_affected_sensor_ids=["target_2"],
+    )
+    schema = response_format["json_schema"]["schema"]
+    affected_schema = schema["properties"]["affected_sensor_ids"]
+    assert affected_schema["items"]["enum"] == ["target_2"]
+    assert affected_schema["minItems"] == 1
+    assert affected_schema["maxItems"] == 1
+    assert "normal_relative_to_reference_sensor" not in \
+        schema["properties"]["network_status"]["enum"]
+
+    payload = {
+        "sensor_reports": [
+            {
+                "sensor_id": slot,
+                "local_status": (
+                    "significant_local_deviation"
+                    if slot == "target_2"
+                    else "normal_relative_to_baseline"
+                ),
+            }
+            for slot in targets
+        ],
+        "network_status": "localized_vibration_deviation",
+        "affected_sensor_ids": ["target_2"],
+        "popup_message": (
+            "A strong localized impulse was detected at target_2. "
+            "Inspect its mounting and repeat the controlled vibration check."
+        ),
+    }
+    parsed = live_codes.parse_codes_reply(
+        json.dumps(payload),
+        targets,
+        require_popup_message=True,
+        expected_affected_sensor_ids=["target_2"],
+    )
+    assert parsed["affected_sensor_ids"] == ["target_2"]
+
+    wrong = json.loads(json.dumps(payload))
+    wrong["sensor_reports"][1]["local_status"] = "normal_relative_to_baseline"
+    wrong["sensor_reports"][2]["local_status"] = "significant_local_deviation"
+    wrong["affected_sensor_ids"] = ["target_3"]
+    wrong["popup_message"] = (
+        "A strong localized impulse was detected at target_3. "
+        "Inspect its mounting and repeat the controlled vibration check."
+    )
+    with pytest.raises(ValueError, match="expected identity-guarded"):
+        live_codes.parse_codes_reply(
+            json.dumps(wrong),
+            targets,
+            require_popup_message=True,
+            expected_affected_sensor_ids=["target_2"],
+        )

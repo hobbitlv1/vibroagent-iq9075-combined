@@ -132,6 +132,7 @@ class NativeCallbackStream:
     rollover_errors: int = 0
     rollover_detected_align_bytes: int = 0
     source_mismatches: int = 0
+    component_metadata_mismatches: int = 0
     last_callback_device_id: int | None = None
     last_callback_component_name: str | None = None
     first_data_monotonic: float | None = None
@@ -217,21 +218,32 @@ class NativeCallbackStream:
         component_text = _callback_component_name_text(callback_component_name)
         self.last_callback_device_id = int(callback_device_id)
         self.last_callback_component_name = component_text
-        source_mismatch = (
-            int(callback_device_id) != int(self.device_id)
-            or (component_text is not None and component_text != self.component_name)
+        device_mismatch = int(callback_device_id) != int(self.device_id)
+        component_mismatch = (
+            component_text is not None and component_text != self.component_name
         )
-        if source_mismatch:
+        if component_mismatch:
+            self.component_metadata_mismatches += 1
+            if self.component_metadata_mismatches == 1:
+                print(
+                    "Warning: native callback component metadata is unreliable for "
+                    f"registered stream {self.sensor_id}/{self.component_name}: "
+                    f"callback component={component_text!r}. Source routing continues "
+                    "to use the registered callback and verified device ID."
+                )
+        if device_mismatch:
             self.source_mismatches += 1
             message = (
-                "Warning: native callback source metadata mismatch for "
+                "Warning: native callback device ID mismatch for "
                 f"registered stream {self.sensor_id}/{self.component_name}: "
-                f"callback device={callback_device_id}, component={component_text!r}."
+                f"registered device={self.device_id}, callback device={callback_device_id}."
             )
             if self.strict_source_identity:
-                print(message + " Dropping chunk because strict source identity is enabled.")
+                if self.source_mismatches == 1:
+                    print(message + " Dropping chunks because strict source identity is enabled.")
                 return 0
-            print(message + " Writing by registered callback identity.")
+            if self.source_mismatches == 1:
+                print(message + " Writing by registered callback identity.")
 
         if self.stopping or size <= 0 or not data_ptr or self.fd is None:
             return 0
@@ -1179,7 +1191,12 @@ def _print_stats(sessions: list[BoardSession]) -> None:
             if stream.write_errors or stream.rollover_errors:
                 detail += f" errors={stream.write_errors}/{stream.rollover_errors}"
             if stream.source_mismatches:
-                detail += f" source_mismatches={stream.source_mismatches}"
+                detail += f" device_id_mismatches={stream.source_mismatches}"
+            if stream.component_metadata_mismatches:
+                detail += (
+                    " component_metadata_mismatches="
+                    f"{stream.component_metadata_mismatches}"
+                )
             stream_parts.append(detail)
         parts.append(f"{session.sensor_id}: " + ", ".join(stream_parts))
     print("Stats: " + " | ".join(parts))

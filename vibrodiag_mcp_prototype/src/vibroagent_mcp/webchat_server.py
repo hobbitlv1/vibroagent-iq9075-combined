@@ -13,6 +13,7 @@ import json
 import math
 import os
 import ipaddress
+import re
 import threading
 import time
 from bisect import bisect_right
@@ -2299,6 +2300,7 @@ def _register_anomaly_window(
             "analysis_domain": result.get("analysis_domain") or assessment.get("analysis_domain"),
             "network_label": popup.get("network_label") or assessment.get("network_label"),
             "severity": popup.get("severity"),
+            "message_source": popup.get("message_source"),
             "confidence": popup.get("confidence"),
             "status_text": popup.get("status_text"),
             "reference_x_median": popup.get("reference_x_median"),
@@ -2343,8 +2345,18 @@ def _register_anomaly_window(
         }
 
 
+def _is_legacy_branded_anomaly_record(item: dict[str, Any]) -> bool:
+    if item.get("message_source") == "model":
+        return False
+    operator_text = " ".join(
+        str(item.get(field) or "") for field in ("status_text", "summary")
+    )
+    return bool(re.search(r"\bcodes(?:_v3)?\b", operator_text, re.IGNORECASE))
+
+
 def _anomaly_windows_payload(query: dict[str, list[str]]) -> dict[str, Any]:
     limit = min(1000, max(1, _int_query(query, "limit", 50)))
+    include_legacy = _bool_query(query, "include_legacy", False)
     registry_dir = _resolve_anomaly_window_dir()
     jsonl_path = registry_dir / "anomaly_windows.jsonl"
     if not jsonl_path.exists():
@@ -2354,9 +2366,11 @@ def _anomaly_windows_payload(query: dict[str, list[str]]) -> dict[str, Any]:
             "registry_dir": str(registry_dir),
             "jsonl_path": str(jsonl_path),
             "windows": [],
+            "legacy_hidden_count": 0,
         }
 
     records: list[dict[str, Any]] = []
+    legacy_hidden_count = 0
     with jsonl_path.open("r", encoding="utf-8") as handle:
         for line in handle:
             text = line.strip()
@@ -2367,6 +2381,9 @@ def _anomaly_windows_payload(query: dict[str, list[str]]) -> dict[str, Any]:
             except json.JSONDecodeError:
                 continue
             if isinstance(item, dict):
+                if not include_legacy and _is_legacy_branded_anomaly_record(item):
+                    legacy_hidden_count += 1
+                    continue
                 records.append(item)
     return {
         "ok": True,
@@ -2374,6 +2391,7 @@ def _anomaly_windows_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         "registry_dir": str(registry_dir),
         "jsonl_path": str(jsonl_path),
         "windows": records[-limit:][::-1],
+        "legacy_hidden_count": legacy_hidden_count,
     }
 
 
@@ -2661,6 +2679,81 @@ def _attach_window_history_context(result: dict[str, Any]) -> None:
 _CODES_WORKER_WINDOW_S = 10.5  # live-read margin; fixed replay reads exactly 10 s
 
 
+def _codes_measurement_identity_guard(result: dict[str, Any]) -> dict[str, Any]:
+    """Pin physical IDs only for unmistakably localized raw events.
+
+    The model still classifies the vibration pattern and writes the complete
+    popup. This guard prevents a semantic sensor-ID substitution when one or
+    two target channels dominate the other targets by a wide measured margin.
+    """
+    slots = ("target_1", "target_2", "target_3", "target_4", "target_5")
+    measurements: dict[str, dict[str, float]] = {}
+    for report in result.get("sensor_agent_reports") or []:
+        slot = str(report.get("sensor_id") or "")
+        if slot not in slots:
+            continue
+        metrics = report.get("metrics") or {}
+        p2p_g = _safe_float(metrics.get("acceleration_peak_to_peak_g"))
+        rms_g = _safe_float(metrics.get("acceleration_rms_g"))
+        if p2p_g is None or rms_g is None or p2p_g < 0 or rms_g < 0:
+            continue
+        measurements[slot] = {"p2p_g": p2p_g, "rms_g": rms_g}
+
+    if len(measurements) < 3:
+        return {
+            "active": False,
+            "reason": "insufficient_target_metrics",
+            "required_affected_sensor_ids": [],
+            "measurements": measurements,
+        }
+
+    def _median(values: list[float]) -> float:
+        ordered = sorted(values)
+        middle = len(ordered) // 2
+        if len(ordered) % 2:
+            return ordered[middle]
+        return (ordered[middle - 1] + ordered[middle]) / 2.0
+
+    median_p2p_g = _median([item["p2p_g"] for item in measurements.values()])
+    median_rms_g = _median([item["rms_g"] for item in measurements.values()])
+    p2p_threshold_g = max(0.20, median_p2p_g * 3.0)
+    rms_threshold_g = max(0.02, median_rms_g * 1.6)
+    candidates: list[str] = []
+    for slot in slots:
+        item = measurements.get(slot)
+        if item is None:
+            continue
+        item["p2p_to_target_median"] = (
+            item["p2p_g"] / median_p2p_g if median_p2p_g > 0 else 0.0
+        )
+        item["rms_to_target_median"] = (
+            item["rms_g"] / median_rms_g if median_rms_g > 0 else 0.0
+        )
+        if item["p2p_g"] >= p2p_threshold_g or \
+                item["rms_g"] >= rms_threshold_g:
+            candidates.append(slot)
+
+    active = 0 < len(candidates) <= 2
+    return {
+        "active": active,
+        "reason": (
+            "localized_measurement_dominance"
+            if active else "no_localized_measurement_dominance"
+        ),
+        "required_affected_sensor_ids": candidates if active else [],
+        "thresholds": {
+            "target_median_p2p_g": round(median_p2p_g, 6),
+            "target_median_rms_g": round(median_rms_g, 6),
+            "p2p_threshold_g": round(p2p_threshold_g, 6),
+            "rms_threshold_g": round(rms_threshold_g, 6),
+        },
+        "measurements": {
+            slot: {key: round(value, 6) for key, value in item.items()}
+            for slot, item in measurements.items()
+        },
+    }
+
+
 def _apply_codes_monitor_decision(
     result: dict[str, Any],
     *,
@@ -2718,6 +2811,12 @@ def _apply_codes_monitor_decision(
         return _failed(
             "sensor_set_mismatch: codes_v3 needs baseline + "
             f"{list(live_codes.LIVE_SLOTS)}, config has {sorted(sensors)}")
+    identity_guard = _codes_measurement_identity_guard(result)
+    required_affected_sensor_ids = (
+        identity_guard["required_affected_sensor_ids"]
+        if identity_guard["active"]
+        else None
+    )
 
     reader_fn = (
         read_sdk_vibrometer_window_via_board_process
@@ -2752,7 +2851,7 @@ def _apply_codes_monitor_decision(
         model_env="MAIN_AGENT_MODEL",
         role="qwen_codes_monitor",
         timeout_s=model_timeout_s,
-        max_tokens=_env_int_value("AGENT_MONITOR_MAX_TOKENS", 192, minimum=64),
+        max_tokens=_env_int_value("AGENT_MONITOR_MAX_TOKENS", 256, minimum=64),
     )
 
     def _axis_pass(axis_override: str | None):
@@ -2816,8 +2915,11 @@ def _apply_codes_monitor_decision(
                  str(code_slots[slot]["codes"]))
                 for slot in live_codes.LIVE_SLOTS
             ]
-            prompt = live_codes.build_codes_user_prompt(
-                str(code_slots["baseline"]["codes"]), targets, aligned=True)
+            prompt = live_codes.build_codes_popup_prompt(
+                str(code_slots["baseline"]["codes"]),
+                targets,
+                aligned=True,
+                required_affected_sensor_ids=required_affected_sensor_ids)
         except (KeyError, live_codes.CodesPromptError) as exc:
             return None, f"codes_prompt_failed:{exc}"
 
@@ -2825,14 +2927,17 @@ def _apply_codes_monitor_decision(
             prompt,
             allowed_labels=None,
             extra_body={"response_format": live_codes.codes_response_format(
-                list(live_codes.LIVE_SLOTS))},
+                list(live_codes.LIVE_SLOTS),
+                required_affected_sensor_ids=required_affected_sensor_ids)},
             system=live_codes.system_message(),
         )
         if not model_result.ok or not model_result.text:
             return None, model_result.error or "model_call_failed"
         try:
             parsed = live_codes.parse_codes_reply(
-                model_result.text, list(live_codes.LIVE_SLOTS))
+                model_result.text, list(live_codes.LIVE_SLOTS),
+                require_popup_message=True,
+                expected_affected_sensor_ids=required_affected_sensor_ids)
         except ValueError as exc:
             return None, f"model_output_invalid:{exc}"
         return {
@@ -2863,6 +2968,10 @@ def _apply_codes_monitor_decision(
                      "mild_multi_sensor_deviation": 2,
                      "localized_vibration_deviation": 3,
                      "multi_sensor_building_wide_vibration_event": 4}
+    best_pass_label, best_pass = max(
+        passes.items(),
+        key=lambda item: _NETWORK_RANK[item[1]["verdict"]["network_status"]],
+    )
     verdict = {
         "sensor_reports": {
             slot: max((p["verdict"]["sensor_reports"][slot]
@@ -2877,13 +2986,14 @@ def _apply_codes_monitor_decision(
             {slot for p in passes.values()
              for slot in p["verdict"]["affected_sensor_ids"]},
             key=list(live_codes.LIVE_SLOTS).index),
+        "popup_message": best_pass["verdict"]["popup_message"],
     }
     first_pass = next(iter(passes.values()))
     code_slots = first_pass["code_slots"]
     rates = first_pass["rates"]
     codes_payload = {"provenance": first_pass["provenance"]}
     worker_duration_s = sum(p["worker_s"] for p in passes.values())
-    model_result_metadata = next(reversed(passes.values()))["model_metadata"]
+    model_result_metadata = best_pass["model_metadata"]
 
     for report in result.get("sensor_agent_reports") or []:
         slot = str(report.get("sensor_id") or "")
@@ -2897,35 +3007,34 @@ def _apply_codes_monitor_decision(
 
     network_label = verdict["network_status"]
     affected = verdict["affected_sensor_ids"]
-    deviations = [
-        f"{slot}: {label.replace('_', ' ')}"
-        for slot, label in sorted(verdict["sensor_reports"].items())
-        if label != "normal_relative_to_baseline"
+    significant = [
+        slot for slot, label in verdict["sensor_reports"].items()
+        if label == "significant_local_deviation"
     ]
-    axes_note = (f" (axes {', '.join(passes)}; worst per sensor)"
-                 if len(passes) > 1 else "")
-    summary = (
-        "Codes model verdict" + axes_note + ": "
-        + network_label.replace("_", " ")
-        + (" — " + "; ".join(deviations) if deviations
-           else " — all targets normal relative to baseline")
-        + ". This is monitoring/triage information, not a certified "
-          "structural safety assessment."
-    )
+    mild = [
+        slot for slot, label in verdict["sensor_reports"].items()
+        if label == "mild_deviation"
+    ]
+    popup_message = verdict["popup_message"]
     assessment = dict(result.get("network_assessment") or {})
     assessment.update(
         {
             "main_agent_label": network_label,
             "network_label": network_label,
             "affected_sensor_ids": affected,
-            "status_text": "codes_v3: " + network_label.replace("_", " "),
+            "significant_sensor_ids": significant,
+            "mild_sensor_ids": mild,
+            "status_text": network_label.replace("_", " "),
             "main_agent_confidence": None,
-            "explanation": summary,
+            "popup_message": popup_message,
+            "popup_message_source": "model",
+            "explanation": popup_message,
+            "explanation_source": "model",
             "model_metadata": model_result_metadata,
         }
     )
     result["network_assessment"] = assessment
-    result["main_agent_explanation"] = summary
+    result["main_agent_explanation"] = popup_message
     result_metadata.update(
         {
             "agent_mode": "codes_v3_monitor",
@@ -2933,7 +3042,9 @@ def _apply_codes_monitor_decision(
             "monitor_llm_model": model,
             "fallbacks_used": [],
             "codes_monitor": {
+                "identity_guard": identity_guard,
                 "axes": list(passes),
+                "popup_message_axis": best_pass_label,
                 "combine_rule": ("max_severity_per_sensor_union_affected"
                                  if len(passes) > 1 else "single_axis"),
                 "per_axis": {
@@ -3009,6 +3120,24 @@ def _agent_llm_status(
     }
 
 
+def _popup_user_text(value: Any) -> str:
+    """Remove implementation branding from operator-facing popup copy."""
+    text = str(value or "").strip()
+    text = re.sub(
+        r"\bcodes model verdict\b",
+        "Monitoring assessment",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"\bcodes(?:_v3)?\b\s*:?\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    return " ".join(text.split())
+
+
 def _build_agent_popup(result: dict[str, Any]) -> dict[str, Any]:
     assessment = result.get("network_assessment") or {}
     label = str(
@@ -3026,14 +3155,30 @@ def _build_agent_popup(result: dict[str, Any]) -> dict[str, Any]:
         for report in sensor_reports
         if str(report.get("small_agent_label") or "") in ANOMALOUS_SENSOR_LABELS
     ]
-    anomaly = label in ANOMALOUS_NETWORK_LABELS or bool(anomalous_reports)
-    severity = _agent_severity(label, significant, mild, anomalous_reports)
     confidence = _safe_float(assessment.get("main_agent_confidence"))
     history = result.get("history_summary") or {}
     history_learning = bool(history.get("learning"))
     reference_history = result.get("reference_history") or {}
-    status_text = str(assessment.get("status_text") or "").strip()
-    explanation = str(assessment.get("explanation") or result.get("main_agent_explanation") or "").strip()
+    status_text = _popup_user_text(assessment.get("status_text"))
+    explanation = _popup_user_text(
+        assessment.get("explanation") or result.get("main_agent_explanation")
+    )
+    model_message = assessment.get("popup_message")
+    model_authored = (
+        assessment.get("popup_message_source") == "model"
+        and isinstance(model_message, str) and bool(model_message.strip())
+    )
+    model_notice = (
+        model_authored
+        and bool(affected)
+        and label in {"mild_local_deviation", "mild_multi_sensor_deviation"}
+    )
+    anomaly = (
+        label in ANOMALOUS_NETWORK_LABELS
+        or bool(anomalous_reports)
+        or model_notice
+    )
+    severity = _agent_severity(label, significant, mild, anomalous_reports)
     sensor_text = ", ".join(affected[:6]) if affected else "none"
     confidence_text = f" Confidence {confidence * 100:.1f}%." if confidence is not None else ""
     if history.get("x_median") is not None:
@@ -3048,17 +3193,21 @@ def _build_agent_popup(result: dict[str, Any]) -> dict[str, Any]:
             f" Caution: the reference sensor itself is at {reference_x:.1f}x its normal level, "
             "so target-to-reference ratios understate deviations."
         )
-    headline = status_text.capitalize() if status_text else _labelize(label)
-    message = (
-        f"{headline}. Affected sensors: {sensor_text}.{confidence_text} {explanation}".strip()
-        if anomaly
-        else f"{headline}. No popup condition detected."
-    )
+    if model_authored:
+        message = model_message.strip()
+    else:
+        headline = status_text.capitalize() if status_text else _labelize(label)
+        message = (
+            f"{headline}. Affected sensors: {sensor_text}.{confidence_text} {explanation}".strip()
+            if anomaly
+            else f"{headline}. No popup condition detected."
+        )
     return {
         "show_popup": bool(anomaly),
         "severity": severity,
         "title": "Building Vibration Anomaly" if anomaly else "Building Vibration Normal",
         "message": message,
+        "message_source": "model" if model_authored else "server",
         "network_label": label,
         "confidence": confidence,
         "status_text": status_text or None,

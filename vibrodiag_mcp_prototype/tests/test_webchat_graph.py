@@ -819,11 +819,13 @@ def test_agent_monitor_payload_registers_anomaly_window(monkeypatch, tmp_path):
     record = json.loads(jsonl_path.read_text(encoding="utf-8").strip())
     detail = json.loads(detail_path.read_text(encoding="utf-8"))
     assert record["network_label"] == "localized_vibration_deviation"
+    assert record["message_source"] == "server"
     assert record["affected_sensor_ids"] == ["target_1"]
     assert detail["pipeline_result"]["window_id"] == "window-register-1"
 
     listing = getattr(webchat_server, "_anomaly_windows_payload")({"limit": ["10"]})
     assert listing["ok"] is True
+    assert listing["legacy_hidden_count"] == 0
     assert listing["windows"][0]["window_id"] == "window-register-1"
 
 
@@ -1155,7 +1157,8 @@ def test_popup_message_includes_history_context():
             "main_agent_confidence": 0.85,
             "affected_sensor_ids": ["target_3"],
             "quality_flags": [],
-            "explanation": "One sensor stands out.",
+            "status_text": "codes_v3: localized vibration deviation",
+            "explanation": "Codes model verdict: one sensor stands out.",
         },
         "sensor_agent_reports": [],
         "history_summary": {"sensor": "target_3", "metric": "rms", "percentile": 99.94, "x_median": 2.4, "n": 4321},
@@ -1163,8 +1166,36 @@ def test_popup_message_includes_history_context():
     popup = webchat_server._build_agent_popup(result)
     assert popup["history_x_median"] == 2.4
     assert popup["history_sensor"] == "target_3"
+    assert popup["status_text"] == "localized vibration deviation"
+    assert "Monitoring assessment: one sensor stands out." in popup["message"]
+    assert "codes" not in json.dumps(popup).lower()
     assert "Versus its own normal history: target_3 rms at 2.4x its normal median" in popup["message"]
     assert "p99.9 of 4321 learned windows" in popup["message"]
+
+
+def test_popup_uses_model_authored_message_verbatim():
+    message = (
+        "Localized vibration deviation detected at target_2 and target_4. "
+        "Impulsive or shock event likely occurred. Normal duration observed. "
+        "Immediate next step: verify sensor integrity under controlled loading."
+    )
+    result = {
+        "network_assessment": {
+            "network_label": "localized_vibration_deviation",
+            "affected_sensor_ids": ["target_2", "target_4"],
+            "status_text": "localized vibration deviation",
+            "popup_message": message,
+            "popup_message_source": "model",
+        },
+        "sensor_agent_reports": [],
+        "history_summary": {"sensor": "target_4", "x_median": 2.8, "n": 50},
+    }
+    popup = webchat_server._build_agent_popup(result)
+    assert popup["message"] == message
+    assert popup["message_source"] == "model"
+    assert popup["status_text"] == "localized vibration deviation"
+    assert "codes" not in json.dumps(popup).lower()
+    assert "Versus its own normal history" not in popup["message"]
 
 
 def test_agent_monitor_payload_rejects_invalid_axis(monkeypatch):
@@ -1577,3 +1608,39 @@ def test_chat_inflight_slot_is_exclusive_and_recovers():
     assert busy["ok"] is False
     assert busy["error"] == "chat_busy"
     assert "already running" in busy["message"]
+
+
+def test_anomaly_windows_hide_legacy_branded_records_by_default(monkeypatch, tmp_path):
+    registry_dir = tmp_path / "anomaly_registry"
+    monkeypatch.setenv("VIBRO_ANOMALY_WINDOW_DIR", str(registry_dir))
+    registry_dir.mkdir()
+
+    rows = [
+        {
+            "window_id": "legacy-window",
+            "status_text": "codes_v3: localized vibration deviation",
+            "summary": "Codes model verdict: target_2 deviated.",
+        },
+        {
+            "window_id": "model-window",
+            "message_source": "model",
+            "status_text": "localized vibration deviation",
+            "summary": "Target_2 shows a localized vibration deviation. Inspect its mounting.",
+        },
+    ]
+    (registry_dir / "anomaly_windows.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+    )
+
+    listing = webchat_server._anomaly_windows_payload({"limit": ["10"]})
+    assert [item["window_id"] for item in listing["windows"]] == ["model-window"]
+    assert listing["legacy_hidden_count"] == 1
+
+    with_legacy = webchat_server._anomaly_windows_payload(
+        {"limit": ["10"], "include_legacy": ["1"]}
+    )
+    assert [item["window_id"] for item in with_legacy["windows"]] == [
+        "model-window",
+        "legacy-window",
+    ]
+    assert with_legacy["legacy_hidden_count"] == 0
