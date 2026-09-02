@@ -12,7 +12,7 @@ See [../DEPLOYMENT_PATHS.md](../DEPLOYMENT_PATHS.md) for the side-by-side compar
 - Python 3.12, Git, `g++`, `curl`, CMake/Ninja (installed into the environment where possible), and at least 12 GB free storage during split-part reconstruction
 - For live mode: six STEVAL-STWINBX1 boards running FP-SNS-DATALOG2 v3.2.0 and a powered USB hub
 - For offline mode: no boards or USB setup; the six recorded `.dat` inputs are already included
-- Access to the established [VibroAgent weight releases](https://github.com/hobbitlv1/vibroagent-iq9075-codec/releases): authenticate with `gh auth login` or set `GITHUB_TOKEN` when the assets are private
+- Access to the combined repository's [VibroAgent-Gemma weight release](https://github.com/hobbitlv1/vibroagent-iq9075-combined/releases): authenticate with `gh auth login` or set `GITHUB_TOKEN` when the assets are private
 
 ## Path 1: live six-board deployment
 
@@ -89,7 +89,7 @@ gemma-4-e2b-g1-Q8_0.gguf
 SHA-256: 11ceefee8d62080072fe2b65f68beab5e0f31ad716c640178ed93b5ac0eb31d6
 ```
 
-The default release tag is `weights-v1`. Override it with `VIBRO_GEMMA_RELEASE_TAG`. To install an already downloaded copy:
+The default release tag is `weights-v1` in `hobbitlv1/vibroagent-iq9075-combined`. The Q8 file is published as three sub-2 GB parts plus `models/gemma_release_assets_manifest.json`. Setup requires the downloaded manifest to match the checked-in copy, verifies every part's size and SHA-256, concatenates in manifest order, then verifies the reconstructed file. Override the tag with `VIBRO_GEMMA_RELEASE_TAG`. To install an already downloaded copy:
 
 ```bash
 VIBROGEMMA_GGUF_SOURCE=/path/to/gemma-4-e2b-g1-Q8_0.gguf ./setup_models.sh

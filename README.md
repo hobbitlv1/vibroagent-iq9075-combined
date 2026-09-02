@@ -169,7 +169,7 @@ Run `./setup.sh` again to switch to live sensors. Run `./setup.sh --offline` aga
 
 The large GGUF is resolved in this order:
 
-1. GitHub release `weights-v1` on the repository configured as `origin`. The model is stored as two release assets because of the release-asset size limit. Each part is verified, the parts are concatenated byte-for-byte, and the final file is verified again.
+1. GitHub release `weights-v1` on the established Codec repository. The model is stored as two release assets because of the release-asset size limit. Each part is verified, the parts are concatenated byte-for-byte, and the final file is verified again.
 2. The Hugging Face repository selected by `VIBRO_MODELS_REPO`, which defaults to `hobbitlv/vibroagent-models`. Set `HF_TOKEN` or run `hf auth login` when that fallback is private.
 
 The installed file is:
@@ -977,13 +977,20 @@ The monitor shows six boards but returns five target records because the referen
 
 ### 14. Model assets and integrity
 
-The default GitHub release tag is `weights-v1`. `setup_models.sh` downloads lexically ordered split parts, reconstructs the GGUF byte-for-byte, and verifies the final artifact before startup.
+The Gemma assets are published under release tag `weights-v1` in `hobbitlv1/vibroagent-iq9075-combined`. `setup_models.sh` first requires the published release manifest to match the reviewed copy in Git, then verifies the exact byte size and SHA-256 of every split part, reconstructs the GGUF in manifest order, and verifies the final artifact before startup.
 
 ```text
 Artifact: gemma-4-e2b-g1-Q8_0.gguf
 Size:     4,947,414,592 bytes
 SHA-256:  11ceefee8d62080072fe2b65f68beab5e0f31ad716c640178ed93b5ac0eb31d6
 ```
+
+| Release asset | Size (bytes) | SHA-256 |
+|---|---:|---|
+| `gemma_release_assets_manifest.json` | Repository-controlled | Must match the checked-in file byte-for-byte |
+| `gemma-4-e2b-g1-Q8_0.gguf.part-00.part` | 1,992,294,400 | `9b385d3d6ba18ca055fae69a4e6e417460bfe60ee1abd74e557b43af61a94514` |
+| `gemma-4-e2b-g1-Q8_0.gguf.part-01.part` | 1,992,294,400 | `3f100cd17549e3345a2c8829c85e174dab3f31fd91d983296a6a95da28358331` |
+| `gemma-4-e2b-g1-Q8_0.gguf.part-02.part` | 962,825,792 | `01ab7271da82c7021cfcfed24b9fda0815f35392430fec4a7032795d02911020` |
 
 Use an already-downloaded file:
 
@@ -996,7 +1003,7 @@ Override an asset mirror deliberately:
 
 ```bash
 VIBRO_GEMMA_RELEASE_TAG=weights-v1 \
-VIBRO_GH_REPO=hobbitlv1/vibroagent-iq9075-codec \
+VIBRO_GH_REPO=hobbitlv1/vibroagent-iq9075-combined \
   ./VibroAgent-Gemma/setup_models.sh
 ```
 
@@ -1143,6 +1150,7 @@ VibroAgent-Gemma/
 ├── setup_models.sh                  Download, reconstruction, SHA gates
 ├── setup_geniex.sh                  GenieX v0.4.0 patch and build
 ├── vibroagent.sh                    Start/stop/status/demo entry point
+├── models/gemma_release_assets_manifest.json
 ├── demo/
 │   ├── run_lumo.py                  Direct six-board fixture runner
 │   └── LUMO_ATTRIBUTION.md          Licence, sources, transformations

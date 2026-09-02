@@ -1,0 +1,27 @@
+{
+  "schema": "vibroagent-gemma-release-assets-v1",
+  "repository": "hobbitlv1/vibroagent-iq9075-combined",
+  "release_tag": "weights-v1",
+  "gguf": {
+    "name": "gemma-4-e2b-g1-Q8_0.gguf",
+    "size_bytes": 4947414592,
+    "sha256": "11ceefee8d62080072fe2b65f68beab5e0f31ad716c640178ed93b5ac0eb31d6",
+    "parts": [
+      {
+        "name": "gemma-4-e2b-g1-Q8_0.gguf.part-00.part",
+        "size_bytes": 1992294400,
+        "sha256": "9b385d3d6ba18ca055fae69a4e6e417460bfe60ee1abd74e557b43af61a94514"
+      },
+      {
+        "name": "gemma-4-e2b-g1-Q8_0.gguf.part-01.part",
+        "size_bytes": 1992294400,
+        "sha256": "3f100cd17549e3345a2c8829c85e174dab3f31fd91d983296a6a95da28358331"
+      },
+      {
+        "name": "gemma-4-e2b-g1-Q8_0.gguf.part-02.part",
+        "size_bytes": 962825792,
+        "sha256": "01ab7271da82c7021cfcfed24b9fda0815f35392430fec4a7032795d02911020"
+      }
+    ]
+  }
+}
