@@ -52,11 +52,12 @@ done
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
   BLUE=$'\033[38;5;27m'
   CYAN=$'\033[38;5;39m'
+  QUALCOMM=$'\033[38;2;50;83;220m'
   MUTED=$'\033[38;5;244m'
   BOLD=$'\033[1m'
   RESET=$'\033[0m'
 else
-  BLUE=""; CYAN=""; MUTED=""; BOLD=""; RESET=""
+  BLUE=""; CYAN=""; QUALCOMM=""; MUTED=""; BOLD=""; RESET=""
 fi
 
 restore_cursor() { [ -t 1 ] && printf '\033[?25h'; }
@@ -64,35 +65,34 @@ trap restore_cursor EXIT
 
 logo() {
   local spinner="${1:- }"
-  local pulse="${2:-  &  }"
+  local amp_tone="${2:-$CYAN$BOLD}"
   local st_tone="${3:-$BLUE}"
-  local q_tone="${4:-$CYAN}"
+  local q_tone="$QUALCOMM$BOLD"
   printf '%s\n' \
-    "${st_tone}        ${spinner}     _____ _______${RESET}           ${q_tone}____       ${spinner}${RESET}" \
-    "${st_tone}             / ____|__   __|${RESET}         ${q_tone}/ __ \\${RESET}" \
-    "${st_tone}            | (___    | |${RESET}           ${q_tone}| |  | |${RESET}" \
-    "${st_tone}             \\___ \\   | |${RESET}           ${q_tone}| |  | |${RESET}" \
-    "${st_tone}             ____) |  | |${RESET}           ${q_tone}| |__| |${RESET}" \
-    "${st_tone}            |_____/   |_|${RESET}            ${q_tone}\\___\\_\\${RESET}" \
-    "${st_tone}${BOLD}             STMicroelectronics${RESET} ${CYAN}${BOLD}${pulse}${RESET} ${q_tone}${BOLD}Qualcomm${RESET}" \
+    "${st_tone}        ${spinner}     _____ _______${RESET}   ${amp_tone}  &&   ${RESET}   ${q_tone}____       ${spinner}${RESET}" \
+    "${st_tone}             / ____|__   __|${RESET}  ${amp_tone} &  &  ${RESET}  ${q_tone}/ __ \\${RESET}" \
+    "${st_tone}            | (___    | |${RESET}    ${amp_tone}  &&   ${RESET}  ${q_tone}| |  | |${RESET}" \
+    "${st_tone}             \\___ \\   | |${RESET}    ${amp_tone} &  & &${RESET}  ${q_tone}| |  | |${RESET}" \
+    "${st_tone}             ____) |  | |${RESET}    ${amp_tone}&    & ${RESET}  ${q_tone}| |__| |${RESET}" \
+    "${st_tone}            |_____/   |_|${RESET}     ${amp_tone} &&&& &${RESET}   ${q_tone}\\___\\_\\${RESET}" \
+    "${st_tone}${BOLD}             STMicroelectronics${RESET}       ${q_tone}Qualcomm${RESET}" \
     "${CYAN}          VIBROAGENT // IQ-9075 // HEXAGON HTP${RESET}"
 }
 
 splash() {
   local spinners=('|' '/' '-' $'\\' '|' '/' '-' $'\\')
-  local pulses=('&....' '.&...' '..&..' '...&.' '....&' '...&.' '..&..' '.&...')
-  local frame st_tone q_tone
+  local frame st_tone amp_tone
   printf '\033[?25l'
   for frame in "${!spinners[@]}"; do
     if [ "$frame" -lt 3 ]; then
-      st_tone="$BLUE$BOLD"; q_tone="$MUTED"
+      st_tone="$BLUE$BOLD"; amp_tone="$MUTED"
     elif [ "$frame" -lt 6 ]; then
-      st_tone="$MUTED"; q_tone="$CYAN$BOLD"
+      st_tone="$MUTED"; amp_tone="$CYAN$BOLD"
     else
-      st_tone="$BLUE"; q_tone="$CYAN"
+      st_tone="$BLUE"; amp_tone="$QUALCOMM$BOLD"
     fi
     printf '\033[2J\033[H'
-    logo "${spinners[$frame]}" "${pulses[$frame]}" "$st_tone" "$q_tone"
+    logo "${spinners[$frame]}" "$amp_tone" "$st_tone"
     printf '\n%s              Preparing installer...%s\n' "$MUTED" "$RESET"
     sleep 0.065
   done

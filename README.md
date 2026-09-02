@@ -15,16 +15,16 @@ Run the root installer from a real terminal:
 ./install.sh
 ```
 
-It opens with a short dual-logo ASCII animation: STMicroelectronics and Qualcomm alternate emphasis while the `&` pulse travels between them. It then presents an arrow-key menu:
+It opens with a short dual-logo ASCII animation: a full ASCII `&` pulses between the STMicroelectronics mark and the Qualcomm-blue Q. It then presents an arrow-key menu:
 
 ```text
-             _____ _______           ____
-            / ____|__   __|         / __ \
-           | (___    | |           | |  | |
-            \___ \   | |           | |  | |
-            ____) |  | |           | |__| |
-           |_____/   |_|            \___\_\
-            STMicroelectronics   &   Qualcomm
+             _____ _______     &&      ____
+            / ____|__   __|   &  &    / __ \
+           | (___    | |       &&    | |  | |
+            \___ \   | |       &  & & | |  | |
+            ____) |  | |      &    &  | |__| |
+           |_____/   |_|        &&&& &  \___\_\
+            STMicroelectronics       Qualcomm
          VIBROAGENT // IQ-9075 // HEXAGON HTP
 
   > VibroAgent-Codec  | Live six-board deployment
