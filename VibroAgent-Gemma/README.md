@@ -90,7 +90,7 @@ Size: 4.95 GB (4.61 GiB)
 SHA-256: 11ceefee8d62080072fe2b65f68beab5e0f31ad716c640178ed93b5ac0eb31d6
 ```
 
-The default release tag is `weights-v1` in `hobbitlv1/vibroagent-iq9075-combined`. The Q8 file is published as three sub-2 GB parts plus `models/gemma_release_assets_manifest.json`. Setup requires the downloaded manifest to match the checked-in copy, verifies every part's size and SHA-256, concatenates in manifest order, then verifies the reconstructed file. Override the tag with `VIBRO_GEMMA_RELEASE_TAG`. To install an already downloaded copy:
+The default release tag is `weights-v1` in `hobbitlv1/vibroagent-iq9075-combined`. It contains the ONNX encoder, its external tensor data, three sub-2 GB Q8 parts, and `models/gemma_release_assets_manifest.json`; the same release also carries the complete Codec assets. Setup requires the downloaded manifest to match the checked-in copy, verifies every Q8 part's size and SHA-256, concatenates in manifest order, then verifies the reconstructed file. Override the tag with `VIBRO_GEMMA_RELEASE_TAG`. To install an already downloaded copy:
 
 ```bash
 VIBROGEMMA_GGUF_SOURCE=/path/to/gemma-4-e2b-g1-Q8_0.gguf ./setup_models.sh

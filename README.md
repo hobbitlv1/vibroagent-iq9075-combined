@@ -110,7 +110,7 @@ The complete live and recorded-data stacks target Linux on the Qualcomm IQ-9075.
 | Privileges | `sudo` for libusb, udev rules, and the `hsdatalog` group | No USB setup |
 | Python | Python 3.10 or newer; environments are created automatically | Python 3.10 or newer; environments are created automatically |
 | Storage | At least 8 GB free for environments, SDK files, and model weights | At least 8 GB, plus about 280 MB for the five-minute recording set |
-| Network access | GitHub access to this source repository and the established Codec weight releases, or access to the configured Hugging Face fallback | Same |
+| Network access | GitHub access to this source repository and its combined weight release, or access to the configured Hugging Face fallback | Same |
 
 The setup scripts install `uv` automatically when it is not already available.
 
@@ -169,7 +169,7 @@ Run `./setup.sh` again to switch to live sensors. Run `./setup.sh --offline` aga
 
 The large GGUF is resolved in this order:
 
-1. GitHub release `weights-v1` on the established Codec repository. The model is stored as two release assets because of the release-asset size limit. Each part is verified, the parts are concatenated byte-for-byte, and the final file is verified again.
+1. GitHub release `weights-v1` on the combined repository. The model is stored as two release assets because of the release-asset size limit. Each part is verified, the parts are concatenated byte-for-byte, and the final file is verified again.
 2. The Hugging Face repository selected by `VIBRO_MODELS_REPO`, which defaults to `hobbitlv/vibroagent-models`. Set `HF_TOKEN` or run `hf auth login` when that fallback is private.
 
 The installed file is:
@@ -988,6 +988,8 @@ SHA-256:  11ceefee8d62080072fe2b65f68beab5e0f31ad716c640178ed93b5ac0eb31d6
 | Release asset | Size | SHA-256 |
 |---|---:|---|
 | `gemma_release_assets_manifest.json` | Repository-controlled | Must match the checked-in file byte-for-byte |
+| `vibration_encoder_projector.onnx` | 0.0019 GB (1.88 MB) | `266823e35d17155a6812558e9ed2fa4fd839fbc111db5405bfc1203856f3f12c` |
+| `vibration_encoder_projector.onnx.data` | 0.044 GB (44.04 MB) | `178f53b734af8153e753765141e7b3f494f9e9941539cedae5740701fa610de5` |
 | `gemma-4-e2b-g1-Q8_0.gguf.part-00.part` | 1.99 GB (1.86 GiB) | `9b385d3d6ba18ca055fae69a4e6e417460bfe60ee1abd74e557b43af61a94514` |
 | `gemma-4-e2b-g1-Q8_0.gguf.part-01.part` | 1.99 GB (1.86 GiB) | `3f100cd17549e3345a2c8829c85e174dab3f31fd91d983296a6a95da28358331` |
 | `gemma-4-e2b-g1-Q8_0.gguf.part-02.part` | 0.96 GB (0.90 GiB) | `01ab7271da82c7021cfcfed24b9fda0815f35392430fec4a7032795d02911020` |
@@ -1007,7 +1009,7 @@ VIBRO_GH_REPO=hobbitlv1/vibroagent-iq9075-combined \
   ./VibroAgent-Gemma/setup_models.sh
 ```
 
-The manifest records a Q4 alternative, but the combined installer chooses Q8 as the package default. Encoder, ONNX external data, tokenizer, token layout, schema, healthy profile, and GGUF are a matched set. A right filename with a wrong hash is a hard failure.
+The same release also contains the complete Codec weight/provenance set and immutable offline recording archive. The Gemma manifest records a Q4 alternative, but the combined installer chooses Q8 as the package default. Encoder, ONNX external data, tokenizer, token layout, schema, healthy profile, and GGUF are a matched set. A right filename with a wrong hash is a hard failure.
 
 ### 15. Runtime controls
 

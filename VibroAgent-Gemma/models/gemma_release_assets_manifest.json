@@ -2,6 +2,18 @@
   "schema": "vibroagent-gemma-release-assets-v1",
   "repository": "hobbitlv1/vibroagent-iq9075-combined",
   "release_tag": "weights-v1",
+  "encoder": {
+    "onnx": {
+      "name": "vibration_encoder_projector.onnx",
+      "size_bytes": 1880961,
+      "sha256": "266823e35d17155a6812558e9ed2fa4fd839fbc111db5405bfc1203856f3f12c"
+    },
+    "external_data": {
+      "name": "vibration_encoder_projector.onnx.data",
+      "size_bytes": 44040192,
+      "sha256": "178f53b734af8153e753765141e7b3f494f9e9941539cedae5740701fa610de5"
+    }
+  },
   "gguf": {
     "name": "gemma-4-e2b-g1-Q8_0.gguf",
     "size_bytes": 4947414592,
