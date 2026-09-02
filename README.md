@@ -82,7 +82,7 @@ The installer accepts exactly one deployment selection. Re-running a selection i
 | Operational classes | Legacy fine-grained set | `normal`, `unknown_anomaly`, deterministic `data_invalid` |
 | Localization | Model verdict under Codec contract | Five simultaneous target decisions; source-zone labels, not largest-response labels |
 | Offline experience | Five-minute immutable recording replay | 60-second full web replay with scheduled LUMO target events |
-| Model artifact | About 2.46 GB | 4,947,414,592-byte Q8 GGUF |
+| Model artifact | About 2.46 GB | 4.95 GB (4.61 GiB) Q8 GGUF |
 | Maturity | Established path | Research checkpoint; promotion gate is not yet met |
 
 Use Codec when you need the established deployment and its older label vocabulary. Use Gemma when evaluating continuous vibration tokens, five-target localization, LUMO replay, or the current encoder/checkpoint pair. Neither path is a certified structural-safety system.
@@ -981,16 +981,16 @@ The Gemma assets are published under release tag `weights-v1` in `hobbitlv1/vibr
 
 ```text
 Artifact: gemma-4-e2b-g1-Q8_0.gguf
-Size:     4,947,414,592 bytes
+Size:     4.95 GB (4.61 GiB)
 SHA-256:  11ceefee8d62080072fe2b65f68beab5e0f31ad716c640178ed93b5ac0eb31d6
 ```
 
-| Release asset | Size (bytes) | SHA-256 |
+| Release asset | Size | SHA-256 |
 |---|---:|---|
 | `gemma_release_assets_manifest.json` | Repository-controlled | Must match the checked-in file byte-for-byte |
-| `gemma-4-e2b-g1-Q8_0.gguf.part-00.part` | 1,992,294,400 | `9b385d3d6ba18ca055fae69a4e6e417460bfe60ee1abd74e557b43af61a94514` |
-| `gemma-4-e2b-g1-Q8_0.gguf.part-01.part` | 1,992,294,400 | `3f100cd17549e3345a2c8829c85e174dab3f31fd91d983296a6a95da28358331` |
-| `gemma-4-e2b-g1-Q8_0.gguf.part-02.part` | 962,825,792 | `01ab7271da82c7021cfcfed24b9fda0815f35392430fec4a7032795d02911020` |
+| `gemma-4-e2b-g1-Q8_0.gguf.part-00.part` | 1.99 GB (1.86 GiB) | `9b385d3d6ba18ca055fae69a4e6e417460bfe60ee1abd74e557b43af61a94514` |
+| `gemma-4-e2b-g1-Q8_0.gguf.part-01.part` | 1.99 GB (1.86 GiB) | `3f100cd17549e3345a2c8829c85e174dab3f31fd91d983296a6a95da28358331` |
+| `gemma-4-e2b-g1-Q8_0.gguf.part-02.part` | 0.96 GB (0.90 GiB) | `01ab7271da82c7021cfcfed24b9fda0815f35392430fec4a7032795d02911020` |
 
 Use an already-downloaded file:
 

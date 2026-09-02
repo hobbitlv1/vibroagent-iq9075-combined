@@ -86,6 +86,7 @@ The repository includes the pinned encoder, tokenizer, pipeline source, healthy 
 
 ```text
 gemma-4-e2b-g1-Q8_0.gguf
+Size: 4.95 GB (4.61 GiB)
 SHA-256: 11ceefee8d62080072fe2b65f68beab5e0f31ad716c640178ed93b5ac0eb31d6
 ```
 
