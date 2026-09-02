@@ -1,0 +1,1010 @@
+From b73e7d494381a4333ee6f56f05c7a15a507e2ce4 Mon Sep 17 00:00:00 2001
+From: Codex <codex@local>
+Date: Thu, 20 Aug 2026 03:00:43 +0000
+Subject: [PATCH] feat: add stateful external-embedding prefill
+
+---
+ bindings/python/geniex/_ffi/_api.py           |  49 ++-
+ bindings/python/geniex/_ffi/_types.py         |  36 +++
+ bindings/python/geniex/generation/output.py   |   7 +
+ bindings/python/geniex/modeling.py            | 146 ++++++++-
+ .../python/tests/unit/test_stateful_decode.py |  65 ++++
+ sdk/compat/llm_stateful_bridge.cpp            |  44 +++
+ sdk/include/geniex.h                          |  41 +++
+ sdk/include/plugin/ILlm.h                     |   9 +
+ sdk/plugins/llama_cpp/include/llm.h           |  15 +
+ sdk/plugins/llama_cpp/src/llm.cpp             | 287 ++++++++++++++++++
+ sdk/src/llm.cpp                               |  56 ++++
+ 11 files changed, 750 insertions(+), 5 deletions(-)
+ create mode 100644 bindings/python/tests/unit/test_stateful_decode.py
+ create mode 100644 sdk/compat/llm_stateful_bridge.cpp
+
+diff --git a/bindings/python/geniex/_ffi/_api.py b/bindings/python/geniex/_ffi/_api.py
+index ceb6b94..e5f02a5 100644
+--- a/bindings/python/geniex/_ffi/_api.py
++++ b/bindings/python/geniex/_ffi/_api.py
+@@ -6,7 +6,7 @@
+ import atexit
+ import logging
+ import os
+-from ctypes import CFUNCTYPE, POINTER, byref, c_char_p, c_int32, c_void_p
++from ctypes import CDLL, CFUNCTYPE, POINTER, byref, c_char_p, c_int32, c_void_p
+
+ from ._lib import load_library
+ from ._types import (
+@@ -21,10 +21,13 @@ from ._types import (
+     geniex_KvCacheSaveOutput,
+     geniex_LlmApplyChatTemplateInput,
+     geniex_LlmApplyChatTemplateOutput,
++    geniex_LlmBatch,
+     geniex_LlmCreateInput,
++    geniex_LlmDecodeOutput,
+     geniex_LlmForwardLogitsInput,
+     geniex_LlmForwardLogitsOutput,
+     geniex_LlmGenerateInput,
++    geniex_LlmGenerateFromStateInput,
+     geniex_LlmGenerateOutput,
+     geniex_LlmModelInfo,
+     geniex_ModelListDetailedOutput,
+@@ -65,6 +68,7 @@ _logger.addHandler(logging.NullHandler())
+
+ # Strong reference — ctypes callbacks must outlive the C side.
+ _log_cb_ref: 'geniex_log_callback | None' = None
++_stateful_provider = None
+
+
+ def _sdk_log_bridge(level: int, msg_bytes):
+@@ -138,6 +142,46 @@ def _check(code: int) -> None:
+         raise GenieXError(code, msg)
+
+
++def _bind_stateful(provider):
++    provider.geniex_llm_decode.argtypes = [
++        c_void_p, POINTER(geniex_LlmBatch), POINTER(geniex_LlmDecodeOutput)
++    ]
++    provider.geniex_llm_decode.restype = c_int32
++    provider.geniex_llm_generate_from_state.argtypes = [
++        c_void_p,
++        POINTER(geniex_LlmGenerateFromStateInput),
++        POINTER(geniex_LlmGenerateOutput),
++    ]
++    provider.geniex_llm_generate_from_state.restype = c_int32
++    return provider
++
++
++def _get_stateful_provider():
++    global _stateful_provider
++    if _stateful_provider is not None:
++        return _stateful_provider
++    core = load_library()
++    if hasattr(core, 'geniex_llm_decode'):
++        _stateful_provider = _bind_stateful(core)
++        return _stateful_provider
++    path = os.environ.get('GENIEX_STATEFUL_LIB_PATH')
++    if not path:
++        raise RuntimeError(
++            'GenieX core has no stateful embedding API; set GENIEX_STATEFUL_LIB_PATH '
++            'to the compatibility library built with the patched plugin'
++        )
++    _stateful_provider = _bind_stateful(CDLL(path))
++    return _stateful_provider
++
++
++def get_llm_decode_function():
++    return _get_stateful_provider().geniex_llm_decode
++
++
++def get_llm_generate_from_state_function():
++    return _get_stateful_provider().geniex_llm_generate_from_state
++
++
+ def _bind_all() -> None:
+     lib = load_library()
+
+@@ -184,6 +228,9 @@ def _bind_all() -> None:
+     lib.geniex_llm_generate.argtypes = [c_void_p, POINTER(geniex_LlmGenerateInput), POINTER(geniex_LlmGenerateOutput)]
+     lib.geniex_llm_generate.restype = c_int32
+
++    if hasattr(lib, 'geniex_llm_decode'):
++        _bind_stateful(lib)
++
+     lib.geniex_llm_get_model_info.argtypes = [c_void_p, POINTER(geniex_LlmModelInfo)]
+     lib.geniex_llm_get_model_info.restype = c_int32
+
+diff --git a/bindings/python/geniex/_ffi/_types.py b/bindings/python/geniex/_ffi/_types.py
+index 32f9259..5876b5e 100644
+--- a/bindings/python/geniex/_ffi/_types.py
++++ b/bindings/python/geniex/_ffi/_types.py
+@@ -11,6 +11,7 @@ from ctypes import (
+     c_char_p,
+     c_double,
+     c_float,
++    c_int8,
+     c_int32,
+     c_int64,
+     c_uint32,
+@@ -162,6 +163,41 @@ class geniex_LlmGenerateOutput(Structure):
+     ]
+
+
++class geniex_LlmBatch(Structure):
++    _fields_ = [
++        ('struct_size', c_uint32),
++        ('n_tokens', c_int32),
++        ('token', POINTER(c_int32)),
++        ('embd', POINTER(c_float)),
++        ('embd_dim', c_int32),
++        ('pos', POINTER(c_int32)),
++        ('n_seq_id', POINTER(c_int32)),
++        ('seq_id', POINTER(POINTER(c_int32))),
++        ('logits', POINTER(c_int8)),
++    ]
++
++
++class geniex_LlmDecodeOutput(Structure):
++    _fields_ = [
++        ('struct_size', c_uint32),
++        ('n_decoded', c_int32),
++        ('next_position', c_int32),
++        ('reserved0', c_int32),
++        ('profile_data', geniex_ProfileData),
++    ]
++
++
++class geniex_LlmGenerateFromStateInput(Structure):
++    _fields_ = [
++        ('struct_size', c_uint32),
++        ('config', POINTER(geniex_GenerationConfig)),
++        ('on_token', geniex_token_callback),
++        ('user_data', c_void_p),
++        ('sequence_id', c_int32),
++        ('reserved0', c_int32),
++    ]
++
++
+ class geniex_LlmModelInfo(Structure):
+     _fields_ = [
+         ('vocab_size', c_int32),
+diff --git a/bindings/python/geniex/generation/output.py b/bindings/python/geniex/generation/output.py
+index cf1141e..e0f608a 100644
+--- a/bindings/python/geniex/generation/output.py
++++ b/bindings/python/geniex/generation/output.py
+@@ -87,3 +87,10 @@ class GenerateOutput:
+             thinking = m.group(1).strip()
+             text = _THINK_RE.sub('', full_text).strip()
+         return cls(text=text, thinking=thinking, profile=profile)
++
++
++@dataclass
++class DecodeOutput:
++    n_decoded: int
++    next_position: int
++    profile: ProfileData = field(default_factory=ProfileData)
+diff --git a/bindings/python/geniex/modeling.py b/bindings/python/geniex/modeling.py
+index 6451355..3c2e45d 100644
+--- a/bindings/python/geniex/modeling.py
++++ b/bindings/python/geniex/modeling.py
+@@ -3,10 +3,19 @@
+
+ from __future__ import annotations
+
++import math
++import operator
+ import os
+-from ctypes import POINTER, byref, c_char_p, c_int32, c_void_p, cast, pointer, string_at
+-
+-from ._ffi._api import GENIEX_ERROR_LLM_TOKENIZATION_CONTEXT_LENGTH, _check, _str_list_to_c, load_library
++from ctypes import POINTER, byref, c_char_p, c_float, c_int32, c_void_p, cast, pointer, sizeof, string_at
++
++from ._ffi._api import (
++    GENIEX_ERROR_LLM_TOKENIZATION_CONTEXT_LENGTH,
++    _check,
++    _str_list_to_c,
++    get_llm_decode_function,
++    get_llm_generate_from_state_function,
++    load_library,
++)
+ from ._ffi._types import (
+     geniex_GenerationConfig,
+     geniex_KvCacheLoadInput,
+@@ -15,10 +24,13 @@ from ._ffi._types import (
+     geniex_KvCacheSaveOutput,
+     geniex_LlmApplyChatTemplateInput,
+     geniex_LlmApplyChatTemplateOutput,
++    geniex_LlmBatch,
+     geniex_LlmChatMessage,
++    geniex_LlmDecodeOutput,
+     geniex_LlmForwardLogitsInput,
+     geniex_LlmForwardLogitsOutput,
+     geniex_LlmGenerateInput,
++    geniex_LlmGenerateFromStateInput,
+     geniex_LlmGenerateOutput,
+     geniex_SamplerConfig,
+     geniex_token_callback,
+@@ -30,7 +42,7 @@ from ._ffi._types import (
+     geniex_VlmGenerateInput,
+     geniex_VlmGenerateOutput,
+ )
+-from .generation.output import GenerateOutput, ProfileData
++from .generation.output import DecodeOutput, GenerateOutput, ProfileData
+ from .generation.streamer import TextIteratorStreamer
+ from .tokenizer import ModelTokenizer
+
+@@ -46,6 +58,57 @@ def _decode_utf8(p) -> str:
+     return string_at(p).decode('utf-8', errors='replace') if p else ''
+
+
++def _marshal_input_embd(input_embd) -> tuple[object, int, int]:
++    try:
++        rows = list(input_embd)
++    except TypeError as exc:
++        raise TypeError('input_embd must be a 2D iterable') from exc
++    if not rows:
++        raise ValueError('input_embd must not be empty')
++    flat: list[float] = []
++    width = None
++    for row_index, row in enumerate(rows):
++        try:
++            values = list(row)
++        except TypeError as exc:
++            raise TypeError(f'input_embd row {row_index} must be iterable') from exc
++        if width is None:
++            width = len(values)
++            if width == 0:
++                raise ValueError('input_embd rows must not be empty')
++        elif len(values) != width:
++            raise ValueError('input_embd must be rectangular')
++        for column_index, raw in enumerate(values):
++            try:
++                value = c_float(float(raw)).value
++            except (TypeError, ValueError, OverflowError) as exc:
++                raise TypeError(f'input_embd[{row_index}][{column_index}] must be numeric') from exc
++            if not math.isfinite(value):
++                raise ValueError(f'input_embd[{row_index}][{column_index}] must be finite')
++            flat.append(value)
++    assert width is not None
++    return (c_float * len(flat))(*flat), len(rows), width
++
++
++def _marshal_input_ids(input_ids) -> tuple[object, int]:
++    try:
++        raw_values = list(input_ids)
++    except TypeError as exc:
++        raise TypeError('input_ids must be an iterable of integers') from exc
++    if not raw_values:
++        raise ValueError('input_ids must not be empty')
++    values: list[int] = []
++    for index, raw in enumerate(raw_values):
++        try:
++            value = operator.index(raw)
++        except TypeError as exc:
++            raise TypeError(f'input_ids[{index}] must be an integer') from exc
++        if value < 0 or value > 0x7FFFFFFF:
++            raise ValueError(f'input_ids[{index}] is outside the non-negative int32 range')
++        values.append(value)
++    return (c_int32 * len(values))(*values), len(values)
++
++
+ def _build_sampler(
+     temperature: float,
+     top_p: float,
+@@ -286,6 +349,81 @@ class GenieXLLM:
+         streamer.start(_run)
+         return streamer
+
++    def decode(self, *, input_ids=None, input_embd=None) -> DecodeOutput:
++        """Append one token or raw-embedding batch to the retained KV state."""
++        if (input_ids is None) == (input_embd is None):
++            raise ValueError('decode requires exactly one of input_ids or input_embd')
++
++        token_arr = None
++        embd_arr = None
++        embd_dim = 0
++        if input_ids is not None:
++            token_arr, n_tokens = _marshal_input_ids(input_ids)
++        else:
++            embd_arr, n_tokens, embd_dim = _marshal_input_embd(input_embd)
++
++        batch = geniex_LlmBatch(
++            struct_size=sizeof(geniex_LlmBatch),
++            n_tokens=n_tokens,
++            embd_dim=embd_dim,
++        )
++        if token_arr is not None:
++            batch.token = token_arr
++        if embd_arr is not None:
++            batch.embd = embd_arr
++        out = geniex_LlmDecodeOutput(struct_size=sizeof(geniex_LlmDecodeOutput))
++        _check(get_llm_decode_function()(self._handle, byref(batch), byref(out)))
++        profile = _apply_meta(ProfileData.from_c(out.profile_data), self._meta)
++        return DecodeOutput(out.n_decoded, out.next_position, profile)
++
++    prefill = decode
++
++    def generate_from_state(
++        self,
++        *,
++        sequence_id: int = 0,
++        max_new_tokens: int = 512,
++        temperature: float = 0.0,
++        top_p: float = 0.0,
++        top_k: int = 0,
++        min_p: float = 0.0,
++        repetition_penalty: float = 0.0,
++        presence_penalty: float = 0.0,
++        frequency_penalty: float = 0.0,
++        seed: int = 0,
++        stop: list[str] | None = None,
++        grammar: str | None = None,
++    ) -> GenerateOutput:
++        """Generate from the latest logits produced by :meth:`decode`."""
++        sequence_id = operator.index(sequence_id)
++        if sequence_id < 0 or sequence_id > 0x7FFFFFFF:
++            raise ValueError('sequence_id must be in the non-negative int32 range')
++        sampler = _build_sampler(
++            temperature, top_p, top_k, min_p, repetition_penalty,
++            presence_penalty, frequency_penalty, seed, grammar,
++        )
++        cfg, stop_arr, image_arr, audio_arr = _build_gen_config(
++            max_new_tokens, stop or [], sampler, [], []
++        )
++        inp = geniex_LlmGenerateFromStateInput(
++            struct_size=sizeof(geniex_LlmGenerateFromStateInput),
++            config=pointer(cfg),
++            sequence_id=sequence_id,
++        )
++        out = geniex_LlmGenerateOutput()
++        lib = load_library()
++        rc = get_llm_generate_from_state_function()(self._handle, byref(inp), byref(out))
++        full = _decode_utf8(out.full_text)
++        profile = _apply_meta(ProfileData.from_c(out.profile_data), self._meta)
++        if out.full_text:
++            lib.geniex_free(out.full_text)
++        _keep = (sampler, cfg, stop_arr, image_arr, audio_arr)
++        if rc == GENIEX_ERROR_LLM_TOKENIZATION_CONTEXT_LENGTH:
++            profile.stop_reason = 'context_length'
++            return GenerateOutput.from_raw(full, profile)
++        _check(rc)
++        return GenerateOutput.from_raw(full, profile)
++
+     def reset(self) -> None:
+         """Clear KV cache and reset sampler state."""
+         lib = load_library()
+diff --git a/bindings/python/tests/unit/test_stateful_decode.py b/bindings/python/tests/unit/test_stateful_decode.py
+new file mode 100644
+index 0000000..2d530d5
+--- /dev/null
++++ b/bindings/python/tests/unit/test_stateful_decode.py
+@@ -0,0 +1,65 @@
++from ctypes import POINTER, c_void_p, cast, create_string_buffer, sizeof
++
++import pytest
++
++import geniex.modeling as modeling
++from geniex._ffi._types import (
++    geniex_LlmBatch,
++    geniex_LlmDecodeOutput,
++    geniex_LlmGenerateFromStateInput,
++    geniex_LlmGenerateOutput,
++)
++from geniex.modeling import GenieXLLM
++
++
++def test_stateful_embedding_decode_and_generation(monkeypatch):
++    assert sizeof(geniex_LlmBatch) == 64
++    assert sizeof(geniex_LlmDecodeOutput) == 96
++    assert sizeof(geniex_LlmGenerateFromStateInput) == 40
++    payload = create_string_buffer(b" continued")
++    seen = {}
++
++    class Core:
++        def geniex_llm_decode(self, _handle, batch_ptr, output_ptr):
++            batch = cast(batch_ptr, POINTER(geniex_LlmBatch)).contents
++            seen["embd"] = list(batch.embd[: batch.n_tokens * batch.embd_dim])
++            output = cast(output_ptr, POINTER(geniex_LlmDecodeOutput)).contents
++            output.n_decoded = batch.n_tokens
++            output.next_position = 2
++            return 0
++
++        def geniex_llm_generate_from_state(self, _handle, input_ptr, output_ptr):
++            inp = cast(input_ptr, POINTER(geniex_LlmGenerateFromStateInput)).contents
++            seen["sequence_id"] = inp.sequence_id
++            output = cast(output_ptr, POINTER(geniex_LlmGenerateOutput)).contents
++            output.full_text = cast(payload, c_void_p)
++            return 0
++
++        def geniex_free(self, _pointer):
++            pass
++
++    core = Core()
++    monkeypatch.setattr(modeling, "load_library", lambda: core)
++    monkeypatch.setattr(modeling, "get_llm_decode_function", lambda: core.geniex_llm_decode)
++    monkeypatch.setattr(
++        modeling,
++        "get_llm_generate_from_state_function",
++        lambda: core.geniex_llm_generate_from_state,
++    )
++    model = GenieXLLM(c_void_p(123))
++    decoded = model.decode(input_embd=[[1, 2, 3], [4, 5, 6]])
++    generated = model.generate_from_state(sequence_id=0, max_new_tokens=4)
++    model._handle = None
++
++    assert decoded.n_decoded == 2
++    assert decoded.next_position == 2
++    assert seen == {"embd": pytest.approx([1, 2, 3, 4, 5, 6]), "sequence_id": 0}
++    assert generated.text == " continued"
++
++
++@pytest.mark.parametrize("rows", [[], [[1], [2, 3]], [[float("nan")]]])
++def test_stateful_embedding_decode_rejects_invalid_rows(rows):
++    model = GenieXLLM(c_void_p(123))
++    with pytest.raises(ValueError):
++        model.decode(input_embd=rows)
++    model._handle = None
+diff --git a/sdk/compat/llm_stateful_bridge.cpp b/sdk/compat/llm_stateful_bridge.cpp
+new file mode 100644
+index 0000000..8a55ee6
+--- /dev/null
++++ b/sdk/compat/llm_stateful_bridge.cpp
+@@ -0,0 +1,44 @@
++// Copyright (c) 2024-2026 Qualcomm Technologies, Inc. and/or its subsidiaries.
++// SPDX-License-Identifier: BSD-3-Clause
++
++// Dispatch the append-only stateful API through an official core that predates
++// these exports. A fully rebuilt core exports the same functions directly.
++
++#include <cstring>
++#include <exception>
++
++#include "geniex.h"
++#include "plugin/ILlm.h"
++
++using namespace geniex;
++
++extern "C" int32_t geniex_llm_decode(
++    geniex_LLM* handle, const geniex_LlmBatch* batch, geniex_LlmDecodeOutput* output) {
++    if (!batch || batch->struct_size < sizeof(geniex_LlmBatch) || !output ||
++        output->struct_size < sizeof(geniex_LlmDecodeOutput)) {
++        return GENIEX_ERROR_COMMON_INVALID_INPUT;
++    }
++    std::memset(output, 0, sizeof(*output));
++    output->struct_size = sizeof(*output);
++    output->next_position = -1;
++    try {
++        auto* backend = reinterpret_cast<ILlm*>(handle);
++        return backend ? backend->decode(batch, output) : GENIEX_ERROR_COMMON_NOT_INITIALIZED;
++    } catch (const std::exception&) {
++        return GENIEX_ERROR_COMMON_UNKNOWN;
++    }
++}
++
++extern "C" int32_t geniex_llm_generate_from_state(geniex_LLM* handle,
++    const geniex_LlmGenerateFromStateInput* input, geniex_LlmGenerateOutput* output) {
++    if (!input || input->struct_size < sizeof(geniex_LlmGenerateFromStateInput) || !output) {
++        return GENIEX_ERROR_COMMON_INVALID_INPUT;
++    }
++    std::memset(output, 0, sizeof(*output));
++    try {
++        auto* backend = reinterpret_cast<ILlm*>(handle);
++        return backend ? backend->generate_from_state(input, output) : GENIEX_ERROR_COMMON_NOT_INITIALIZED;
++    } catch (const std::exception&) {
++        return GENIEX_ERROR_COMMON_UNKNOWN;
++    }
++}
+diff --git a/sdk/include/geniex.h b/sdk/include/geniex.h
+index 5d67ef4..eb64b95 100644
+--- a/sdk/include/geniex.h
++++ b/sdk/include/geniex.h
+@@ -575,6 +575,47 @@ typedef struct {
+ GENIEX_API int32_t geniex_llm_generate(
+     geniex_LLM* handle, const geniex_LlmGenerateInput* input, geniex_LlmGenerateOutput* output);
+
++/* ====================  Stateful Batch Decode  ============================ */
++
++/** A llama.cpp-style token or raw-embedding batch. Exactly one of token and
++ * embd must be non-NULL. Buffers are borrowed for the duration of the call. */
++typedef struct {
++    uint32_t struct_size; /** Initialize to sizeof(geniex_LlmBatch). */
++    int32_t  n_tokens;
++    const int32_t* token;
++    const float*   embd;      /** Row-major [n_tokens, embd_dim]. */
++    int32_t        embd_dim;  /** Zero for token batches. */
++    const int32_t*        pos;
++    const int32_t*        n_seq_id;
++    const int32_t* const* seq_id;
++    const int8_t*         logits;
++} geniex_LlmBatch;
++
++typedef struct {
++    uint32_t           struct_size; /** Initialize to sizeof(geniex_LlmDecodeOutput). */
++    int32_t            n_decoded;
++    int32_t            next_position;
++    int32_t            reserved0;
++    geniex_ProfileData profile_data;
++} geniex_LlmDecodeOutput;
++
++/** Decode one token or embedding batch and retain its KV-cache state. */
++GENIEX_API int32_t geniex_llm_decode(
++    geniex_LLM* handle, const geniex_LlmBatch* batch, geniex_LlmDecodeOutput* output);
++
++typedef struct {
++    uint32_t                       struct_size; /** Initialize to sizeof(geniex_LlmGenerateFromStateInput). */
++    const geniex_GenerationConfig* config;
++    geniex_token_callback          on_token;
++    void*                          user_data;
++    int32_t                        sequence_id;
++    int32_t                        reserved0;
++} geniex_LlmGenerateFromStateInput;
++
++/** Generate from logits/KV state produced by geniex_llm_decode. */
++GENIEX_API int32_t geniex_llm_generate_from_state(geniex_LLM* handle,
++    const geniex_LlmGenerateFromStateInput* input, geniex_LlmGenerateOutput* output);
++
+ /* ====================  Model Metadata  =================================== */
+
+ /** Static, plugin-reported metadata about the loaded LLM. All fields are
+diff --git a/sdk/include/plugin/ILlm.h b/sdk/include/plugin/ILlm.h
+index 6a8c758..514b714 100644
+--- a/sdk/include/plugin/ILlm.h
++++ b/sdk/include/plugin/ILlm.h
+@@ -45,6 +45,15 @@ class ILlm {
+     virtual int32_t forward_logits(const geniex_LlmForwardLogitsInput*, geniex_LlmForwardLogitsOutput*) {
+         return GENIEX_ERROR_COMMON_PARAM_NOT_SUPPORTED;
+     }
++
++    virtual int32_t decode(const geniex_LlmBatch*, geniex_LlmDecodeOutput*) {
++        return GENIEX_ERROR_COMMON_PARAM_NOT_SUPPORTED;
++    }
++
++    virtual int32_t generate_from_state(
++        const geniex_LlmGenerateFromStateInput*, geniex_LlmGenerateOutput*) {
++        return GENIEX_ERROR_COMMON_PARAM_NOT_SUPPORTED;
++    }
+ };
+
+ }  // namespace geniex
+diff --git a/sdk/plugins/llama_cpp/include/llm.h b/sdk/plugins/llama_cpp/include/llm.h
+index a957b8e..8fa731c 100644
+--- a/sdk/plugins/llama_cpp/include/llm.h
++++ b/sdk/plugins/llama_cpp/include/llm.h
+@@ -5,6 +5,7 @@
+
+ #include <functional>
+ #include <optional>
++#include <unordered_map>
+ #include <vector>
+
+ #include "htp_session.h"
+@@ -19,6 +20,11 @@
+ namespace geniex {
+
+ class LlamaLlm : public ILlm {
++    struct SamplerHistoryEntry {
++        llama_token token;
++        bool        generated;
++    };
++
+     llama_model*               model   = nullptr;
+     llama_context*             ctx     = nullptr;
+     common_sampler*            sampler = nullptr;
+@@ -36,6 +42,10 @@ class LlamaLlm : public ILlm {
+     int                      n_past        = 0;   // for context shifting
+     std::vector<llama_token> past_prompt_tokens;  // for prefix match
+
++    bool stateful_mode = false;
++    std::unordered_map<llama_seq_id, std::vector<SamplerHistoryEntry>> sampler_history;
++    std::unordered_map<llama_seq_id, int32_t>                          logits_index;
++
+     bool allow_special_tokens = false;  // Control special token output
+
+     // Tracks whether this instance pinned an HTP session; releases on last handoff.
+@@ -60,6 +70,11 @@ class LlamaLlm : public ILlm {
+
+     virtual int32_t forward_logits(const geniex_LlmForwardLogitsInput*, geniex_LlmForwardLogitsOutput*) override;
+
++    virtual int32_t decode(const geniex_LlmBatch*, geniex_LlmDecodeOutput*) override;
++
++    virtual int32_t generate_from_state(
++        const geniex_LlmGenerateFromStateInput*, geniex_LlmGenerateOutput*) override;
++
+    private:
+     void set_sampler(const geniex_SamplerConfig* cfg);
+
+diff --git a/sdk/plugins/llama_cpp/src/llm.cpp b/sdk/plugins/llama_cpp/src/llm.cpp
+index 9e3b7b0..42ab2e8 100644
+--- a/sdk/plugins/llama_cpp/src/llm.cpp
++++ b/sdk/plugins/llama_cpp/src/llm.cpp
+@@ -4,9 +4,11 @@
+ #include "llm.h"
+
+ #include <algorithm>
++#include <cmath>
+ #include <cstdlib>
+ #include <cstring>
+ #include <fstream>
++#include <limits>
+ #include <nlohmann/json.hpp>
+ #include <sstream>
+ #include <vector>
+@@ -145,6 +147,11 @@ int32_t LlamaLlm::reset() {
+     this->n_past_global = 0;
+     this->n_past        = 0;
+     this->past_prompt_tokens.clear();
++    this->stateful_mode = false;
++    this->sampler_history.clear();
++    this->logits_index.clear();
++
++    if (this->sampler) common_sampler_reset(this->sampler);
+
+     llama_memory_clear(llama_get_memory(this->ctx), /*clear data=*/true);
+
+@@ -172,6 +179,9 @@ int32_t LlamaLlm::load_kv_cache(const geniex_KvCacheLoadInput* input, geniex_KvC
+     this->n_past        = n_past;
+     this->n_past_global = 0;
+     this->past_prompt_tokens.clear();
++    this->stateful_mode = true;
++    this->sampler_history.clear();
++    this->logits_index.clear();
+
+     return ret ? GENIEX_SUCCESS : GENIEX_ERROR_COMMON_UNKNOWN;
+ }
+@@ -224,6 +234,13 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
+     // Validate input
+     if (!input) return GENIEX_ERROR_COMMON_INVALID_INPUT;
+
++    // The one-shot API owns its prompt/KV lifecycle; never append it to a
++    // low-level mixed token/embedding sequence.
++    if (this->stateful_mode) {
++        int32_t reset_result = this->reset();
++        if (reset_result != GENIEX_SUCCESS) return reset_result;
++    }
++
+     bool has_input_ids   = input->input_ids != nullptr && input->input_ids_count > 0;
+     bool has_prompt_utf8 = input->prompt_utf8 != nullptr;
+
+@@ -462,6 +479,276 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
+     return res;
+ }
+
++int32_t LlamaLlm::decode(const geniex_LlmBatch* input, geniex_LlmDecodeOutput* output) {
++    if (!input || input->struct_size < sizeof(geniex_LlmBatch) || !output ||
++        output->struct_size < sizeof(geniex_LlmDecodeOutput)) {
++        return GENIEX_ERROR_COMMON_INVALID_INPUT;
++    }
++    if (!this->ctx || !this->model) return GENIEX_ERROR_COMMON_NOT_INITIALIZED;
++
++    std::memset(output, 0, sizeof(*output));
++    output->struct_size   = sizeof(*output);
++    output->next_position = -1;
++
++    const bool has_tokens = input->token != nullptr;
++    const bool has_embd   = input->embd != nullptr;
++    if (has_tokens == has_embd || input->n_tokens <= 0) {
++        GENIEX_LOG_ERROR("decode requires exactly one non-empty token or embd input");
++        return GENIEX_ERROR_COMMON_INVALID_INPUT;
++    }
++    if (static_cast<uint32_t>(input->n_tokens) > llama_n_batch(this->ctx)) {
++        GENIEX_LOG_ERROR("decode batch size {} exceeds n_batch {}", input->n_tokens, llama_n_batch(this->ctx));
++        return GENIEX_ERROR_COMMON_INVALID_INPUT;
++    }
++
++    const llama_vocab* vocab = llama_model_get_vocab(this->model);
++    if (has_tokens) {
++        if (input->embd_dim != 0) return GENIEX_ERROR_COMMON_INVALID_INPUT;
++        const int32_t vocab_size = llama_vocab_n_tokens(vocab);
++        for (int32_t i = 0; i < input->n_tokens; ++i) {
++            if (input->token[i] < 0 || input->token[i] >= vocab_size) {
++                GENIEX_LOG_ERROR("decode token ID out of range at row {}: {}", i, input->token[i]);
++                return GENIEX_ERROR_COMMON_INVALID_INPUT;
++            }
++        }
++    } else {
++        const int32_t n_embd = llama_model_n_embd_inp(this->model);
++        if (input->embd_dim != n_embd) {
++            GENIEX_LOG_ERROR("decode embd width mismatch: got {}, model requires {}", input->embd_dim, n_embd);
++            return GENIEX_ERROR_COMMON_INVALID_INPUT;
++        }
++        const size_t rows  = static_cast<size_t>(input->n_tokens);
++        const size_t width = static_cast<size_t>(input->embd_dim);
++        if (rows > std::numeric_limits<size_t>::max() / width) return GENIEX_ERROR_COMMON_INVALID_INPUT;
++        for (size_t i = 0; i < rows * width; ++i) {
++            if (!std::isfinite(input->embd[i])) {
++                GENIEX_LOG_ERROR("decode embd contains a non-finite value at flat index {}", i);
++                return GENIEX_ERROR_COMMON_INVALID_INPUT;
++            }
++        }
++    }
++
++    if (input->pos) {
++        for (int32_t i = 0; i < input->n_tokens; ++i) {
++            if (input->pos[i] < 0) return GENIEX_ERROR_COMMON_INVALID_INPUT;
++        }
++    }
++
++    const bool has_n_seq_id = input->n_seq_id != nullptr;
++    const bool has_seq_id   = input->seq_id != nullptr;
++    if (has_n_seq_id != has_seq_id) return GENIEX_ERROR_COMMON_INVALID_INPUT;
++    const uint32_t context_n_seq_max = llama_n_seq_max(this->ctx);
++    if (has_seq_id) {
++        for (int32_t i = 0; i < input->n_tokens; ++i) {
++            if (!input->seq_id[i] || input->n_seq_id[i] <= 0 ||
++                static_cast<uint32_t>(input->n_seq_id[i]) > context_n_seq_max) {
++                return GENIEX_ERROR_COMMON_INVALID_INPUT;
++            }
++            for (int32_t j = 0; j < input->n_seq_id[i]; ++j) {
++                const int32_t seq = input->seq_id[i][j];
++                if (seq < 0 || static_cast<uint32_t>(seq) >= context_n_seq_max) {
++                    return GENIEX_ERROR_COMMON_INVALID_INPUT;
++                }
++            }
++        }
++    }
++
++    std::vector<llama_seq_id*> seq_id_rows;
++    if (has_seq_id) {
++        seq_id_rows.resize(input->n_tokens);
++        for (int32_t i = 0; i < input->n_tokens; ++i) {
++            seq_id_rows[i] = const_cast<llama_seq_id*>(
++                reinterpret_cast<const llama_seq_id*>(input->seq_id[i]));
++        }
++    }
++
++    llama_batch batch{};
++    batch.n_tokens = input->n_tokens;
++    batch.token = has_tokens
++                      ? const_cast<llama_token*>(reinterpret_cast<const llama_token*>(input->token))
++                      : nullptr;
++    batch.embd = has_embd ? const_cast<float*>(input->embd) : nullptr;
++    batch.pos = input->pos ? const_cast<llama_pos*>(reinterpret_cast<const llama_pos*>(input->pos)) : nullptr;
++    batch.n_seq_id = has_n_seq_id ? const_cast<int32_t*>(input->n_seq_id) : nullptr;
++    batch.seq_id = seq_id_rows.empty() ? nullptr : seq_id_rows.data();
++    batch.logits = input->logits ? const_cast<int8_t*>(input->logits) : nullptr;
++
++    ::common::Profiler profiler;
++    profiler.prompt_start();
++    const int rc = llama_decode(this->ctx, batch);
++    profiler.prompt_end();
++    if (rc != 0) {
++        profiler.update_prompt_tokens(0);
++        profiler.to_profile_data(output->profile_data);
++        return rc == 1 ? GENIEX_ERROR_LLM_TOKENIZATION_CONTEXT_LENGTH : GENIEX_ERROR_LLM_GENERATION_FAILED;
++    }
++
++    if (!this->stateful_mode) {
++        this->sampler_history.clear();
++        auto& history = this->sampler_history[0];
++        history.reserve(this->past_prompt_tokens.size());
++        for (llama_token token : this->past_prompt_tokens) history.push_back({token, false});
++    }
++    this->stateful_mode = true;
++
++    auto for_each_sequence = [&](int32_t row, const auto& fn) {
++        if (!has_seq_id) {
++            fn(static_cast<llama_seq_id>(0));
++            return;
++        }
++        for (int32_t j = 0; j < input->n_seq_id[row]; ++j) {
++            fn(static_cast<llama_seq_id>(input->seq_id[row][j]));
++        }
++    };
++    if (has_tokens) {
++        for (int32_t i = 0; i < input->n_tokens; ++i) {
++            for_each_sequence(i, [&](llama_seq_id seq) {
++                this->sampler_history[seq].push_back({static_cast<llama_token>(input->token[i]), false});
++            });
++        }
++    }
++
++    this->logits_index.clear();
++    if (input->logits) {
++        for (int32_t i = 0; i < input->n_tokens; ++i) {
++            if (input->logits[i]) {
++                for_each_sequence(i, [&](llama_seq_id seq) { this->logits_index[seq] = i; });
++            }
++        }
++    } else {
++        const int32_t i = input->n_tokens - 1;
++        for_each_sequence(i, [&](llama_seq_id seq) { this->logits_index[seq] = i; });
++    }
++
++    this->n_past_global = 0;
++    this->past_prompt_tokens.clear();
++    const llama_pos pos_max = llama_memory_seq_pos_max(llama_get_memory(this->ctx), 0);
++    this->n_past = pos_max >= 0 ? static_cast<int>(pos_max + 1) : 0;
++    output->n_decoded = input->n_tokens;
++    output->next_position = pos_max >= 0 ? static_cast<int32_t>(pos_max + 1) : -1;
++    profiler.update_prompt_tokens(static_cast<uint32_t>(input->n_tokens));
++    profiler.set_stop_reason(::common::StopReason::GENIEX_STOP_REASON_COMPLETED);
++    profiler.to_profile_data(output->profile_data);
++    return GENIEX_SUCCESS;
++}
++
++int32_t LlamaLlm::generate_from_state(
++    const geniex_LlmGenerateFromStateInput* input, geniex_LlmGenerateOutput* output) {
++    if (!input || input->struct_size < sizeof(geniex_LlmGenerateFromStateInput) || !output) {
++        return GENIEX_ERROR_COMMON_INVALID_INPUT;
++    }
++    if (!this->ctx || !this->model) return GENIEX_ERROR_COMMON_NOT_INITIALIZED;
++    std::memset(output, 0, sizeof(*output));
++
++    if (!this->stateful_mode || input->sequence_id < 0 ||
++        static_cast<uint32_t>(input->sequence_id) >= llama_n_seq_max(this->ctx)) {
++        return GENIEX_ERROR_COMMON_INVALID_INPUT;
++    }
++    auto logits_it = this->logits_index.find(input->sequence_id);
++    if (logits_it == this->logits_index.end()) {
++        GENIEX_LOG_ERROR("generate_from_state requires logits for sequence {}", input->sequence_id);
++        return GENIEX_ERROR_COMMON_INVALID_INPUT;
++    }
++
++    llama_pos next_position = llama_memory_seq_pos_max(llama_get_memory(this->ctx), input->sequence_id);
++    if (next_position < 0) return GENIEX_ERROR_COMMON_INVALID_INPUT;
++    ++next_position;
++
++    geniex_GenerationConfig cfg = input->config ? *input->config : geniex_GenerationConfig{};
++    if (cfg.stop_count < 0 || (cfg.stop_count > 0 && !cfg.stop)) return GENIEX_ERROR_COMMON_INVALID_INPUT;
++    cfg.max_tokens = cfg.max_tokens > 0 ? cfg.max_tokens : 128;
++
++    this->set_sampler(cfg.sampler_config);
++    if (!this->sampler) return GENIEX_ERROR_COMMON_MEMORY_ALLOCATION;
++    auto history_it = this->sampler_history.find(input->sequence_id);
++    if (history_it != this->sampler_history.end()) {
++        for (const auto& entry : history_it->second) {
++            common_sampler_accept(this->sampler, entry.token, entry.generated);
++        }
++    }
++
++    const llama_vocab* vocab = llama_model_get_vocab(this->model);
++    ::common::Profiler profiler;
++    profiler.decode_start();
++    int32_t res = GENIEX_SUCCESS;
++    int32_t sample_index = logits_it->second;
++    bool first_token_generated = false;
++    std::vector<llama_token> generated_tokens;
++    std::stringstream full_text;
++
++    while (res == GENIEX_SUCCESS && static_cast<int32_t>(generated_tokens.size()) < cfg.max_tokens) {
++        const llama_token id = common_sampler_sample(this->sampler, this->ctx, sample_index);
++        common_sampler_accept(this->sampler, id, true);
++        if (!first_token_generated) {
++            profiler.record_ttft();
++            first_token_generated = true;
++        }
++        if (llama_vocab_is_eog(vocab, id)) {
++            profiler.set_stop_reason(::common::StopReason::GENIEX_STOP_REASON_EOS);
++            break;
++        }
++
++        char token_buf[64];
++        int n = llama_token_to_piece(vocab, id, token_buf, sizeof(token_buf) - 1, 0, this->allow_special_tokens);
++        if (n < 0) {
++            res = GENIEX_ERROR_LLM_GENERATION_FAILED;
++            break;
++        }
++        token_buf[n] = '\0';
++        const bool stop_matched = cfg.stop_count > 0 && std::any_of(
++            cfg.stop, cfg.stop + cfg.stop_count,
++            [&](const char* s) { return s && std::strcmp(token_buf, s) == 0; });
++        if (stop_matched) {
++            profiler.set_stop_reason(::common::StopReason::GENIEX_STOP_REASON_STOP_SEQUENCE);
++            break;
++        }
++
++        generated_tokens.push_back(id);
++        if (input->on_token && !input->on_token(token_buf, input->user_data)) {
++            profiler.set_stop_reason(::common::StopReason::GENIEX_STOP_REASON_USER);
++            break;
++        }
++        full_text << token_buf;
++
++        llama_token token = id;
++        llama_pos position = next_position;
++        int32_t n_seq_id = 1;
++        llama_seq_id sequence = input->sequence_id;
++        llama_seq_id* sequences = &sequence;
++        int8_t want_logits = 1;
++        llama_batch batch{};
++        batch.n_tokens = 1;
++        batch.token = &token;
++        batch.pos = &position;
++        batch.n_seq_id = &n_seq_id;
++        batch.seq_id = &sequences;
++        batch.logits = &want_logits;
++
++        const int rc = llama_decode(this->ctx, batch);
++        if (rc != 0) {
++            this->logits_index.clear();
++            res = rc == 1 ? GENIEX_ERROR_LLM_TOKENIZATION_CONTEXT_LENGTH : GENIEX_ERROR_LLM_GENERATION_FAILED;
++            break;
++        }
++        ++next_position;
++        this->sampler_history[input->sequence_id].push_back({id, true});
++        this->logits_index.clear();
++        this->logits_index[input->sequence_id] = 0;
++        sample_index = 0;
++        if (input->sequence_id == 0) this->n_past = static_cast<int>(next_position);
++    }
++
++    if (res == GENIEX_ERROR_LLM_TOKENIZATION_CONTEXT_LENGTH ||
++        static_cast<int32_t>(generated_tokens.size()) >= cfg.max_tokens) {
++        profiler.set_stop_reason(::common::StopReason::GENIEX_STOP_REASON_LENGTH);
++    }
++    profiler.decode_end();
++    profiler.update_generated_tokens(static_cast<uint32_t>(generated_tokens.size()));
++    profiler.to_profile_data(output->profile_data);
++    output->full_text = strdup(full_text.str().c_str());
++    return output->full_text ? res : GENIEX_ERROR_COMMON_MEMORY_ALLOCATION;
++}
++
+ int32_t LlamaLlm::get_model_info(geniex_LlmModelInfo* output) {
+     if (!this->model) return GENIEX_ERROR_COMMON_NOT_INITIALIZED;
+     const llama_vocab* vocab = llama_model_get_vocab(this->model);
+diff --git a/sdk/src/llm.cpp b/sdk/src/llm.cpp
+index ae4e002..b90d6d0 100644
+--- a/sdk/src/llm.cpp
++++ b/sdk/src/llm.cpp
+@@ -159,6 +159,62 @@ int32_t geniex_llm_generate(geniex_LLM* h, const geniex_LlmGenerateInput* input,
+     }
+ }
+
++int32_t geniex_llm_decode(
++    geniex_LLM* h, const geniex_LlmBatch* batch, geniex_LlmDecodeOutput* output) {
++    if (!batch || batch->struct_size < sizeof(geniex_LlmBatch) || !output ||
++        output->struct_size < sizeof(geniex_LlmDecodeOutput)) {
++        return GENIEX_ERROR_COMMON_INVALID_INPUT;
++    }
++    std::memset(output, 0, sizeof(*output));
++    output->struct_size   = sizeof(*output);
++    output->next_position = -1;
++
++    try {
++        auto backend = reinterpret_cast<ILlm*>(h);
++        if (!backend) return GENIEX_ERROR_COMMON_NOT_INITIALIZED;
++        int32_t result = backend->decode(batch, output);
++        calculate_profile_data(output->profile_data);
++        return result;
++    } catch (const std::exception& e) {
++        GENIEX_LOG_ERROR("llm decode error: {}", e.what());
++        return GENIEX_ERROR_COMMON_UNKNOWN;
++    }
++}
++
++int32_t geniex_llm_generate_from_state(geniex_LLM* h,
++    const geniex_LlmGenerateFromStateInput* input, geniex_LlmGenerateOutput* output) {
++    if (!input || input->struct_size < sizeof(geniex_LlmGenerateFromStateInput) || !output) {
++        return GENIEX_ERROR_COMMON_INVALID_INPUT;
++    }
++    std::memset(output, 0, sizeof(*output));
++
++    try {
++        auto backend = reinterpret_cast<ILlm*>(h);
++        if (!backend) return GENIEX_ERROR_COMMON_NOT_INITIALIZED;
++
++        std::unique_ptr<Utf8CallbackWrapper> wrapper;
++        geniex_LlmGenerateFromStateInput      modified_input;
++        int32_t                               result;
++        if (input->on_token) {
++            wrapper                     = std::make_unique<Utf8CallbackWrapper>();
++            wrapper->original_callback  = input->on_token;
++            wrapper->original_user_data = input->user_data;
++            modified_input              = *input;
++            modified_input.on_token     = get_utf8_callback_wrapper();
++            modified_input.user_data    = wrapper.get();
++            result = backend->generate_from_state(&modified_input, output);
++            wrapper->flush();
++        } else {
++            result = backend->generate_from_state(input, output);
++        }
++        calculate_profile_data(output->profile_data);
++        return result;
++    } catch (const std::exception& e) {
++        GENIEX_LOG_ERROR("llm generate from state error: {}", e.what());
++        return GENIEX_ERROR_COMMON_UNKNOWN;
++    }
++}
++
+ int32_t geniex_llm_get_model_info(geniex_LLM* h, geniex_LlmModelInfo* output) {
+     GENIEX_LOG_TRACE("llm get_model_info");
+
+--
+2.43.0

@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vibroagent-mcp"
+version = "0.4.7"
+description = "Edge building-vibration monitoring MCP application with multi-sensor relative analysis"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "pydantic>=2.0",
+    "mcp[cli]>=1.2.0",
+]
+
+[project.optional-dependencies]
+qwen = [
+    "openai>=1.0.0",
+]
+onnx = [
+    "onnxruntime>=1.17.0",
+    "onnxruntime-genai>=0.14.1",
+]
+onnx-export = [
+    "huggingface-hub>=0.34.0",
+    "onnx>=1.17.0",
+    "onnxscript>=0.2.0",
+    "safetensors>=0.4.0",
+    "torch>=2.4.0",
+    "transformers>=5.0.0",
+]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+vibroagent-onnx-openai = "vibroagent_mcp.onnx_openai_server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "../stdatalog_core", "../stdatalog_pnpl", "../stdatalog_dtk", ".."]
+
+[tool.setuptools.package-data]
+vibroagent_mcp = ["static/*.png", "static/vibrogemma/*"]
+"vibroagent_mcp.svp" = ["data/*.json"]

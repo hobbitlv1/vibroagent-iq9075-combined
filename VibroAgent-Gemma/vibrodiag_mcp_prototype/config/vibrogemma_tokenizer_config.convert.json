@@ -1,0 +1,12 @@
+{
+  "tokenizer_class": "GemmaTokenizer",
+  "backend": "tokenizers",
+  "bos_token": "<bos>",
+  "eos_token": "<eos>",
+  "pad_token": "<pad>",
+  "unk_token": "<unk>",
+  "model_max_length": 131072,
+  "extra_special_tokens": {
+    "video_token": "<|video|>"
+  }
+}

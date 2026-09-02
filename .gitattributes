@@ -1,0 +1,9 @@
+*.npz binary
+*.onnx binary
+*.onnx.data binary
+*.png binary
+*.woff2 binary
+
+# Frozen model-bundle files are checksum-bound and must not be whitespace-normalized.
+VibroAgent-Gemma/models/vibroagent-gemma-g1/** -text -diff -whitespace
+VibroAgent-Gemma/vibrodiag_mcp_prototype/patches/*.patch -whitespace

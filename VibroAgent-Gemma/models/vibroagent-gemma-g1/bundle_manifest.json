@@ -1,0 +1,742 @@
+{
+  "bundle_version": "g1-20260830-q8-4k",
+  "created_utc": "2026-08-30T23:50:11.313275+00:00",
+  "decision": {
+    "classes": [
+      "normal",
+      "unknown_anomaly"
+    ],
+    "mode": "parallel_binary_global_plus_joint_target_set_v1",
+    "quality_class": "data_invalid",
+    "target_query_order": "deterministic_per_episode"
+  },
+  "deployment_profile": "binary_state_v2",
+  "encoder": {
+    "checker_passed": true,
+    "external_data": "vibration_encoder_projector.onnx.data",
+    "max_absolute_token_error": 7.867813110351562e-06,
+    "onnx": "vibration_encoder_projector.onnx",
+    "output_shape": [
+      1,
+      84,
+      1536
+    ]
+  },
+  "files": [
+    {
+      "path": "DEPLOYMENT.md",
+      "sha256": "3d0724a1990174fd5e882705cc295597dfc51f6b104457ec2ce9328012cdfb77",
+      "size_bytes": 4924
+    },
+    {
+      "path": "MODEL_CARD.md",
+      "sha256": "55924c486fd78ad39d42d58a07ec61f352e5ee279e2fa69c3db0f053cdf747ed",
+      "size_bytes": 3339
+    },
+    {
+      "path": "PACKAGE_MANIFEST.json",
+      "sha256": "1c851cc10284cf01a55ea7aceecdc4d271d7b9db90c6cdf36ba030b20a958e4c",
+      "size_bytes": 39761
+    },
+    {
+      "path": "alert.schema.json",
+      "sha256": "2a6c64e9fa3df4163be0edb768f79e8541668941f9b08eeb537af8b61f8800ab",
+      "size_bytes": 2863
+    },
+    {
+      "path": "artifacts/healthy_profile.json",
+      "sha256": "8bd50bc4b5fe432c628aa71e32b6c8bca707aa3223ac0f6a2c22bf566ee76d04",
+      "size_bytes": 631327
+    },
+    {
+      "path": "gemma/config.json",
+      "sha256": "41c8153e3bc0fcf5b7dc85ff4598f4ca850ab31a5625b710d787d5605545eeba",
+      "size_bytes": 5278
+    },
+    {
+      "path": "gemma/generation_config.json",
+      "sha256": "6328ccd19ad0a8f6c1283946a83cd43ac494475007529275bb47bd1d05243515",
+      "size_bytes": 204
+    },
+    {
+      "path": "gemma-4-e2b-g1-Q4_0_embq8.gguf",
+      "sha256": "edf271b1182c7ec572745bceb6724ad3045e32919567149ccae22583eab73311",
+      "size_bytes": 4015885888
+    },
+    {
+      "path": "gemma-4-e2b-g1-Q8_0.gguf",
+      "sha256": "11ceefee8d62080072fe2b65f68beab5e0f31ad716c640178ed93b5ac0eb31d6",
+      "size_bytes": 4947414592
+    },
+    {
+      "path": "onnx_validation.json",
+      "sha256": "a9f863296e71441de5df9ff88a3da2c4bc282acf9efdc4bf16b2434c084068c4",
+      "size_bytes": 303
+    },
+    {
+      "path": "pipeline_src/vibrogemma/__init__.py",
+      "sha256": "0a4d6a72487aa783dc6c2a749cdffd51ab0be30d78b14d9d93d9c4a301b77c0d",
+      "size_bytes": 168
+    },
+    {
+      "path": "pipeline_src/vibrogemma/__main__.py",
+      "sha256": "c1c0ab2f83e31b9d6be7054aa8985ca093d32df1d6d3035b0f7d43ad43743162",
+      "size_bytes": 28
+    },
+    {
+      "path": "pipeline_src/vibrogemma/__pycache__/__init__.cpython-312.pyc",
+      "sha256": "7f52b59b5cfe40a77a84a3cca0bf8676f796ee52de6743b62c4c5c8c13c0c108",
+      "size_bytes": 400
+    },
+    {
+      "path": "pipeline_src/vibrogemma/__pycache__/config.cpython-312.pyc",
+      "sha256": "88d17d240b68c78128f50642dd264276a061acac17526ab5896ef6681014cd4b",
+      "size_bytes": 15393
+    },
+    {
+      "path": "pipeline_src/vibrogemma/__pycache__/contracts.cpython-312.pyc",
+      "sha256": "830775d2e9c145ccc942a665a5f938cbe0c5f2642318a5f229ba7003d0ac063e",
+      "size_bytes": 21153
+    },
+    {
+      "path": "pipeline_src/vibrogemma/__pycache__/exceptions.cpython-312.pyc",
+      "sha256": "c5c4d6a313645a67da5665d2f018d2977818378d69dfe552f0c0029f8411dc49",
+      "size_bytes": 1535
+    },
+    {
+      "path": "pipeline_src/vibrogemma/__pycache__/utils.cpython-312.pyc",
+      "sha256": "a7f64ec70fc0869351bae28273e959e93d6dd86b63857ec5a568f03a0bc5f493",
+      "size_bytes": 7348
+    },
+    {
+      "path": "pipeline_src/vibrogemma/cli.py",
+      "sha256": "8f315f0d0efb4e57811bfe10ad5fdd75b6ae9b89248e9d383a93b428e5b23c86",
+      "size_bytes": 20811
+    },
+    {
+      "path": "pipeline_src/vibrogemma/config.py",
+      "sha256": "0c2779f937dd483721a18016cb765e6ec12815e0c412a81d3d54b48a3c3a7429",
+      "size_bytes": 11857
+    },
+    {
+      "path": "pipeline_src/vibrogemma/contracts.py",
+      "sha256": "765a763025e321e055cbc514fd1d98cd54e3f996a8c05f8f21e279806e0d0805",
+      "size_bytes": 14092
+    },
+    {
+      "path": "pipeline_src/vibrogemma/data/__init__.py",
+      "sha256": "ed629790eb63f31fdce712638cd49a67a7a1bab178e959409c3499023642479f",
+      "size_bytes": 1627
+    },
+    {
+      "path": "pipeline_src/vibrogemma/data/auto_index.py",
+      "sha256": "44913e754cab810b045ef88b051161c1020a3049823612d2fea43ae2abcfbdbd",
+      "size_bytes": 95781
+    },
+    {
+      "path": "pipeline_src/vibrogemma/data/episodes.py",
+      "sha256": "ca78daef24e842eae525d9d3f8baeea0e8ff8e3ace09a7836d2d978975ec9ad9",
+      "size_bytes": 62007
+    },
+    {
+      "path": "pipeline_src/vibrogemma/data/hbta_v4_names.py",
+      "sha256": "a4f8e1137673a7e3238f95f55ed196a18c9bb3dfebf485d1b0ec459e0f2168bc",
+      "size_bytes": 2177
+    },
+    {
+      "path": "pipeline_src/vibrogemma/data/hbta_v4_verified.py",
+      "sha256": "27e659ccf5fae5eecd665e7af380bfd2551404e5dc6bca71ea166f849ac51d70",
+      "size_bytes": 47334
+    },
+    {
+      "path": "pipeline_src/vibrogemma/data/indexing.py",
+      "sha256": "974904aa4ef7d8187be8f8acdd7e99dd5b8adf4476d3ea723d34896f6f39ecd6",
+      "size_bytes": 1712
+    },
+    {
+      "path": "pipeline_src/vibrogemma/data/luh_reversible_geometry.py",
+      "sha256": "3c44318f04be62b92a29877843a1eee4b029016cbed2947f790fa1155fdecfd9",
+      "size_bytes": 4203
+    },
+    {
+      "path": "pipeline_src/vibrogemma/data/lumo_geometry.py",
+      "sha256": "e152d15bd57786cc0f3bed5a9df9eb17f3c685f5c43626991aa402864f06b6b0",
+      "size_bytes": 4886
+    },
+    {
+      "path": "pipeline_src/vibrogemma/data/manifest.py",
+      "sha256": "36417b336dbf9da2538bc6353846569a79eb0f6598feec423d672f0ad848ba51",
+      "size_bytes": 3900
+    },
+    {
+      "path": "pipeline_src/vibrogemma/data/private_drive.py",
+      "sha256": "46fdd5dc1102a7c3dfc85f1d4575d826c088df8d2d99916e41bced7149b1a5be",
+      "size_bytes": 26856
+    },
+    {
+      "path": "pipeline_src/vibrogemma/data/profiles.py",
+      "sha256": "abd61cb7e7dfcd8f6da568ced820e9c5df6360cced6a124a841fdf0cd89711e4",
+      "size_bytes": 6057
+    },
+    {
+      "path": "pipeline_src/vibrogemma/data/serialization.py",
+      "sha256": "d0a6bbf52c0b5f4b2fd62236cb87558d80676d8e682bba7b697df719ee7a665b",
+      "size_bytes": 6308
+    },
+    {
+      "path": "pipeline_src/vibrogemma/data/split_audit.py",
+      "sha256": "19cf450b9bc05c629d0a08f121a37c10e48ba020fc577532d8fa679c451acc0a",
+      "size_bytes": 24380
+    },
+    {
+      "path": "pipeline_src/vibrogemma/data/splits.py",
+      "sha256": "43cf3b714953929783ed47ed85b7de2a123c38ad97fcd8f8aa62d64c16a19d5c",
+      "size_bytes": 9368
+    },
+    {
+      "path": "pipeline_src/vibrogemma/evaluation/__init__.py",
+      "sha256": "a1901263a2922d34028470f97b50026c9e823076f9376a1fe72b1aef0f8e02fc",
+      "size_bytes": 78
+    },
+    {
+      "path": "pipeline_src/vibrogemma/evaluation/evaluator.py",
+      "sha256": "90174d0bac8e796a03c8826f30f95d07a62364a0de3b6c5cca17e2bd6d6710a6",
+      "size_bytes": 41318
+    },
+    {
+      "path": "pipeline_src/vibrogemma/evaluation/gates.py",
+      "sha256": "3228c324ec512b607a160442aef2e56beb337507aa045587f758535c407a72c0",
+      "size_bytes": 22700
+    },
+    {
+      "path": "pipeline_src/vibrogemma/evaluation/localization_collapse_v015.py",
+      "sha256": "a3a8c02667dfa0a3783b80c59bcdd990f0927d8d9c26a72ba2d1293a4efaaac6",
+      "size_bytes": 1823
+    },
+    {
+      "path": "pipeline_src/vibrogemma/evaluation/metrics.py",
+      "sha256": "11822ed072e5b0196605dec62534c98f003af0b57d2a9cdf7f4fda37f032e359",
+      "size_bytes": 18990
+    },
+    {
+      "path": "pipeline_src/vibrogemma/evaluation/regression.py",
+      "sha256": "79655c63e311aff17af2968816c751c026e3403221224288356640506e5e2f7d",
+      "size_bytes": 14920
+    },
+    {
+      "path": "pipeline_src/vibrogemma/evaluation/selection.py",
+      "sha256": "03d868af0f636a564298bc8b10bbcb2dfdcdbb83a3890dca7ef211503cc9d534",
+      "size_bytes": 16878
+    },
+    {
+      "path": "pipeline_src/vibrogemma/evaluation/target_identity.py",
+      "sha256": "eff8af5c99b8ca26acc0abac23c4a7645ca5e424c7b188be880c67533efc7bb1",
+      "size_bytes": 13565
+    },
+    {
+      "path": "pipeline_src/vibrogemma/exceptions.py",
+      "sha256": "853284a2983caad8183ac1fb8b1fc1e69a3f4ab7ddfd430bac018700870a26d2",
+      "size_bytes": 635
+    },
+    {
+      "path": "pipeline_src/vibrogemma/experiments/__init__.py",
+      "sha256": "6eb19eb5332324914cd4c5b93a9f2f8cf51cc13e3b27bea469d3ac3c0299b069",
+      "size_bytes": 386
+    },
+    {
+      "path": "pipeline_src/vibrogemma/experiments/ablation_runtime.py",
+      "sha256": "92c9679fcbdffc56c75bb4427f83474a3baee15398731a7430400cadf9dfcfd2",
+      "size_bytes": 18489
+    },
+    {
+      "path": "pipeline_src/vibrogemma/experiments/corpus_views.py",
+      "sha256": "0c49527ff7ba481a38b4c6ed20625e45c7be257066a2422c2fcda9692ad800eb",
+      "size_bytes": 8526
+    },
+    {
+      "path": "pipeline_src/vibrogemma/export/__init__.py",
+      "sha256": "b46e05ac460a7621cce0b46a722f3df0fb83b28cd76ef2d1dc93ed8b9c5c8165",
+      "size_bytes": 85
+    },
+    {
+      "path": "pipeline_src/vibrogemma/export/__pycache__/__init__.cpython-312.pyc",
+      "sha256": "556620e4cfff2061785e34723c987dac8edc59c7963e066921773cdae3e63ee3",
+      "size_bytes": 303
+    },
+    {
+      "path": "pipeline_src/vibrogemma/export/__pycache__/bundle.cpython-312.pyc",
+      "sha256": "3be3922312831121444c8967079458efad2d73401a02c3169931cc8bb50dd596",
+      "size_bytes": 15140
+    },
+    {
+      "path": "pipeline_src/vibrogemma/export/bundle.py",
+      "sha256": "34f6345b75b421dff06f046ca498496c387729423fb00dfb1a8ebc127fcbcfe3",
+      "size_bytes": 12678
+    },
+    {
+      "path": "pipeline_src/vibrogemma/final_protocol_v015.py",
+      "sha256": "18e4889092de2e997d57e317f5b7ed32639b290e04fcc29000694d41e538dcc9",
+      "size_bytes": 19855
+    },
+    {
+      "path": "pipeline_src/vibrogemma/final_protocol_v016.py",
+      "sha256": "63a9c17ce7bddb86333f44a125e3a84c8f2326284f3bee405f09870ff3e0bceb",
+      "size_bytes": 18819
+    },
+    {
+      "path": "pipeline_src/vibrogemma/inference/__init__.py",
+      "sha256": "7204d911d577b7f0c1bece7a394f3b23f78bdd40dd7abac82d7b467a15524e28",
+      "size_bytes": 111
+    },
+    {
+      "path": "pipeline_src/vibrogemma/inference/engine.py",
+      "sha256": "9d9e4120a459d74a218063f099f0cdc82dca3bfbe1d529ff5b8dbe71edbe3e53",
+      "size_bytes": 2133
+    },
+    {
+      "path": "pipeline_src/vibrogemma/inference/notifier.py",
+      "sha256": "4a2b982137c29d7bafbb1b9f023b4409c302137d7daa3545ea58b5f0a14edf5d",
+      "size_bytes": 2856
+    },
+    {
+      "path": "pipeline_src/vibrogemma/inference/policy.py",
+      "sha256": "f08d67d5c669fb05e38d3b8cf85158450a8324eeb68a04a9e406c199f96caec1",
+      "size_bytes": 3185
+    },
+    {
+      "path": "pipeline_src/vibrogemma/inference/service.py",
+      "sha256": "b9d9a6318c208326c3e882071b14697c76831cf17d6f4584e0c2fa0d0c42e99f",
+      "size_bytes": 1726
+    },
+    {
+      "path": "pipeline_src/vibrogemma/inference/store.py",
+      "sha256": "7d4811a5b05943ac82dabb3921371643abe16b9cb6c0b65548b51b5b651550c9",
+      "size_bytes": 4266
+    },
+    {
+      "path": "pipeline_src/vibrogemma/live/__init__.py",
+      "sha256": "e5faab7c5cb37a2f1c52c3379baff363dd5d5e9ffad036a7ad8eb6564416ec39",
+      "size_bytes": 236
+    },
+    {
+      "path": "pipeline_src/vibrogemma/live/coordinator.py",
+      "sha256": "ff4881613ed2888af96fcf285693fc1f8af63ee76c4cb022b6eb12b6b7779f98",
+      "size_bytes": 10168
+    },
+    {
+      "path": "pipeline_src/vibrogemma/live/ring_buffer.py",
+      "sha256": "c5cd0676d27710647c6e34258ea37e8745b00eb4a4fec6dcf567881dd2265c55",
+      "size_bytes": 6007
+    },
+    {
+      "path": "pipeline_src/vibrogemma/live/sources.py",
+      "sha256": "b239dacb1dd402c636bb3e87433445020a53a531a5010ab8f21cf95f7172c398",
+      "size_bytes": 13753
+    },
+    {
+      "path": "pipeline_src/vibrogemma/live/sync.py",
+      "sha256": "02e476311c822d7d80e754622bf0a4d2be08f3be148a6087310cb4762f7e43fc",
+      "size_bytes": 7847
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/__init__.py",
+      "sha256": "12affacc8392932e644e82d5c6d1e8dd3ce2bda9cddb33326bcacd3dc6124e3b",
+      "size_bytes": 169
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/__pycache__/__init__.cpython-312.pyc",
+      "sha256": "99a1430f88390d77565d2542fab37a004c03d62971629deec343ae1f52eb8a0a",
+      "size_bytes": 375
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/__pycache__/calibration.cpython-312.pyc",
+      "sha256": "17e5d67efe95b4b579571cc5219c4d4e358934909520b08a56e68329e63310cb",
+      "size_bytes": 15279
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/__pycache__/encoder.cpython-312.pyc",
+      "sha256": "b82bbe2366308dd3b006cd2bf092bb94ed3228412f0b50647bfb0f13538dfe96",
+      "size_bytes": 38031
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/__pycache__/explanations.cpython-312.pyc",
+      "sha256": "9fb0fa07d6e12d5ee8c99df00b9fe319969fd858fee85e5e588a1cc5b1aa0226",
+      "size_bytes": 14034
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/__pycache__/gemma_bridge.cpython-312.pyc",
+      "sha256": "ba02f8f13439d5f7c64fc41fba4a12ce0e6250747df2e9ad099120a8d3474475",
+      "size_bytes": 8763
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/__pycache__/generation.cpython-312.pyc",
+      "sha256": "b70b8b4e1139db3243c628c65c8549dc243c80f415bfb614a7d7cdd00667c008",
+      "size_bytes": 16977
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/__pycache__/grammar.cpython-312.pyc",
+      "sha256": "60d78d6d86ac292da8b5895f769ac0e61633306b4976bb3fc5990525a457c5e4",
+      "size_bytes": 7834
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/__pycache__/pipeline.cpython-312.pyc",
+      "sha256": "e1b736203668c75ca9c774e6854a8c09e2538378391b57b7eae53d139a1046a2",
+      "size_bytes": 58120
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/__pycache__/projector.cpython-312.pyc",
+      "sha256": "ac4b584839c14f3cca31904a55c448f4cae918ca5aa16f931fd437b77fd37f4e",
+      "size_bytes": 3513
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/__pycache__/prompts.cpython-312.pyc",
+      "sha256": "cfc166d1fedc958f1fa4448aff71b4969fc53a4e94b6507b363689db8c461014",
+      "size_bytes": 43618
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/__pycache__/records.cpython-312.pyc",
+      "sha256": "ca7b4e4f7804ded3fd63fa1c62c0acce78b22341330365dda4f853ec712e95c7",
+      "size_bytes": 20621
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/__pycache__/residual.cpython-312.pyc",
+      "sha256": "823ca6f48462f5551d777047dfc31e386a9d2b27a879955061679b80aea2f0e6",
+      "size_bytes": 9308
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/__pycache__/structured_set.cpython-312.pyc",
+      "sha256": "bf294e2021a165cca382c0322eb7bd5eb2bdfb11b69da38ce9e524427f9dc28e",
+      "size_bytes": 29607
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/calibration.py",
+      "sha256": "ce7651c4a588905d35df92073f15616b07ebadc0bd2a3cc856e4cf21027a1b70",
+      "size_bytes": 11464
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/encoder.py",
+      "sha256": "80e52c331f3ab9b483b6ab2e363e24152919e50970a64c751fcc02466c78655d",
+      "size_bytes": 28460
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/explanations.py",
+      "sha256": "eb74187b48162214623df35ce26b9931edff775d642c3e8a0a12350c997d8197",
+      "size_bytes": 10215
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/gemma_bridge.py",
+      "sha256": "7d0c2c0d6605d10dc07139fcdab8265c5704ee8b5aebccea7cfafc838cd72494",
+      "size_bytes": 7205
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/generation.py",
+      "sha256": "4645062bd06450df7b7fb9a33558ca6237150c387b6800c65193a10f85ddbc46",
+      "size_bytes": 13620
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/grammar.py",
+      "sha256": "338dfda8741b6e6bac53e712e9e25e17929ffb6f5be7e15a6d978f0131575f4b",
+      "size_bytes": 4532
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/pipeline.py",
+      "sha256": "6a8b823d25d3a23b69a8a8861bcb535b501707ffbbdac34ff5fb035b6c7698dc",
+      "size_bytes": 54524
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/projector.py",
+      "sha256": "f16275f4c670014d524de8804766512589b188e44bff71088142a4d87d708a8f",
+      "size_bytes": 1498
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/prompts.py",
+      "sha256": "ddbb438e4d762b36e07c6e0ba62ccc87089b28981a6a82d5afcbc4a8060dd899",
+      "size_bytes": 40440
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/records.py",
+      "sha256": "ff5dfb3f331767bc5be80be8f9bc54148b73932f4063e038fe2694c5aac0f5b3",
+      "size_bytes": 13800
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/residual.py",
+      "sha256": "beafe71f30a22a5170f636d2c622b2fc0bd8f2a3b58132f7539e00b2dcdd565f",
+      "size_bytes": 7135
+    },
+    {
+      "path": "pipeline_src/vibrogemma/model/structured_set.py",
+      "sha256": "346fdc9a1e42ba9edcc963c90d4993b18b8d14051e927b6cb5c96d949747a2ae",
+      "size_bytes": 23144
+    },
+    {
+      "path": "pipeline_src/vibrogemma/probe_manifest.py",
+      "sha256": "be19b676a7a22301089795363c5cee1d79f57e378b172100eaa648b192dfbb11",
+      "size_bytes": 6845
+    },
+    {
+      "path": "pipeline_src/vibrogemma/py.typed",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/__init__.py",
+      "sha256": "0624a6514bb25603e56caf5809a10207e9d9d2d94f87f8b85d81d554825788db",
+      "size_bytes": 1187
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/__pycache__/__init__.cpython-312.pyc",
+      "sha256": "13f35712fa5bab105ff460e4c2c2557daaeb3ac1680a4bb396970a91a71d838f",
+      "size_bytes": 1155
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/__pycache__/multiresolution.cpython-312.pyc",
+      "sha256": "f49ecc336c05c241515a44bb478bbaf4e6b49c9d8851f2bdeb4908adc7c0ffe0",
+      "size_bytes": 38031
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/__pycache__/orientation.cpython-312.pyc",
+      "sha256": "390d78ab6286ad77bbbcb1083aa66b56be7f1af8ed49ab61aae0a108bfb76627",
+      "size_bytes": 5481
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/__pycache__/physics.cpython-312.pyc",
+      "sha256": "188aeac78f2eb50d0375a3d74733353cf2e9dfa76694c99abe9ababd412b908e",
+      "size_bytes": 41445
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/__pycache__/profile.cpython-312.pyc",
+      "sha256": "679daeed22c3ea158219fa05a26c63075194dc74e72fb95bd8d22ffc05b7c330",
+      "size_bytes": 15343
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/__pycache__/quality.cpython-312.pyc",
+      "sha256": "ca6b624e23cae9e79702d0035aea30497ebf8c05137aa1ed5108d8f79d6b5849",
+      "size_bytes": 3712
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/__pycache__/resample.cpython-312.pyc",
+      "sha256": "013528750ca58b68d3a5473ffb6122feba177ac2349d2298e1f22227caacbf2f",
+      "size_bytes": 7082
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/__pycache__/spectral.cpython-312.pyc",
+      "sha256": "1a3f0358c02c1636656df1bb47148c64549e8fc9638a67ac7f82c02d56119a66",
+      "size_bytes": 13645
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/__pycache__/units.cpython-312.pyc",
+      "sha256": "6665177dcc6a34d63617b59a8d5ca0d2997c0f6fa10f3bb10f56d7e229974d54",
+      "size_bytes": 3899
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/multiresolution.py",
+      "sha256": "cc49b29f81b260ec2a13f9ee8e55cec039a4950c37ed86d4869868ee5cfd0988",
+      "size_bytes": 28939
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/orientation.py",
+      "sha256": "cb4ba8051f59b74997b02ea42cae2daba95401093b05b99e51311af2c64eff82",
+      "size_bytes": 3554
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/physics.py",
+      "sha256": "29db1131ba45cf5e6909adcab83bd241548657042df63c5e6d6d3258cf7a5ad0",
+      "size_bytes": 35882
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/prepared_cache.py",
+      "sha256": "5d30faf0e8caa06be3da9473b3159dccd228e9bd9c6a3146c4e280b986d6b62d",
+      "size_bytes": 15842
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/profile.py",
+      "sha256": "ee8e16e2be7ae434819d60ae771b0026755d412cf2da398188734333c4401ccf",
+      "size_bytes": 9881
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/quality.py",
+      "sha256": "95ee6ab469a8b2deca1effc9748cc90c6ae0c88fe6007bde44f5eb5db10f5e22",
+      "size_bytes": 2551
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/resample.py",
+      "sha256": "01180aae9b4b2d4a7213d8c8abe68818c420fcd14c873ae3f8cc6b0e62d0c2c4",
+      "size_bytes": 4584
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/spectral.py",
+      "sha256": "476a3f3231b55f9e28e2148ee76b3af876fa5b574d99c1e53cbb419cce720f02",
+      "size_bytes": 10504
+    },
+    {
+      "path": "pipeline_src/vibrogemma/signal/units.py",
+      "sha256": "6668f67cbbc5b4638058f78fb11b0b81376897d0b5ce85d1bab7b80efda9e41c",
+      "size_bytes": 3469
+    },
+    {
+      "path": "pipeline_src/vibrogemma/simulation/__init__.py",
+      "sha256": "d87b65ff903126a73764de37c28b06b966c8e38fc8467224b0810cc9d515e2e3",
+      "size_bytes": 2268
+    },
+    {
+      "path": "pipeline_src/vibrogemma/simulation/build_v017.py",
+      "sha256": "1866d3cb7270603edf7c4460bbee9767cfa14d63a527c9880957ca4dcf5584c4",
+      "size_bytes": 30414
+    },
+    {
+      "path": "pipeline_src/vibrogemma/simulation/conditioning_v017.py",
+      "sha256": "5c361ec5ecf04916f8769a4e8596c9618bd9303a21cc75a347068fe066a2c955",
+      "size_bytes": 29438
+    },
+    {
+      "path": "pipeline_src/vibrogemma/simulation/generate_v017.py",
+      "sha256": "5efc90e7e43caa5ccc8cf41f3c86b3b1369787286a8ed348397d6e66cc9f0485",
+      "size_bytes": 42982
+    },
+    {
+      "path": "pipeline_src/vibrogemma/simulation/lumo_fe_v019.py",
+      "sha256": "424a6e0e58f50f4171dbd36fbab9dbf6649bd1d86e0edf53e45c8890d4027b2f",
+      "size_bytes": 43359
+    },
+    {
+      "path": "pipeline_src/vibrogemma/simulation/lumo_inverse_v019.py",
+      "sha256": "ee00ce08415d7789cdf6b4de37514b977494f6f7984cefbb714520a9c06efbcf",
+      "size_bytes": 34054
+    },
+    {
+      "path": "pipeline_src/vibrogemma/simulation/modal_synthesis_v019.py",
+      "sha256": "1e81453ab13a90729f09c830b2336a4d2b3cd5ff2c26ce6bfafbf8f89223ba84",
+      "size_bytes": 5678
+    },
+    {
+      "path": "pipeline_src/vibrogemma/simulation/opensees_v017.py",
+      "sha256": "b46945a5f9bbf780ed1a3dfc3024d47009fc87f829cd76da0341a832ea9d25bb",
+      "size_bytes": 9646
+    },
+    {
+      "path": "pipeline_src/vibrogemma/simulation/synthetic_dataset_v017.py",
+      "sha256": "e48b2fd8ff8095bbc2de94f867179ba42be9e5e552b5b144f4b5b8f60e281c75",
+      "size_bytes": 49382
+    },
+    {
+      "path": "pipeline_src/vibrogemma/training/__init__.py",
+      "sha256": "6fb02dbbdff16b3203f584548cdd7fc572493d7b360bd951882feefb72f7c6b1",
+      "size_bytes": 574
+    },
+    {
+      "path": "pipeline_src/vibrogemma/training/__pycache__/__init__.cpython-312.pyc",
+      "sha256": "0d7e15e7db475e7807f378e188101bd881fc47c9d0594b7b9a9a5621f63eeadc",
+      "size_bytes": 755
+    },
+    {
+      "path": "pipeline_src/vibrogemma/training/__pycache__/checkpoint.cpython-312.pyc",
+      "sha256": "99efcf6b6d01d9fa615c1cf52d12cf947a33647f2e237e6af6c192a1fb028500",
+      "size_bytes": 11277
+    },
+    {
+      "path": "pipeline_src/vibrogemma/training/checkpoint.py",
+      "sha256": "1a83e716f12989157ec05c537f4d0a7ee3456dd4f20aff6e419088d472d1211f",
+      "size_bytes": 7383
+    },
+    {
+      "path": "pipeline_src/vibrogemma/training/data.py",
+      "sha256": "f6bf26818616d9537ab19b4a2706554beb8f7d030647017567a0200431fccaf6",
+      "size_bytes": 59786
+    },
+    {
+      "path": "pipeline_src/vibrogemma/training/lm_train.py",
+      "sha256": "62af2ce8adaf724cb77155ca9feec67e7f03340069df2c87fb190433e01b4f5e",
+      "size_bytes": 31217
+    },
+    {
+      "path": "pipeline_src/vibrogemma/training/pretrain.py",
+      "sha256": "ab74acd072ffd95bbbac393ca7892907c9dc9c6f12fec0b7c112c19d1db3c8f3",
+      "size_bytes": 26512
+    },
+    {
+      "path": "pipeline_src/vibrogemma/training/residual_adapter.py",
+      "sha256": "740936b69a1b03611187dd3bdbd8b62f76ada113fd34e127dbb27bb3a64f191c",
+      "size_bytes": 16278
+    },
+    {
+      "path": "pipeline_src/vibrogemma/utils.py",
+      "sha256": "85beb01e74e4212d44b5a50cf7966b431d5e18d84242c8ce92d2152b7ca30715",
+      "size_bytes": 3448
+    },
+    {
+      "path": "token_layout.json",
+      "sha256": "54ebaa6024ca903494b12b673d6e8d451784a30a526f23341b05d6bdb4de4c21",
+      "size_bytes": 10232
+    },
+    {
+      "path": "tokenizer/chat_template.jinja",
+      "sha256": "0a2c8073c878ab1da004bee933a998606537bbb62016310352c7285c3f01c5b5",
+      "size_bytes": 18569
+    },
+    {
+      "path": "tokenizer/tokenizer.json",
+      "sha256": "cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f",
+      "size_bytes": 32169626
+    },
+    {
+      "path": "tokenizer/tokenizer_config.json",
+      "sha256": "ae79d5349f543e549ca2721755b030dbba92614e25585f4c7e9aaa3734dfa6ae",
+      "size_bytes": 3727
+    },
+    {
+      "path": "vibration_components.safetensors",
+      "sha256": "218ee5c4ea1a7b00f6ba93520b2f0ed5613f3583b65c93c0be32b8e8c7b6f469",
+      "size_bytes": 43843412
+    },
+    {
+      "path": "vibration_encoder_projector.onnx",
+      "sha256": "266823e35d17155a6812558e9ed2fa4fd839fbc111db5405bfc1203856f3f12c",
+      "size_bytes": 1880961
+    },
+    {
+      "path": "vibration_encoder_projector.onnx.data",
+      "sha256": "178f53b734af8153e753765141e7b3f494f9e9941539cedae5740701fa610de5",
+      "size_bytes": 44040192
+    },
+    {
+      "path": "vibrogemma_config.json",
+      "sha256": "b39464b72b9d16e7ad3f8462cc91cf282b8759f3360e2982ee4c2545118d20a9",
+      "size_bytes": 21910
+    }
+  ],
+  "geniex": {
+    "external_embeddings": true,
+    "gguf": "gemma-4-e2b-g1-Q8_0.gguf",
+    "gguf_sha256": "11ceefee8d62080072fe2b65f68beab5e0f31ad716c640178ed93b5ac0eb31d6",
+    "kv_cache_reuse": false,
+    "quantization": "Q8_0",
+    "ready": true,
+    "version": "0.4.0"
+  },
+  "live_profile": {
+    "bundled_profile": "artifacts/healthy_profile.json",
+    "bundled_profile_scope": "training_provenance_only",
+    "launcher": "vibrodiag_mcp_prototype/configs/vibroagent_live_healthy_profile.json"
+  },
+  "permitted_use": "local_research_and_replay_only",
+  "promotion_status": "unpromoted_validation_gate_failed",
+  "source": {
+    "adapter_sha256": "49692714a77fd616245689bfa63820756c98e32317d0bd6b6ee0285d2f3f3e3b",
+    "base_model": "google/gemma-4-E2B-it",
+    "base_revision": "3e22461f65e89153144f8adb70e3b8c2cc9845a7",
+    "checkpoint": "checkpoints/lora/epoch-002",
+    "outer_archive": "multidomain-expansion-s20260830-g1-frozen-b0-fresh-projector-20260830T232717Z-1-001.zip",
+    "outer_archive_sha256": "b346dd252465d125cee575de9ed4d55b08a22513ec83f786b69fa0054b3fedf2",
+    "reassembled_package_sha256": "8da6cc0b9e35958ac462fe6af626820a0240defd98de37e97a5c5b308276d04a",
+    "vibration_components_sha256": "218ee5c4ea1a7b00f6ba93520b2f0ed5613f3583b65c93c0be32b8e8c7b6f469"
+  },
+  "validation": {
+    "affected_target_f1": 0.470085,
+    "global_target_consistency": 0.912565,
+    "macro_f1": 0.926548,
+    "minimum_per_target_f1": 0.292683,
+    "required_targets": 5,
+    "single_target_exact_set": 0.339286,
+    "supported_targets": 4
+  }
+}

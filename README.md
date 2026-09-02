@@ -1,6 +1,15 @@
 # VibroAgent — on-device building-vibration diagnostics
 
-VibroAgent is an edge monitoring application for a six-sensor building-vibration installation. One STMicroelectronics STWIN.box is the reference sensor and five STWIN.box units are target sensors. The application continuously acquires IIS3DWB acceleration data, compares every target with the reference, and produces a strictly structured monitoring verdict with a fine-tuned Qwen3-4B model running locally on the Hexagon NPU of a Qualcomm IQ-9075 EVK.
+This repository now offers two complete deployment paths:
+
+- **VibroAgent-Gemma** — the newer continuous vibration encoder + Gemma Q8 path, with live six-board deployment and included LUMO demo windows. Start at [VibroAgent-Gemma/README.md](VibroAgent-Gemma/README.md).
+- **VibroAgent-Codec** — the established residual-VQ codec + Qwen3-4B path documented below, with live and immutable recorded-data modes.
+
+Read [DEPLOYMENT_PATHS.md](DEPLOYMENT_PATHS.md) for the technical comparison and copy-paste commands for both paths. They share the same reviewed STDATALOG-PYSDK acquisition patch; stop one live stack before starting the other.
+
+## VibroAgent-Codec
+
+VibroAgent-Codec is an edge monitoring application for a six-sensor building-vibration installation. One STMicroelectronics STWIN.box is the reference sensor and five STWIN.box units are target sensors. The application continuously acquires IIS3DWB acceleration data, compares every target with the reference, and produces a strictly structured monitoring verdict with a fine-tuned Qwen3-4B model running locally on the Hexagon NPU of a Qualcomm IQ-9075 EVK.
 
 The production decision path is the `codes_v3` stack. A frozen residual-vector-quantized neural codec converts each synchronized 10-second sensor window into discrete code symbols. The language model receives those symbols and a relative broadband-level value; raw acceleration samples remain local. The web application presents live waveforms, PSD views, chat, monitoring history, and alert popups.
 

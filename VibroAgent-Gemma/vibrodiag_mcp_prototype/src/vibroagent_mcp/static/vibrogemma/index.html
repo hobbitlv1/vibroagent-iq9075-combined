@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VibroAgent</title>
+  <link rel="stylesheet" href="/assets/vibroagent.css">
+</head>
+<body>
+  <header class="app-bar">
+    <a class="brand" href="/" aria-label="VibroAgent live monitor">
+      <img src="/assets/st-logo.png" alt="STMicroelectronics">
+      <span>VibroAgent</span>
+    </a>
+    <nav class="primary-nav" aria-label="VibroAgent views">
+      <a href="/" data-route="monitor">Live monitor</a>
+      <a href="/spectrum" data-route="spectrum">Spectrum</a>
+      <a href="/replay" data-route="replay">Replay</a>
+      <a href="/ask" data-route="ask">Ask Agent</a>
+    </nav>
+    <div class="live-state" id="liveState"><span></span><strong>Connecting</strong></div>
+  </header>
+
+  <main>
+    <section class="view monitor-view" data-view="monitor" aria-labelledby="monitorTitle">
+      <div class="monitor-main">
+        <header class="view-head">
+          <div class="view-title">
+            <h1 id="monitorTitle">Live monitor</h1>
+            <p class="view-status" id="monitorStatus">Connecting to the boards…</p>
+          </div>
+          <div class="view-controls">
+            <fieldset class="segment-control" id="monitorAxis">
+              <legend>Axis</legend>
+              <button type="button" class="selected" data-value="norm">Norm</button>
+              <button type="button" data-value="x">X</button>
+              <button type="button" data-value="y">Y</button>
+              <button type="button" data-value="z">Z</button>
+            </fieldset>
+            <label class="select-control">Window
+              <select id="monitorWindow">
+                <option value="0.5">0.5 s</option>
+                <option value="1">1 s</option>
+                <option value="2">2 s</option>
+                <option value="5">5 s</option>
+                <option value="10" selected>10 s</option>
+              </select>
+            </label>
+            <button type="button" class="secondary-action" id="pauseMonitor" aria-pressed="false">
+              <svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-pause"></use></svg>
+              <span>Pause</span>
+            </button>
+          </div>
+        </header>
+        <div class="stack-head">
+          <span class="scale-readout" id="scaleReadout">Shared scale · waiting for data</span>
+          <div class="time-ruler" aria-hidden="true"><span>-10 s</span><span>-8 s</span><span>-6 s</span><span>-4 s</span><span>-2 s</span><span>0 s</span></div>
+        </div>
+        <div class="waveform-stack" id="waveformStack" aria-live="polite"></div>
+      </div>
+
+      <aside class="decision-rail" aria-labelledby="networkTitle">
+        <section class="verdict-card" id="networkVerdict">
+          <div class="verdict-head"><svg class="ph-icon verdict-icon" aria-hidden="true"><use id="verdictIcon" href="/assets/phosphor-icons.svg#ph-clock"></use></svg><h2 id="networkTitle">Agent warming up</h2></div>
+          <p id="verdictDetail">Waiting for the first complete check.</p>
+          <div class="board-ribbon" id="verdictRibbon" aria-label="Board states at a glance"></div>
+        </section>
+        <div class="rail-section">
+          <h3 class="eyebrow">Board states</h3>
+          <div id="boardStates" class="state-list"></div>
+        </div>
+        <div class="rail-section check-meta">
+          <h3 class="eyebrow">Latest Agent check</h3>
+          <div><span class="meta-label"><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-grid"></use></svg>Continuous tokens</span><strong id="tokenCount">-</strong></div>
+          <div><span class="meta-label"><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-clock"></use></svg>Updated</span><strong id="checkAge">-</strong></div>
+          <div><span class="meta-label"><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-shield"></use></svg>Affected targets</span><strong id="affectedCount">-</strong></div>
+        </div>
+        <div class="rail-actions">
+          <a class="primary-action icon-action" href="/ask" id="askLatest"><span><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-chat"></use></svg>Ask about this check</span><svg class="ph-icon action-arrow" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-caret-right"></use></svg></a>
+          <a class="rail-action icon-action" href="/spectrum"><span><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-waveform"></use></svg>Open spectrum</span><svg class="ph-icon action-arrow" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-caret-right"></use></svg></a>
+          <a class="rail-action icon-action" href="/replay"><span><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-replay"></use></svg>Review saved checks</span><svg class="ph-icon action-arrow" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-caret-right"></use></svg></a>
+          <button class="rail-action icon-action test-action" id="toggleSynthetic" type="button" aria-pressed="false" title="Overlay a synchronized LUMO DAM4 test pattern on the moving live capture; known ground truth is Target 3">
+            <span><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-waveform"></use></svg><span id="syntheticActionLabel">Run Target 3 anomaly test</span></span>
+          </button>
+          <button class="rail-action icon-action test-action" id="toggleSyntheticTarget5" type="button" aria-pressed="false" title="Overlay a synchronized LUMO DAM6 test pattern on the moving live capture; known ground truth is Target 5">
+            <span><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-waveform"></use></svg><span id="syntheticTarget5ActionLabel">Run Target 5 anomaly test</span></span>
+          </button>
+        </div>
+        <button class="alert-tray" id="alertTray" type="button" aria-expanded="false">
+          <span class="alert-heading"><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-bell"></use></svg>Alerts</span><svg class="ph-icon alert-chevron" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-caret-down"></use></svg><strong>No active alerts</strong>
+        </button>
+      </aside>
+    </section>
+
+    <section class="view spectrum-view" data-view="spectrum" aria-labelledby="spectrumTitle" hidden>
+      <div class="spectrum-main">
+        <header class="view-head">
+          <div class="view-title">
+            <h1 id="spectrumTitle">Spectrum</h1>
+            <p class="view-status" id="spectrumStatus">Pick a board and run a spectrum.</p>
+          </div>
+          <div class="view-controls spectrum-controls">
+            <label class="select-control board-select-control">Board<span class="select-board-dot" aria-hidden="true"></span><select id="spectrumBoard"></select></label>
+            <fieldset class="segment-control" id="spectrumAxis">
+              <legend>Axis</legend>
+              <button type="button" class="selected" data-value="norm">Norm</button>
+              <button type="button" data-value="x">X</button>
+              <button type="button" data-value="y">Y</button>
+              <button type="button" data-value="z">Z</button>
+            </fieldset>
+            <label class="select-control">Estimator
+              <select id="spectrumEstimator"><option value="welch">Welch PSD</option><option value="periodogram">Periodogram</option></select>
+            </label>
+            <label class="select-control">Window
+              <select id="spectrumWindow"><option value="10">10 s</option><option value="30">30 s</option><option value="60">60 s</option><option value="100" selected>100 s</option></select>
+            </label>
+            <button type="button" class="primary-button" id="runSpectrum"><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-play"></use></svg><span>Run spectrum</span></button>
+          </div>
+        </header>
+        <div class="chart-card">
+          <div class="chart-head">
+            <span class="axis-label y-label">PSD · g²/Hz · peak envelope</span>
+            <div class="spectrum-bands" id="spectrumBands">
+              <button type="button" class="selected" data-min="0" data-max="0">Full spectrum</button>
+              <button type="button" data-min="0.1" data-max="100">Modal · 0-100 Hz</button>
+              <button type="button" data-min="100" data-max="6000">Wideband · 100-6000 Hz</button>
+            </div>
+          </div>
+          <div class="chart-body">
+            <canvas id="spectrumCanvas" width="1100" height="620" aria-label="Power spectral density chart"></canvas>
+            <p class="empty-copy" id="spectrumEmpty">Pick a board and run a spectrum. The averaged PSD of its latest window appears here, with the strongest peaks marked.</p>
+          </div>
+          <div class="axis-label x-label">Frequency · Hz</div>
+        </div>
+      </div>
+      <aside class="spectrum-summary">
+        <h2 class="eyebrow">Spectrum summary</h2>
+        <dl>
+          <div><dt>RMS</dt><dd id="spectrumRms">-</dd></div>
+          <div><dt>Variance</dt><dd id="spectrumVariance">-</dd></div>
+          <div><dt>Dominant frequency</dt><dd id="spectrumDominant">-</dd></div>
+          <div><dt>Sample rate</dt><dd id="spectrumRate">-</dd></div>
+          <div><dt>Source</dt><dd id="spectrumSource">-</dd></div>
+        </dl>
+        <h3 class="eyebrow">Top peaks</h3>
+        <table>
+          <thead><tr><th>#</th><th>Frequency</th><th>PSD</th><th>Prominence</th></tr></thead>
+          <tbody id="peakRows"><tr><td>1</td><td>-</td><td>-</td><td>-</td></tr></tbody>
+        </table>
+        <button type="button" class="rail-action" id="askSpectrum"><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-chat"></use></svg>Ask Agent about this spectrum</button>
+      </aside>
+    </section>
+
+    <section class="view replay-view" data-view="replay" aria-labelledby="replayTitle" hidden>
+      <aside class="replay-list-panel">
+        <div class="list-head"><h2 class="eyebrow">Saved checks</h2><span class="list-count" id="replayCount"></span></div>
+        <div id="replayList" class="replay-list"><p class="empty-copy">Loading saved checks…</p></div>
+      </aside>
+      <div class="replay-detail">
+        <header class="view-head">
+          <div class="view-title"><h1 id="replayTitle">Saved check</h1><p class="view-status" id="replayTime">Select a saved Agent check.</p></div>
+          <div class="replay-nav"><button id="replayPrevious" type="button"><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-arrow-left"></use></svg>Previous</button><button id="replayNext" type="button">Next<svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-arrow-right"></use></svg></button></div>
+        </header>
+        <section class="verdict-card replay-verdict" id="replayVerdict">
+          <div class="verdict-head"><svg class="ph-icon verdict-icon" aria-hidden="true"><use id="replayVerdictIcon" href="/assets/phosphor-icons.svg#ph-clock"></use></svg><h2 id="replayState">-</h2></div>
+          <p id="replayAffected">-</p>
+          <div class="board-ribbon" id="replayRibbon" aria-label="Board states in this check"></div>
+        </section>
+        <table class="board-table">
+          <thead><tr><th>Board</th><th class="num">RMS (g)</th><th class="num">Peak (g)</th><th class="num">Structural peak (0-200 Hz)</th><th>State</th></tr></thead>
+          <tbody id="replayBoards"><tr><td colspan="5">No saved check selected.</td></tr></tbody>
+        </table>
+        <section class="replay-explanation"><h2 class="eyebrow">Agent explanation</h2><blockquote id="replayExplanation">-</blockquote></section>
+        <div class="replay-actions"><button type="button" class="primary-button" id="askReplay"><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-chat"></use></svg>Ask Agent about this check</button><a href="/spectrum" class="secondary-action"><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-book-open"></use></svg>Open live spectrum</a></div>
+      </div>
+    </section>
+
+    <section class="view ask-view" data-view="ask" aria-labelledby="askTitle" hidden>
+      <div class="conversation">
+        <header class="thread-head">
+          <span class="thread-avatar" aria-hidden="true"></span>
+          <div class="thread-title">
+            <h1 id="askTitle">Ask Agent</h1>
+            <p class="thread-status" id="threadStatus"><span class="status-dot" aria-hidden="true"></span><span id="threadStatusText">Connecting to the Agent…</span></p>
+          </div>
+          <button type="button" class="thread-action" id="newChat" title="Start a new conversation"><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-chat"></use></svg><span>New chat</span></button>
+        </header>
+        <div class="thread" id="thread">
+          <div class="messages" id="messages" role="log" aria-live="polite" aria-relevant="additions"></div>
+        </div>
+        <form class="composer" id="chatForm">
+          <div class="composer-box">
+            <label class="sr-only" for="chatInput">Message the Agent</label>
+            <textarea id="chatInput" rows="1" placeholder="Ask about the latest Agent check…" autocomplete="off" enterkeyhint="send"></textarea>
+            <button type="submit" class="send-button" id="sendChat" aria-label="Send message" title="Send" disabled><svg class="ph-icon send-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-arrow-right"></use></svg><span class="send-spinner" aria-hidden="true"></span></button>
+          </div>
+          <p class="composer-hint"><span><kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line</span><span id="composerContext">Answers come from the latest Agent check</span></p>
+        </form>
+      </div>
+      <aside class="context-rail">
+        <h2 class="eyebrow">Current context</h2>
+        <div class="context-source"><span>Source</span><strong><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-file-text"></use></svg><span id="contextSource">Latest Agent check</span></strong></div>
+        <div class="context-state"><span>Network state</span><strong><svg class="ph-icon" aria-hidden="true"><use id="contextStateIcon" href="/assets/phosphor-icons.svg#ph-clock"></use></svg><span id="contextState">-</span></strong></div>
+        <h3 class="eyebrow">Board states</h3>
+        <div class="board-ribbon" id="contextRibbon" aria-label="Board states at a glance"></div>
+        <div class="state-list" id="contextBoards"></div>
+        <div class="context-meta"><span><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-grid"></use></svg><span id="contextTokens">- continuous tokens</span></span><span><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-clock"></use></svg><span id="contextUpdated">Updated -</span></span></div>
+        <a href="/" class="context-link"><span><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-chat"></use></svg>Open live monitor</span><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-caret-right"></use></svg></a><a href="/spectrum" class="context-link"><span><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-waveform"></use></svg>Open spectrum</span><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-caret-right"></use></svg></a><a href="/replay" class="context-link"><span><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-replay"></use></svg>Review replay</span><svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-caret-right"></use></svg></a>
+      </aside>
+    </section>
+  </main>
+
+  <div class="toast" id="alertToast" role="alert" aria-labelledby="alertTitle" hidden>
+    <div class="alert-toast-head">
+      <span class="alert-symbol" aria-hidden="true"><svg class="ph-icon"><use href="/assets/phosphor-icons.svg#ph-warning-circle"></use></svg></span>
+      <div><span class="alert-kicker" id="alertKicker">Agent live check</span><strong id="alertTitle">Advisory</strong></div>
+      <button class="alert-close" type="button" id="closeToast" aria-label="Dismiss alert">×</button>
+    </div>
+    <p class="alert-summary" id="alertSummary"></p>
+    <div class="alert-targets" id="alertTargets" aria-label="Affected targets"></div>
+    <div class="alert-toast-foot">
+      <span id="alertTokenMeta">84 continuous tokens</span>
+      <span id="alertAgeMeta">Updated now</span>
+      <a href="/replay">Review check<svg class="ph-icon" aria-hidden="true"><use href="/assets/phosphor-icons.svg#ph-caret-right"></use></svg></a>
+    </div>
+  </div>
+  <script src="/assets/vibroagent.js" defer></script>
+</body>
+</html>

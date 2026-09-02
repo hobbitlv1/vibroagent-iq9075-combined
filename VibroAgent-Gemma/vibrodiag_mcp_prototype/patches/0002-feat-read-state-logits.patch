@@ -1,0 +1,275 @@
+diff --git a/bindings/python/geniex/_ffi/_api.py b/bindings/python/geniex/_ffi/_api.py
+index e5f02a5..9ec58f3 100644
+--- a/bindings/python/geniex/_ffi/_api.py
++++ b/bindings/python/geniex/_ffi/_api.py
+@@ -29,6 +29,8 @@ from ._types import (
+     geniex_LlmGenerateInput,
+     geniex_LlmGenerateFromStateInput,
+     geniex_LlmGenerateOutput,
++    geniex_LlmStateLogitsInput,
++    geniex_LlmStateLogitsOutput,
+     geniex_LlmModelInfo,
+     geniex_ModelListDetailedOutput,
+     geniex_ModelPaths,
+@@ -153,6 +155,12 @@ def _bind_stateful(provider):
+         POINTER(geniex_LlmGenerateOutput),
+     ]
+     provider.geniex_llm_generate_from_state.restype = c_int32
++    provider.geniex_llm_state_logits.argtypes = [
++        c_void_p,
++        POINTER(geniex_LlmStateLogitsInput),
++        POINTER(geniex_LlmStateLogitsOutput),
++    ]
++    provider.geniex_llm_state_logits.restype = c_int32
+     return provider
+ 
+ 
+@@ -182,6 +190,10 @@ def get_llm_generate_from_state_function():
+     return _get_stateful_provider().geniex_llm_generate_from_state
+ 
+ 
++def get_llm_state_logits_function():
++    return _get_stateful_provider().geniex_llm_state_logits
++
++
+ def _bind_all() -> None:
+     lib = load_library()
+ 
+diff --git a/bindings/python/geniex/_ffi/_types.py b/bindings/python/geniex/_ffi/_types.py
+index 5876b5e..7369997 100644
+--- a/bindings/python/geniex/_ffi/_types.py
++++ b/bindings/python/geniex/_ffi/_types.py
+@@ -198,6 +198,23 @@ class geniex_LlmGenerateFromStateInput(Structure):
+     ]
+ 
+ 
++class geniex_LlmStateLogitsInput(Structure):
++    _fields_ = [
++        ('struct_size', c_uint32),
++        ('sequence_id', c_int32),
++        ('token_ids', POINTER(c_int32)),
++        ('token_ids_count', c_int32),
++    ]
++
++
++class geniex_LlmStateLogitsOutput(Structure):
++    _fields_ = [
++        ('struct_size', c_uint32),
++        ('logits', POINTER(c_float)),
++        ('logits_count', c_int32),
++    ]
++
++
+ class geniex_LlmModelInfo(Structure):
+     _fields_ = [
+         ('vocab_size', c_int32),
+diff --git a/bindings/python/geniex/modeling.py b/bindings/python/geniex/modeling.py
+index 3c2e45d..bbc4600 100644
+--- a/bindings/python/geniex/modeling.py
++++ b/bindings/python/geniex/modeling.py
+@@ -14,6 +14,7 @@ from ._ffi._api import (
+     _str_list_to_c,
+     get_llm_decode_function,
+     get_llm_generate_from_state_function,
++    get_llm_state_logits_function,
+     load_library,
+ )
+ from ._ffi._types import (
+@@ -32,6 +33,8 @@ from ._ffi._types import (
+     geniex_LlmGenerateInput,
+     geniex_LlmGenerateFromStateInput,
+     geniex_LlmGenerateOutput,
++    geniex_LlmStateLogitsInput,
++    geniex_LlmStateLogitsOutput,
+     geniex_SamplerConfig,
+     geniex_token_callback,
+     geniex_VlmApplyChatTemplateInput,
+@@ -424,6 +427,28 @@ class GenieXLLM:
+         _check(rc)
+         return GenerateOutput.from_raw(full, profile)
+ 
++    def state_logits(self, token_ids, *, sequence_id: int = 0) -> list[float]:
++        """Read selected logits from the latest decode without changing state."""
++        ids = [operator.index(token_id) for token_id in token_ids]
++        if not ids:
++            raise ValueError('token_ids must not be empty')
++        sequence_id = operator.index(sequence_id)
++        IdArray = c_int32 * len(ids)
++        id_array = IdArray(*ids)
++        inp = geniex_LlmStateLogitsInput(
++            struct_size=sizeof(geniex_LlmStateLogitsInput),
++            sequence_id=sequence_id,
++            token_ids=cast(id_array, POINTER(c_int32)),
++            token_ids_count=len(ids),
++        )
++        out = geniex_LlmStateLogitsOutput(struct_size=sizeof(geniex_LlmStateLogitsOutput))
++        _check(get_llm_state_logits_function()(self._handle, byref(inp), byref(out)))
++        try:
++            return list(out.logits[: out.logits_count])
++        finally:
++            if out.logits:
++                load_library().geniex_free(cast(out.logits, c_void_p))
++
+     def reset(self) -> None:
+         """Clear KV cache and reset sampler state."""
+         lib = load_library()
+diff --git a/sdk/compat/llm_stateful_bridge.cpp b/sdk/compat/llm_stateful_bridge.cpp
+index 8a55ee6..e92b8a8 100644
+--- a/sdk/compat/llm_stateful_bridge.cpp
++++ b/sdk/compat/llm_stateful_bridge.cpp
+@@ -42,3 +42,20 @@ extern "C" int32_t geniex_llm_generate_from_state(geniex_LLM* handle,
+         return GENIEX_ERROR_COMMON_UNKNOWN;
+     }
+ }
++
++extern "C" int32_t geniex_llm_state_logits(geniex_LLM* handle,
++    const geniex_LlmStateLogitsInput* input, geniex_LlmStateLogitsOutput* output) {
++    if (!input || input->struct_size < sizeof(geniex_LlmStateLogitsInput) || !output ||
++        output->struct_size < sizeof(geniex_LlmStateLogitsOutput)) {
++        return GENIEX_ERROR_COMMON_INVALID_INPUT;
++    }
++    std::memset(output, 0, sizeof(*output));
++    output->struct_size = sizeof(*output);
++    try {
++        auto* backend = reinterpret_cast<ILlm*>(handle);
++        return backend ? backend->state_logits(input, output)
++                       : GENIEX_ERROR_COMMON_NOT_INITIALIZED;
++    } catch (const std::exception&) {
++        return GENIEX_ERROR_COMMON_UNKNOWN;
++    }
++}
+diff --git a/sdk/include/geniex.h b/sdk/include/geniex.h
+index eb64b95..a03409a 100644
+--- a/sdk/include/geniex.h
++++ b/sdk/include/geniex.h
+@@ -616,6 +616,24 @@ typedef struct {
+ GENIEX_API int32_t geniex_llm_generate_from_state(geniex_LLM* handle,
+     const geniex_LlmGenerateFromStateInput* input, geniex_LlmGenerateOutput* output);
+ 
++/** Read selected token logits from the latest stateful decode without sampling
++ * or modifying the KV cache. The output buffer is released with geniex_free. */
++typedef struct {
++    uint32_t       struct_size;
++    int32_t        sequence_id;
++    const int32_t* token_ids;
++    int32_t        token_ids_count;
++} geniex_LlmStateLogitsInput;
++
++typedef struct {
++    uint32_t struct_size;
++    float*   logits;
++    int32_t  logits_count;
++} geniex_LlmStateLogitsOutput;
++
++GENIEX_API int32_t geniex_llm_state_logits(geniex_LLM* handle,
++    const geniex_LlmStateLogitsInput* input, geniex_LlmStateLogitsOutput* output);
++
+ /* ====================  Model Metadata  =================================== */
+ 
+ /** Static, plugin-reported metadata about the loaded LLM. All fields are
+diff --git a/sdk/include/plugin/ILlm.h b/sdk/include/plugin/ILlm.h
+index 514b714..c6c2fe8 100644
+--- a/sdk/include/plugin/ILlm.h
++++ b/sdk/include/plugin/ILlm.h
+@@ -54,6 +54,11 @@ class ILlm {
+         const geniex_LlmGenerateFromStateInput*, geniex_LlmGenerateOutput*) {
+         return GENIEX_ERROR_COMMON_PARAM_NOT_SUPPORTED;
+     }
++
++    virtual int32_t state_logits(
++        const geniex_LlmStateLogitsInput*, geniex_LlmStateLogitsOutput*) {
++        return GENIEX_ERROR_COMMON_PARAM_NOT_SUPPORTED;
++    }
+ };
+ 
+ }  // namespace geniex
+diff --git a/sdk/plugins/llama_cpp/include/llm.h b/sdk/plugins/llama_cpp/include/llm.h
+index 8fa731c..76e045b 100644
+--- a/sdk/plugins/llama_cpp/include/llm.h
++++ b/sdk/plugins/llama_cpp/include/llm.h
+@@ -75,6 +75,9 @@ class LlamaLlm : public ILlm {
+     virtual int32_t generate_from_state(
+         const geniex_LlmGenerateFromStateInput*, geniex_LlmGenerateOutput*) override;
+ 
++    virtual int32_t state_logits(
++        const geniex_LlmStateLogitsInput*, geniex_LlmStateLogitsOutput*) override;
++
+    private:
+     void set_sampler(const geniex_SamplerConfig* cfg);
+ 
+diff --git a/sdk/plugins/llama_cpp/src/llm.cpp b/sdk/plugins/llama_cpp/src/llm.cpp
+index 42ab2e8..9ffecfc 100644
+--- a/sdk/plugins/llama_cpp/src/llm.cpp
++++ b/sdk/plugins/llama_cpp/src/llm.cpp
+@@ -749,6 +749,41 @@ int32_t LlamaLlm::generate_from_state(
+     return output->full_text ? res : GENIEX_ERROR_COMMON_MEMORY_ALLOCATION;
+ }
+ 
++int32_t LlamaLlm::state_logits(
++    const geniex_LlmStateLogitsInput* input, geniex_LlmStateLogitsOutput* output) {
++    if (!input || input->struct_size < sizeof(geniex_LlmStateLogitsInput) || !output ||
++        output->struct_size < sizeof(geniex_LlmStateLogitsOutput) || !input->token_ids ||
++        input->token_ids_count <= 0) {
++        return GENIEX_ERROR_COMMON_INVALID_INPUT;
++    }
++    if (!this->ctx || !this->model) return GENIEX_ERROR_COMMON_NOT_INITIALIZED;
++    std::memset(output, 0, sizeof(*output));
++    output->struct_size = sizeof(*output);
++
++    const auto row_it = this->logits_index.find(input->sequence_id);
++    if (!this->stateful_mode || row_it == this->logits_index.end()) {
++        return GENIEX_ERROR_COMMON_INVALID_INPUT;
++    }
++    const int32_t n_vocab = llama_vocab_n_tokens(llama_model_get_vocab(this->model));
++    const float* row = llama_get_logits_ith(this->ctx, row_it->second);
++    if (!row) return GENIEX_ERROR_LLM_GENERATION_FAILED;
++
++    float* selected = static_cast<float*>(std::malloc(
++        static_cast<size_t>(input->token_ids_count) * sizeof(float)));
++    if (!selected) return GENIEX_ERROR_COMMON_MEMORY_ALLOCATION;
++    for (int32_t i = 0; i < input->token_ids_count; ++i) {
++        const int32_t token_id = input->token_ids[i];
++        if (token_id < 0 || token_id >= n_vocab) {
++            std::free(selected);
++            return GENIEX_ERROR_COMMON_INVALID_INPUT;
++        }
++        selected[i] = row[token_id];
++    }
++    output->logits = selected;
++    output->logits_count = input->token_ids_count;
++    return GENIEX_SUCCESS;
++}
++
+ int32_t LlamaLlm::get_model_info(geniex_LlmModelInfo* output) {
+     if (!this->model) return GENIEX_ERROR_COMMON_NOT_INITIALIZED;
+     const llama_vocab* vocab = llama_model_get_vocab(this->model);
+diff --git a/sdk/src/llm.cpp b/sdk/src/llm.cpp
+index b90d6d0..ed17c74 100644
+--- a/sdk/src/llm.cpp
++++ b/sdk/src/llm.cpp
+@@ -215,6 +215,24 @@ int32_t geniex_llm_generate_from_state(geniex_LLM* h,
+     }
+ }
+ 
++int32_t geniex_llm_state_logits(geniex_LLM* h,
++    const geniex_LlmStateLogitsInput* input, geniex_LlmStateLogitsOutput* output) {
++    if (!input || input->struct_size < sizeof(geniex_LlmStateLogitsInput) || !output ||
++        output->struct_size < sizeof(geniex_LlmStateLogitsOutput)) {
++        return GENIEX_ERROR_COMMON_INVALID_INPUT;
++    }
++    std::memset(output, 0, sizeof(*output));
++    output->struct_size = sizeof(*output);
++    try {
++        auto backend = reinterpret_cast<ILlm*>(h);
++        return backend ? backend->state_logits(input, output)
++                       : GENIEX_ERROR_COMMON_NOT_INITIALIZED;
++    } catch (const std::exception& e) {
++        GENIEX_LOG_ERROR("llm state logits error: {}", e.what());
++        return GENIEX_ERROR_COMMON_UNKNOWN;
++    }
++}
++
+ int32_t geniex_llm_get_model_info(geniex_LLM* h, geniex_LlmModelInfo* output) {
+     GENIEX_LOG_TRACE("llm get_model_info");
+ 
+

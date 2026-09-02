@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/vibrogemma/binary-state-v3/alert.schema.json",
+  "title": "VibroGemma binary structural-state result",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "window",
+    "system_state",
+    "targets",
+    "explanation",
+    "quality",
+    "model",
+    "evidence"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "window": {
+      "type": "object",
+      "required": ["start_utc", "duration_seconds", "effective_duration_seconds", "episode_id"],
+      "properties": {
+        "start_utc": {"type": "string"},
+        "duration_seconds": {"type": "number", "const": 10.0},
+        "effective_duration_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "episode_id": {"type": "string"},
+        "start_time_s": {"type": "number"}
+      },
+      "additionalProperties": true
+    },
+    "system_state": {
+      "enum": ["normal", "advisory", "data_invalid"]
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "required": [
+          "sensor_id",
+          "affected",
+          "class",
+          "severity",
+          "choice_probability",
+          "raw_choice_probability",
+          "confidence_operational"
+        ],
+        "properties": {
+          "sensor_id": {"pattern": "^target_[1-5]$"},
+          "affected": {"type": "boolean"},
+          "class": {"enum": ["normal", "unknown_anomaly", "data_invalid"]},
+          "severity": {"enum": ["none", "advisory"]},
+          "choice_probability": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "raw_choice_probability": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "confidence_operational": {"type": "boolean"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "explanation": {"type": "string", "maxLength": 1000},
+    "quality": {"type": "object"},
+    "model": {
+      "type": "object",
+      "required": ["checkpoint", "raw_record", "explanation_source", "explanation_grounded"],
+      "properties": {
+        "checkpoint": {"type": "string"},
+        "raw_record": {"type": "string"},
+        "raw_explanation": {"type": "string"},
+        "explanation_source": {
+          "enum": ["gemma_grounded", "deterministic_physics_evidence", "deterministic_quality_evidence"]
+        },
+        "explanation_grounded": {"type": "boolean"},
+        "confidence_calibration": {"type": "object"}
+      },
+      "additionalProperties": true
+    },
+    "evidence": {
+      "type": "object",
+      "description": "Auditable named vibration measurements and validity flags supplied to Gemma."
+    }
+  },
+  "additionalProperties": false
+}

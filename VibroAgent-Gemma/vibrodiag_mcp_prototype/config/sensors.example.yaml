@@ -1,0 +1,29 @@
+baseline_sensor_id: baseline
+
+sensors:
+  - sensor_id: baseline
+    location: calm_reference_room
+    role: baseline
+    acquisition_folder: ./stdatalog_examples/baseline
+    replay_signal_path: examples/building_replay/baseline.csv
+    hsd_sensor_name: iis3dwb_acc
+    axis: z
+    sampling_rate_hz: 4
+
+  - sensor_id: floor_2_corridor
+    location: second_floor_corridor
+    role: target
+    acquisition_folder: ./stdatalog_examples/floor_2_corridor
+    replay_signal_path: examples/building_replay/floor_2_corridor.csv
+    hsd_sensor_name: iis3dwb_acc
+    axis: z
+    sampling_rate_hz: 4
+
+  - sensor_id: floor_3_wall
+    location: third_floor_wall
+    role: target
+    acquisition_folder: ./stdatalog_examples/floor_3_wall
+    replay_signal_path: examples/building_replay/floor_3_wall.csv
+    hsd_sensor_name: iis3dwb_acc
+    axis: z
+    sampling_rate_hz: 4
