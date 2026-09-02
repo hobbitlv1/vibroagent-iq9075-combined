@@ -15,8 +15,6 @@ Run the root installer from a real terminal:
 ./install.sh
 ```
 
-It opens with a short dual-logo ASCII animation: a full ASCII `&` pulses between the STMicroelectronics mark and the Qualcomm-blue Q. It then presents an arrow-key menu:
-
 ```text
              _____ _______     &&      ____
             / ____|__   __|   &  &    / __ \
@@ -34,7 +32,7 @@ It opens with a short dual-logo ASCII animation: a full ASCII `&` pulses between
     VibroAgent-Gemma  | Direct LUMO CLI demo
 ```
 
-Use Up/Down, press Enter, and follow the printed run command. The animation takes about half a second and the installer has no Python or package dependency. Setup is kept separate from startup because a first live USB installation may require a new login or reboot before group membership and udev rules take effect.
+Use Up/Down, press Enter, and follow the printed run command. Setup is kept separate from startup because a first live USB installation may require a new login or reboot before group membership and udev rules take effect.
 
 For provisioning, CI, SSH sessions without a terminal, or exact copy-paste use, pass one selection flag:
 
