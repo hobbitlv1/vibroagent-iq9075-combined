@@ -69,12 +69,12 @@ logo() {
   local st_tone="${3:-$BLUE}"
   local q_tone="$QUALCOMM$BOLD"
   printf '%s\n' \
-    "${st_tone}        ${spinner}     _____ _______${RESET}   ${amp_tone}  ___   ${RESET}   ${q_tone}____       ${spinner}${RESET}" \
-    "${st_tone}             / ____|__   __|${RESET}  ${amp_tone} ( _ )  ${RESET}  ${q_tone}/ __ \\${RESET}" \
-    "${st_tone}            | (___    | |${RESET}    ${amp_tone} / _ \\/ ${RESET}  ${q_tone}| |  | |${RESET}" \
-    "${st_tone}             \\___ \\   | |${RESET}    ${amp_tone}| (_>  <${RESET}  ${q_tone}| |  | |${RESET}" \
-    "${st_tone}             ____) |  | |${RESET}    ${amp_tone} \\___/\\/${RESET}  ${q_tone}| |__| |${RESET}" \
-    "${st_tone}            |_____/   |_|${RESET}             ${q_tone}\\___\\_\\${RESET}" \
+    "${st_tone}        ${spinner}     _____ _______${RESET}   ${amp_tone}  &&   ${RESET}   ${q_tone}____       ${spinner}${RESET}" \
+    "${st_tone}             / ____|__   __|${RESET}  ${amp_tone} &  &  ${RESET}  ${q_tone}/ __ \\${RESET}" \
+    "${st_tone}            | (___    | |${RESET}    ${amp_tone}  &&   ${RESET}  ${q_tone}| |  | |${RESET}" \
+    "${st_tone}             \\___ \\   | |${RESET}    ${amp_tone} &  & &${RESET}  ${q_tone}| |  | |${RESET}" \
+    "${st_tone}             ____) |  | |${RESET}    ${amp_tone}&    & ${RESET}  ${q_tone}| |__| |${RESET}" \
+    "${st_tone}            |_____/   |_|${RESET}     ${amp_tone} &&&& &${RESET}   ${q_tone}\\___\\_\\${RESET}" \
     "${st_tone}${BOLD}             STMicroelectronics${RESET}       ${q_tone}Qualcomm${RESET}" \
     "${CYAN}          VIBROAGENT // IQ-9075 // HEXAGON HTP${RESET}"
 }
