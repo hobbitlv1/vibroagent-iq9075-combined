@@ -2,6 +2,8 @@
 
 This repository intentionally keeps two independently deployable implementations. They share the same six-board physical installation, STDATALOG-PYSDK patch set, sensor identity contract, spectrum tooling, and safety boundaries. They differ at the signal representation and model-decision layers.
 
+For an interactive arrow-key selector, run `./install.sh` from the repository root. For unattended setup, use one of `--codec-live`, `--codec-offline`, `--gemma-live`, `--gemma-offline`, or `--gemma-demo`; add `--dry-run` to inspect the exact setup and run commands without changing the machine.
+
 | Area | VibroAgent-Codec (older, repository root) | VibroAgent-Gemma (`VibroAgent-Gemma/`) |
 |---|---|---|
 | Input window | One configured axis, 10 s per board | Synchronized XYZ, 10 s per board |

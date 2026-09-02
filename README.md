@@ -1,11 +1,93 @@
 # VibroAgent — on-device building-vibration diagnostics
 
-This repository now offers two complete deployment paths:
+This repository is the complete, reversible distribution for two independently deployable VibroAgent implementations:
 
-- **VibroAgent-Gemma** — the newer continuous vibration encoder + Gemma Q8 path, with live boards, a full offline `.dat` web pipeline, and direct LUMO demos. Start at [VibroAgent-Gemma/README.md](VibroAgent-Gemma/README.md).
-- **VibroAgent-Codec** — the established residual-VQ codec + Qwen3-4B path documented below, with live and immutable recorded-data modes.
+- **VibroAgent-Codec** is the established residual-vector-quantized codec and Qwen3-4B deployment. It supports six live STWIN.box boards, immutable five-minute replay, and a portable codec-only demonstration.
+- **VibroAgent-Gemma** is the continuous encoder and Gemma 4 E2B Q8 deployment. It supports the same six-board live installation, a board-free 60-second web replay with scheduled LUMO events, and direct LUMO command-line inference.
 
-Read [DEPLOYMENT_PATHS.md](DEPLOYMENT_PATHS.md) for the technical comparison and copy-paste commands for both paths. They share the same reviewed STDATALOG-PYSDK acquisition patch; stop one live stack before starting the other.
+Both implementations keep vibration processing local to the IQ-9075. They live in separate directories, use separate environments and launchers, and can be installed or removed without overwriting the other. They share the reviewed STDATALOG-PYSDK acquisition overlay; only one live stack should own the six USB boards at a time.
+
+## One installer, five deployment choices
+
+Run the root installer from a real terminal:
+
+```bash
+./install.sh
+```
+
+It opens with a short animated STMicroelectronics ASCII splash, then presents an arrow-key menu:
+
+```text
+                _____ _______
+               / ____|__   __|
+              | (___    | |
+               \___ \   | |
+               ____) |  | |
+              |_____/   |_|
+              STMicroelectronics
+            VIBROAGENT // EDGE AI
+
+  > VibroAgent-Codec  | Live six-board deployment
+    VibroAgent-Codec  | Offline five-minute replay
+    VibroAgent-Gemma  | Live six-board deployment
+    VibroAgent-Gemma  | Offline LUMO web pipeline
+    VibroAgent-Gemma  | Direct LUMO CLI demo
+```
+
+Use Up/Down, press Enter, and follow the printed run command. The animation takes less than half a second and the installer has no Python or package dependency. Setup is kept separate from startup because a first live USB installation may require a new login or reboot before group membership and udev rules take effect.
+
+For provisioning, CI, SSH sessions without a terminal, or exact copy-paste use, pass one selection flag:
+
+| Selection | Setup performed | Command printed after setup |
+|---|---|---|
+| `./install.sh --codec-live` | Codec live environment, SDK, USB, GenieX, and weights | `./vibroagent.sh start` |
+| `./install.sh --codec-offline` | Codec immutable recordings and full web environment | `./vibroagent.sh start` |
+| `./install.sh --gemma-live` | Gemma live environment, patched GenieX, encoder, and Q8 weights | `./VibroAgent-Gemma/vibroagent.sh start` |
+| `./install.sh --gemma-offline` | Gemma web environment and bundled 60-second `.dat` replay | `./VibroAgent-Gemma/vibroagent.sh start` |
+| `./install.sh --gemma-demo` | Gemma encoder/model path and compact LUMO fixtures | `./VibroAgent-Gemma/vibroagent.sh demo target_3` |
+
+Useful installer controls:
+
+```bash
+# Show commands without installing anything.
+./install.sh --gemma-offline --dry-run
+
+# Skip the splash in logs.
+./install.sh --codec-live --no-splash
+
+# Disable ANSI colors.
+NO_COLOR=1 ./install.sh --gemma-demo
+
+# Show all options.
+./install.sh --help
+```
+
+The installer accepts exactly one deployment selection. Re-running a selection is safe: the underlying setup scripts verify and reuse valid repositories, environments, recordings, and model artifacts.
+
+## Choose the implementation
+
+| Property | VibroAgent-Codec | VibroAgent-Gemma |
+|---|---|---|
+| Primary purpose | Stable discrete-token deployment | New continuous-embedding research deployment |
+| Input per board | One configured axis | Synchronized X, Y, and Z |
+| Analysis window | 10 seconds | 10 seconds |
+| Sensor topology | One reference + five targets | One reference + five targets |
+| Representation | Residual VQ codes at 400 Hz | 14 continuous rows per board, 84 rows total |
+| Language model | Qwen3-4B, Q4_0 embeddings/Q8 KV | Gemma 4 E2B, Q8_0 |
+| How vibration enters | Code symbols in a text prompt | Projected embeddings inside the model sequence |
+| Context | 6,144 | 4,096 |
+| HTP placement | HTP0 + HTP1 | HTP0 |
+| Runtime | Packaged GenieX path | GenieX v0.4.0 plus included stateful embedding/logit bridge patches |
+| Output contract | Grammar-constrained JSON | Global binary state plus joint five-target set logits, validated as JSON |
+| Operational classes | Legacy fine-grained set | `normal`, `unknown_anomaly`, deterministic `data_invalid` |
+| Localization | Model verdict under Codec contract | Five simultaneous target decisions; source-zone labels, not largest-response labels |
+| Offline experience | Five-minute immutable recording replay | 60-second full web replay with scheduled LUMO target events |
+| Model artifact | About 2.46 GB | 4,947,414,592-byte Q8 GGUF |
+| Maturity | Established path | Research checkpoint; promotion gate is not yet met |
+
+Use Codec when you need the established deployment and its older label vocabulary. Use Gemma when evaluating continuous vibration tokens, five-target localization, LUMO replay, or the current encoder/checkpoint pair. Neither path is a certified structural-safety system.
+
+The rest of this document is self-contained. [DEPLOYMENT_PATHS.md](DEPLOYMENT_PATHS.md) remains a compact command reference, while each deployment directory also keeps focused operator notes.
 
 ## VibroAgent-Codec
 
@@ -485,7 +567,13 @@ Asset-source overrides are `VIBRO_GH_REPO`, `VIBRO_RELEASE_TAG`, `VIBRO_MODELS_R
 
 ```text
 vibroagent-iq9075-codec/
-├── setup.sh                         Complete live or recorded-data installation
+├── install.sh                       Interactive selector for both implementations
+├── VibroAgent-Gemma/                Continuous encoder + Gemma Q8 deployment
+│   ├── setup.sh                     Live, offline, or direct-demo setup
+│   ├── vibroagent.sh                Gemma service lifecycle entry point
+│   ├── models/vibroagent-gemma-g1/ Matched encoder, schema, profile, manifests
+│   └── vibrodiag_mcp_prototype/     Gemma runtime, GenieX patches, UI, and tests
+├── setup.sh                         Codec live or recorded-data installation
 ├── setup_usb.sh                     libusb, udev rules, and hsdatalog group
 ├── setup_sdk.sh                     Pinned STDATALOG-PYSDK plus local overlay
 ├── setup_geniex.sh                  Dedicated GenieX environment
@@ -586,7 +674,505 @@ These measurements describe the IQ-9075 production configuration and should not 
 - The LAN-facing web application has no authentication.
 - A failed sensor read, stale stream, codec failure, invalid model response, or model timeout is reported as a failure rather than hidden behind a normal verdict.
 
-## 10. Ownership and license
+## VibroAgent-Gemma
+
+VibroAgent-Gemma preserves the six-board acquisition, live monitor, spectrum tooling, replay browser, and Ask Agent interface while replacing the Codec representation and Qwen decision path. The defining difference is that vibration is not serialized as raw numbers or discrete codes in prompt text. A dedicated encoder produces continuous vectors that are inserted directly into Gemma's input sequence.
+
+### 1. Research status and intended use
+
+The included G1 checkpoint is **unpromoted** because its own validation promotion gate failed. The package is provided so the exact encoder/checkpoint/runtime combination can be reproduced on the IQ-9075 for research, integration testing, replay, and demonstrations. Installing the live path does not change this status.
+
+| Validation-only metric | Reported value |
+|---|---:|
+| Overall macro-F1 | 0.9265 |
+| Normal recall | 0.9416 |
+| Anomaly recall | 0.9101 |
+| Affected-target F1 | 0.4701 |
+| Single-target exact-set match | 0.3393 |
+| Single-target all-zero rate | 0.2202 |
+| Minimum per-target F1 | 0.2927 |
+| Supported target-count gate | Failed |
+
+Checkpoint selection and the reported evaluation used validation data. The external TEST collections remained sealed and unmaterialized, so this repository makes no TEST-set claim. The model has not been calibrated on the installation building, independently validated for false-alert rate, or qualified for life-safety decisions.
+
+The core limitation is worth stating plainly: global normal/anomaly discrimination is considerably stronger than source-zone localization. An anomalous global state with an empty or wrong target set is a known possible result, not proof that the network is normal or that a particular board is damaged.
+
+### 2. Requirements
+
+| Requirement | Live | Offline web replay | Direct demo |
+|---|---|---|---|
+| Compute | Qualcomm IQ-9075 Linux/aarch64 with working HTP | Same, when running the Q8 model | Same, when running the Q8 model |
+| Sensors | Six STEVAL-STWINBX1 boards | None | None |
+| Firmware | FP-SNS-DATALOG2 v3.2.0 | Not applicable | Not applicable |
+| Python | 3.12 | 3.12 | 3.12 |
+| Build tools | Git, `g++`, CMake, Ninja, and `curl`; setup installs environment packages where possible | Same | Same |
+| Storage | At least 12 GB free during GGUF reconstruction and build | At least 12 GB | At least 12 GB |
+| Release access | GitHub authentication or `GITHUB_TOKEN` when assets are private | Same | Same |
+
+The checked-in Python source, encoder, tokenizer, schema, healthy profile, fixture windows, configuration, patch series, and manifests describe the runtime. The large Q8 GGUF is a release asset and is downloaded only after its checksum is known.
+
+### 3. Install and run
+
+The shortest path is the root installer:
+
+```bash
+./install.sh                  # Interactive choice
+./install.sh --gemma-live    # Live boards
+./install.sh --gemma-offline # Board-free web replay
+./install.sh --gemma-demo    # Direct LUMO demo
+```
+
+The equivalent direct commands follow.
+
+#### 3.1 Live six-board evaluation
+
+```bash
+cd VibroAgent-Gemma
+./setup.sh --live
+```
+
+If setup changed membership in the `hsdatalog` group, log out and back in or reboot. Connect all six boards through a powered hub, power-cycle them, then start:
+
+```bash
+./vibroagent.sh start
+./vibroagent.sh status
+```
+
+The launcher prints the LAN URL for the web application. The model adapter stays loopback-only at `http://127.0.0.1:18181/v1`. Stop the complete stack before disconnecting boards or starting Codec:
+
+```bash
+./vibroagent.sh stop
+```
+
+The stop path terminates the monitor and model, asks the logger to stop, and lets the acquisition processes issue `stop_log` to their boards. Do not use `kill -9` as the ordinary shutdown path.
+
+#### 3.2 Board-free web replay
+
+```bash
+cd VibroAgent-Gemma
+./setup.sh --offline
+./vibroagent.sh start
+```
+
+This is the complete web application, not a mocked UI. It uses the same synchronized episode builder, ONNX encoder, continuous-token insertion, Q8 model, structured target-set decoder, validator, monitor, popup policy, spectrum tools, replay pages, and Ask Agent context as live mode. Only acquisition changes: the six logical slots read immutable `.dat` files under the combined repository's `examples/` directories.
+
+The replay timeline is 60 seconds:
+
+| Replay time | Source | Runtime action | Fixture target |
+|---:|---|---|---|
+| 0–15 s | Included baseline `.dat` streams | Normal six-board playback | None |
+| 15–25 s | LUMO `DAM4_010`, source interval 520–530 s | Exact ten-second overlay on target 3 | Target 3 |
+| 25–45 s | Included baseline `.dat` streams | Baseline playback resumes | None |
+| 45–55 s | LUMO `DAM6_010`, source interval 520–530 s | Exact ten-second overlay on target 5 | Target 5 |
+| 55–60 s | Included baseline `.dat` streams | Baseline playback resumes | None |
+
+The inference claim, waveform window, six-board read, overlay, encoder input, and model request use the same manifest-bound timestamp. The scheduler sleeps until the next event instead of repeatedly loading unchanged baseline windows. With looping enabled the events repeat every 60 seconds.
+
+```bash
+# Play twice as fast and stop at the end.
+VIBRO_REPLAY_SPEED=2 VIBRO_REPLAY_LOOP=0 ./vibroagent.sh start
+```
+
+The `.dat` files and compact LUMO fixtures are never rewritten. Injection is an in-memory overlay on the selected target. Scheduled events may be saved in Replay because source, target, and timestamp are fixed by the manifest. Manual live injection is marked synthetic and intentionally excluded from persistent Replay alerts.
+
+#### 3.3 Direct LUMO command-line demo
+
+```bash
+cd VibroAgent-Gemma
+./setup.sh --demo
+./vibroagent.sh demo target_3
+./vibroagent.sh demo target_5
+```
+
+This path bypasses the web server but not the model path. It builds a six-board episode, runs the same encoder, inserts all 84 continuous rows, invokes the same decoder, and validates the result. Use the encoder-only dry run when HTP is unavailable:
+
+```bash
+vibrodiag_mcp_prototype/.run/vibrogemma-venv/bin/python \
+  demo/run_lumo.py --target target_3 --dry-run
+```
+
+The fixtures are attributable derivatives of **LUMO — Leibniz University Test Structure for Monitoring**, Stefan Wernitz et al. (2021), DOI `10.25835/0027803`, licensed CC BY 3.0.
+
+| Demo | Condition | Original interval | Included SHA-256 |
+|---|---|---|---|
+| `target_3` | `DAM4_010` | `SHMTS_202106010009.mat`, 520–530 s | `cd1e068e1d060210f426f1a0049a97bf359865d7957ef9e06b9c1d647de73402` |
+| `target_5` | `DAM6_010` | `SHMTS_202105050003.mat`, 520–530 s | `d2c612767ad51ab711192d661e14a7422c5fbb652b695759dba1895d21b56150` |
+
+The mapping is reference `accel04/ML4`; targets `accel02/ML2`, `accel05/ML5`, `accel06/ML6`, `accel08/ML8`, and `accel09/ML9`. LUMO supplies synchronized X/Y acceleration for this panel but no measured Z. Conversion supplies zeros with an explicit `Z=false` mask; it does not invent a Z signal. Full attribution and original hashes are in `VibroAgent-Gemma/demo/LUMO_ATTRIBUTION.md`.
+
+### 4. End-to-end architecture
+
+```mermaid
+flowchart LR
+    A[Six STWIN.box boards] --> B[Patched STDATALOG-PYSDK]
+    R[Six immutable DAT files] --> C[Offline replay clock]
+    L[LUMO windows] --> C
+    B --> D[Synchronized 10 s XYZ episode]
+    C --> D
+    D --> Q[Deterministic quality gates]
+    Q --> E[ONNX vibration encoder]
+    E --> F[84 x 1536 continuous rows]
+    F --> G[Patched GenieX 0.4.0 stateful prefill]
+    G --> H[Gemma 4 E2B Q8 on HTP0]
+    H --> I[Global binary logits]
+    H --> J[Joint five-target set logits]
+    I --> K[Strict alert validator]
+    J --> K
+    K --> W[Monitor / popup / replay / spectrum / Ask Agent]
+```
+
+The UI never decides the anomalous target from RMS, peak acceleration, dominant frequency, waveform height, healthy-profile distance, or a prompt heuristic. These remain useful measurements for inspection, quality checks, spectrum analysis, and replay context; the accepted anomaly/localization record comes from the model decision path.
+
+### 5. Sensor episode and quality contract
+
+Every episode keeps this semantic order:
+
+```text
+board 0  reference
+board 1  target_1
+board 2  target_2
+board 3  target_3
+board 4  target_4
+board 5  target_5
+```
+
+Reordering devices, copying a stream into another slot, or treating the loudest board as the source changes the trained problem. Live setup stores a device-identity manifest and can require physical identities to match logical slots.
+
+For each inference, the runtime resolves all slots, reads a complete shared 10-second interval, preserves X/Y/Z and measured-axis masks, aligns board boundaries, runs deterministic data-quality checks, and builds one fixed-order batch. Missing, stale, insufficient, non-finite, flat, clipped, or implausibly duplicated streams are reported as `data_invalid` where applicable.
+
+Sensor validity is deterministic because a language model should not decide whether USB data existed. Structural state remains learned because replacing it with magnitude thresholds creates a different detector.
+
+### 6. Continuous vibration representation
+
+The frozen signal architecture emits 14 rows per board:
+
+| Family | Rows/board | Function |
+|---|---:|---|
+| Modal | 6 | Low-frequency structural-modal representation at a 1,024 Hz analysis rate |
+| Wideband | 6 | Up to 6 kHz; 9 input channels, 192 frequency bins, 64 time bins, 4×4 patches |
+| Physics | 2 | Compact summaries over declared physical frequency bands |
+| **Total** | **14** | Per-board continuous context |
+
+Physics bands are `0.1–1`, `1–5`, `5–20`, `20–50`, `50–200`, `200–1000`, `1000–3000`, and `3000–6000 Hz`. Across six boards:
+
+```text
+6 boards × 14 rows = 84 rows
+encoder output shape = [1, 84, 1536]
+```
+
+The pre-projection encoder width is 192. The ONNX checker reports maximum absolute token error `7.867813110351562e-06`. The B0 encoder stayed frozen during G1 training; the model card records equality for 203 `vibration_tokenizer.*` tensors with digest `f655f4a438513f4a0a207b5cbcea52c54fb50dd5d8f0838049d8ca1438fe3ee8`.
+
+### 7. Native insertion into Gemma
+
+The checkpoint reserves six groups of 14 positions between its vibration boundary markers. Textual prefix and markers are tokenized normally; the runtime then supplies each float embedding row at its reserved position. Gemma attends those vectors inside the same sequence as text.
+
+Vibration is therefore neither raw numeric prompt text nor a textual description of the signal. It is compact continuous context directly attended by Gemma. A request without a valid vibration payload is rejected rather than silently running text-only inference.
+
+Each episode starts from fresh model state. KV cache is not reused across monitoring windows, preventing an earlier target set or vibration episode from contaminating a later decision.
+
+### 8. Model and decision contract
+
+The default artifact is `gemma-4-e2b-g1-Q8_0.gguf` on `llama_cpp:HTP0` with a 4,096-token context. Its recorded training base is `google/gemma-4-E2B-it` revision `3e22461f65e89153144f8adb70e3b8c2cc9845a7`.
+
+Deployment profile `binary_state_v2` uses decision mode:
+
+```text
+parallel_binary_global_plus_joint_target_set_v1
+```
+
+The runtime reads one global binary choice and one joint five-target affected set. It does not run five unrelated chats or copy a global anomaly to all targets.
+
+| Field | Value | Meaning |
+|---|---|---|
+| `class` | `normal` | No learned anomaly selected |
+| `class` | `unknown_anomaly` | Anomaly selected; no unsupported damage subtype is invented |
+| `class` | `data_invalid` | Deterministic input/quality failure, not a structural class |
+| `severity` | `none` | Normal target |
+| `severity` | `advisory` | Experimental anomaly indication |
+
+The schema requires exactly `target_1` through `target_5`, each with `sensor_id`, `affected`, `class`, and `severity`, plus package-defined probability metadata. Probabilities are not operationally calibrated: `choice_probability` can be null and `confidence_operational` stays false without separate validation.
+
+```json
+{
+  "system_state": "advisory",
+  "targets": [
+    {"sensor_id": "target_1", "affected": false, "class": "normal", "severity": "none"},
+    {"sensor_id": "target_2", "affected": false, "class": "normal", "severity": "none"},
+    {"sensor_id": "target_3", "affected": true, "class": "unknown_anomaly", "severity": "advisory"},
+    {"sensor_id": "target_4", "affected": false, "class": "normal", "severity": "none"},
+    {"sensor_id": "target_5", "affected": false, "class": "normal", "severity": "none"}
+  ]
+}
+```
+
+The model path uses structured logits and zero free explanation tokens. The web layer may render a concise sentence around an accepted record but must not present that sentence as new model evidence.
+
+### 9. Localization semantics and data boundary
+
+Localization labels mean the **physical damage-source zone**, not the sensor with the largest acceleration. Disturbance propagation, mode shapes, coupling, mounting, boundary conditions, and resonance can make a remote sensor respond more strongly than the source-zone sensor.
+
+G1 used these downstream corpora where provenance and labels supported the selected task: LUMO, QUGS, UPC jacket, LUH reversible beam, Geisel Library XK2021, TallWood PRJ4359 v2, BNCS/NEES 2009-0722, SERA AIMS PRJ2992, and four-storey Zenodo 11578 v1. Unknown-condition or representation-only rows were not assigned fabricated labels. Some corpora contribute global discrimination without genuine five-zone localization positives.
+
+Therefore a global anomaly does not prove correct localization; a large target-1 response does not itself imply target 1 is the source; and site acceptance needs labeled source-zone events for every installed target rather than arbitrary tapping alone.
+
+### 10. Healthy profile
+
+`models/vibroagent-gemma-g1/artifacts/healthy_profile.json` is a checkpoint-bound preprocessing dependency fitted on TRAIN data only. It is not a list of live thresholds and must not be regenerated from evaluation or anomalous examples.
+
+The profile applies only when episode provenance matches its fitted keys. Global fallback is disabled. A live site with unmatched provenance can therefore receive no profile residual instead of silently applying statistics from another structure.
+
+For a new building, a defensible profile requires a reviewed healthy-baseline campaign, fixed locations/orientations, stable acquisition settings, representative ambient and operational conditions, and held-out acceptance data. Fitting it does not retrain the checkpoint or solve localization. Do not remove or substitute it merely to make alerts appear.
+
+### 11. GenieX 0.4.0 modifications
+
+`VibroAgent-Gemma/setup_geniex.sh` clones Qualcomm GenieX tag `v0.4.0`, initializes its pinned `llama.cpp` submodule, applies the two reviewable patches under `VibroAgent-Gemma/vibrodiag_mcp_prototype/patches/`, and builds only the necessary plugin and bridge pieces.
+
+#### Patch 1: stateful external-embedding prefill
+
+`0001-feat-add-stateful-external-embedding-prefill.patch` extends the C ABI, llama.cpp plugin, and Python binding with a bounded stateful decode API. It accepts normal token IDs or caller-supplied float embedding rows, retains model state, and generates from that state. This places the six groups of 14 encoder rows directly into Gemma's sequence.
+
+The interface bounds row counts and shapes and keeps native ownership explicit. Stock GenieX can tokenize text, but without this patch it cannot reproduce this checkpoint's continuous vibration input.
+
+#### Patch 2: selected logits from retained state
+
+`0002-feat-read-state-logits.patch` exposes selected logits from the latest stateful decode without sampling or changing the state. VibroAgent-Gemma compares the two global choice logits and the joint target-set choice logits at their exact query positions.
+
+This avoids parsing a creative completion into target states and preserves the trained structured-choice interface. The build retains stock GenieX 0.4.0 shared libraries, rebuilds the patched plugin, and adds `libgeniex_stateful.so` as a compatibility bridge. Startup requires external-embedding and state-logit probes to pass before the web service starts. GenieX-derived changes retain Qualcomm's BSD 3-Clause licence in the patch directory.
+
+### 12. Shared STDATALOG-PYSDK modifications
+
+Both stacks use STDATALOG-PYSDK v1.3.0 with pinned submodules:
+
+```text
+stdatalog_core @ a4824fc
+stdatalog_pnpl @ a6e36d2
+```
+
+Only the seven modified files are stored under `sdk_patches/overlay/`, with a unified diff for review. `setup_sdk.sh` fetches stock source and copies the path-preserving overlay on top.
+
+| Area | Change | Reason |
+|---|---|---|
+| `HSDLink.py` | Poll wait 20 ms → 1 ms | Lower latency across six high-rate streams |
+| `HSDLink.py` | `fallback_to_serial` flag | Reject silent native-HSDv2 fallback to an incompatible slower transport |
+| `HSDLink.py` | Return acquisition threads | Track, stop, and join every reader cleanly |
+| `HSDLink.py` | Public data-ready callback | Expose native event-driven receive |
+| `HSDLink_v2.py` | Callback forwarding | Complete the link-layer route |
+| `PnPLHSD_com_manager.py` | Callback forwarding | Complete the manager route |
+| `hsd_dll.py` | `ctypes` callback wrapper and retained references | Call the native symbol and prevent collection while USB threads own callbacks |
+| `HSDatalog_v2.py` | Bound live-read buffers from read start to EOF | Avoid growth with logical size of head-hole-punched live `.dat` files |
+| Device catalog/templates | Include resolved STWIN.box FP-SNS-DATALOG2 v3.2 templates | Reproduce board discovery without first-contact network fetch |
+
+Practical parallelism comes from one isolated reader process per board in `board_reader_process.py`; the SDK callback is the lower-latency transport foundation. SDK-derived files retain ST's BSD 3-Clause licence in `sdk_patches/LICENSE.md`.
+
+### 13. Web application behavior
+
+The desktop-first STMicroelectronics-style interface retains four surfaces:
+
+- **Live monitor** shows synchronized waveforms, explicit board state, the latest accepted check, and alert details. A valid unaffected target is Normal. Not localized is reserved for an anomalous result without an accepted target assignment; no-data and data-invalid states remain explicit.
+- **Spectrum** retains waveform/PSD inspection plus board, axis, and window controls. Dominant structural frequency is bounded to its analysis band and is descriptive, not the classifier.
+- **Replay** stores accepted scheduled/model events with exact source windows and per-board measurements. Manual synthetic tests are not mixed into operational history.
+- **Ask Agent** always submits a vibration-backed episode. The model adapter rejects text-only requests without the required payload.
+
+The monitor shows six boards but returns five target records because the reference supplies context and is not a localization candidate. Operator-facing UI names use **Agent**; compatibility filenames retain older internal names only where changing them would break imports or manifests.
+
+### 14. Model assets and integrity
+
+The default GitHub release tag is `weights-v1`. `setup_models.sh` downloads lexically ordered split parts, reconstructs the GGUF byte-for-byte, and verifies the final artifact before startup.
+
+```text
+Artifact: gemma-4-e2b-g1-Q8_0.gguf
+Size:     4,947,414,592 bytes
+SHA-256:  11ceefee8d62080072fe2b65f68beab5e0f31ad716c640178ed93b5ac0eb31d6
+```
+
+Use an already-downloaded file:
+
+```bash
+VIBROGEMMA_GGUF_SOURCE=/absolute/path/gemma-4-e2b-g1-Q8_0.gguf \
+  ./VibroAgent-Gemma/setup_models.sh
+```
+
+Override an asset mirror deliberately:
+
+```bash
+VIBRO_GEMMA_RELEASE_TAG=weights-v1 \
+VIBRO_GH_REPO=hobbitlv1/vibroagent-iq9075-codec \
+  ./VibroAgent-Gemma/setup_models.sh
+```
+
+The manifest records a Q4 alternative, but the combined installer chooses Q8 as the package default. Encoder, ONNX external data, tokenizer, token layout, schema, healthy profile, and GGUF are a matched set. A right filename with a wrong hash is a hard failure.
+
+### 15. Runtime controls
+
+The launchers provide reviewed defaults. Common operator overrides are:
+
+| Variable | Purpose |
+|---|---|
+| `VIBRO_REPLAY_SPEED` | Offline playback multiplier |
+| `VIBRO_REPLAY_LOOP` | Repeat the 60-second schedule (`1`) or stop (`0`) |
+| `VIBROGEMMA_GGUF_SOURCE` | Local source file during model setup |
+| `VIBRO_GEMMA_RELEASE_TAG` | GitHub release containing weight parts |
+| `VIBRO_GH_REPO` | Explicit asset repository |
+| `GENIEX_PORT` | Loopback adapter port; default 18181 |
+| `GENIEX_N_CTX` | Context size; reviewed default 4096 |
+| `GENIEX_DEVICE_MAP` | Device placement; reviewed default HTP0 map |
+| `VIBRO_CURRENT_FILE_MAX_AGE_S` | Maximum accepted live-file age |
+| `VIBRO_LIVE_DEVICE_MANIFEST` | Logical-slot-to-device mapping |
+| `VIBRO_REQUIRE_DEVICE_IDENTITY` | Enforce physical device identity |
+| `VIBRO_BOARD_READER_CPUS` | Optional reader-process CPU placement |
+
+Other variables exist for tests, decoder buffers, request-size limits, origins, and development probes. Synthetic injection, insecure remote URLs, decision-mode overrides, and experimental confidence/voting settings can invalidate the documented behavior; use them only with focused tests and record the deviation.
+
+### 16. Memory, latency, and power
+
+These are **historical engineering observations from an earlier compatible encoder/model integration**, not fresh measurements of the exact G1 Q8 package. They are included only for rough development sizing.
+
+| Component/state | Historical observation |
+|---|---:|
+| Model adapter after load/request | about 3.456–3.463 GiB RSS |
+| Model adapter high-water mark | about 3.854 GiB |
+| Available-memory delta during that run | about 5.01 GiB |
+| Encoder after imports | about 62.9 MiB RSS |
+| Encoder after repeated synthetic encoding | about 911 MiB RSS |
+| Encoder high-water mark | about 1.286 GiB |
+| Separate model + encoder lower-bound RSS | about 4.353 GiB |
+| Clean STDATALOG import maximum RSS | about 172 MiB |
+
+The 4.353 GiB figure excludes the web server, six readers, logger, queues, DataFrames, browser, FastRPC/HTP allocations outside sampled processes, and transient setup memory. The exact Q8 artifact is larger than the historically measured model, so these figures must not be quoted as G1 Q8 requirements.
+
+Deterministic host-buffer sizes are:
+
+| Structure | Approximate size |
+|---|---:|
+| One board, 20 s, float64 XYZ + timestamp | 16.2–16.3 MiB |
+| Six such buffers | about 97.55 MiB |
+| Six 10 s float32 XYZ windows | about 18.3 MiB |
+| One `84 × 1536` float32 matrix | 504 KiB |
+
+No defensible watt figure is claimed. The EVK's 20 V / 160 W adapter rating is capacity, not consumption, and the tested Linux image exposes no calibrated whole-board energy rail. Temperature and utilization are not watts.
+
+For reproducible power data, use a calibrated inline DC meter between the supply and EVK, or a calibrated wall meter. Measure booted idle, model loaded, acquisition only, graph open, one inference, continuous monitoring, and spectrum use. Record mean W, peak W, duration, meter accuracy, ambient/board temperature, firmware, device map, and model hash. Report joules per accepted check from the meter's energy reading; report idle-subtracted application power separately if needed.
+
+### 17. Verification
+
+Check scripts and every installer mapping without installing:
+
+```bash
+bash -n install.sh \
+  VibroAgent-Gemma/setup.sh \
+  VibroAgent-Gemma/setup_models.sh \
+  VibroAgent-Gemma/setup_geniex.sh \
+  VibroAgent-Gemma/vibroagent.sh
+
+for option in codec-live codec-offline gemma-live gemma-offline gemma-demo; do
+  ./install.sh --"$option" --dry-run --no-splash
+done
+```
+
+Run the hardware-independent suite after setup:
+
+```bash
+cd VibroAgent-Gemma
+PYTHONPATH=vibrodiag_mcp_prototype/src:vibrodiag_mcp_prototype \
+  vibrodiag_mcp_prototype/.run/vibrogemma-venv/bin/python -m pytest -q \
+  vibrodiag_mcp_prototype/tests/
+```
+
+The combined package was last exercised with **191 passed, 2 skipped**. The skips are environment-dependent and do not authorize ignoring new failures.
+
+Focused deployment gates:
+
+```bash
+PYTHONPATH=vibrodiag_mcp_prototype/src:vibrodiag_mcp_prototype \
+  vibrodiag_mcp_prototype/.run/vibrogemma-venv/bin/python -m pytest -q \
+  vibrodiag_mcp_prototype/tests/test_vibrogemma_live.py \
+  vibrodiag_mcp_prototype/tests/test_vibrogemma_offline.py \
+  vibrodiag_mcp_prototype/tests/test_vibrogemma_geniex_server.py \
+  vibrodiag_mcp_prototype/tests/test_vibrogemma_deployment_health.py
+```
+
+The offline integration check decoded real windows from all six included `.dat` sources into one complete 84-row input, including target 3 and the exact target-5 45–55-second interval. This proves data-path integration, not correct HTP localization.
+
+```bash
+./vibroagent.sh status
+tail -f .run/geniex.log .run/webchat.log .run/logger.log
+```
+
+### 18. Troubleshooting
+
+| Symptom | Likely boundary | Check |
+|---|---|---|
+| `stdatalog-pysdk is not importable` | Wrong environment or incomplete setup | Re-run selected setup; use the launcher environment, not system Python |
+| `pyarrow` missing | Environment installation incomplete | Re-run setup rather than patching system imports |
+| Boards stay Waiting | No native data, stale files, or group/udev change inactive | Power-cycle, log in again after group change, inspect `.run/logger.log` |
+| Agent unavailable | Hash, HTP map, shared library, or GenieX probe failure | Inspect `.run/geniex.log`; verify Q8 hash and both probes |
+| HTTP 400 requires vibration payload | Text-only client called the endpoint | Use Ask Agent or the episode-backed path; rejection is expected |
+| All targets Not localized | No accepted target set or global/target disagreement | Inspect stored structured record; do not substitute amplitude localization |
+| Always normal | Checkpoint result, wrong/missing encoder payload, mismatched assets, or out-of-distribution input | Verify hashes, `[1,84,1536]` shape, probes, mode, and a fixed fixture |
+| Always the same targets | Slot collapse, stale state, wrong query order, or weak localization | Verify device IDs/window hashes, fresh state, order, then direct fixtures |
+| Injection freezes waveform | Overlay is blocking acquisition or reader starvation | Use bounded post-read overlay; never write synthetic samples into live `.dat` |
+| Target 1 mirrors target 5 | Aliased slots/directories, shared buffer, or physical transmission | Compare device IDs and raw-window hashes before interpreting coupling |
+| Implausible dominant frequency | Sample-rate/timestamp/DC/band error | Confirm metadata and declared spectrum band |
+| Popup missing | No new accepted affected set or test excluded from history | Inspect latest result; manual synthetic events are not persisted |
+
+Preserve four layers during diagnosis: board identity/raw data, deterministic quality, encoder output/integrity, and model logits/validated target set. Prompt changes or forced popups made before locating the failed layer can hide the original defect.
+
+### 19. Acceptance checklist
+
+- Verify every artifact against its manifest.
+- Require decision mode `parallel_binary_global_plus_joint_target_set_v1`.
+- Confirm exactly 84 rows of width 1536 reach stateful GenieX.
+- Confirm missing vibration payloads are rejected.
+- Confirm model state is fresh for every episode.
+- Confirm device identity and slot order for the reference and five targets.
+- Confirm sample rates, axes, orientation, units, timestamps, and synchronized completeness.
+- Keep absent axes masked rather than synthesized.
+- Test normal, packet loss, stale file, flatline, clipping, duplicate stream, and disconnect cases.
+- Test labeled source-zone examples for every target and report per-target metrics.
+- Measure false/missed alerts under representative conditions.
+- Measure current latency, RAM, thermals, and power on the exact release.
+- Put the unauthenticated LAN UI behind a trusted network or authenticated TLS reverse proxy.
+- Require structural-engineering review before any action based on output.
+
+### 20. Gemma repository map
+
+```text
+VibroAgent-Gemma/
+├── README.md
+├── setup.sh                         Mode/environment setup
+├── setup_models.sh                  Download, reconstruction, SHA gates
+├── setup_geniex.sh                  GenieX v0.4.0 patch and build
+├── vibroagent.sh                    Start/stop/status/demo entry point
+├── demo/
+│   ├── run_lumo.py                  Direct six-board fixture runner
+│   └── LUMO_ATTRIBUTION.md          Licence, sources, transformations
+├── models/vibroagent-gemma-g1/
+│   ├── MODEL_CARD.md                Training boundary and status
+│   ├── DEPLOYMENT.md                Package-origin constraints
+│   ├── bundle_manifest.json         Artifact sizes, hashes, contract
+│   ├── alert.schema.json            Global/five-target record
+│   ├── token_layout.json            Continuous-token positions
+│   ├── vibration_encoder_projector.onnx
+│   ├── vibration_encoder_projector.onnx.data
+│   ├── artifacts/healthy_profile.json
+│   └── tokenizer/
+└── vibrodiag_mcp_prototype/
+    ├── config/sensors.live.yaml     Logical sensor registry
+    ├── data/external/lumo/          Compact attributed fixtures
+    ├── patches/                     GenieX patches and licences
+    ├── src/vibroagent_mcp/
+    │   ├── vibrogemma_live.py       Episode/encoder integration
+    │   ├── vibrogemma_geniex_server.py
+    │   ├── geniex_openai_server.py  Loopback adapter and limits
+    │   ├── board_reader_process.py  Per-board isolation
+    │   ├── sdk_vibrometer.py        Bounded window extraction
+    │   ├── offline_replay.py        60-second replay clock
+    │   ├── sensor_registry.py       Device identity resolution
+    │   └── webchat_server.py        Monitor/replay/spectrum/chat
+    └── tests/                        Hardware-independent suite
+```
+
+## Ownership and license
 
 This project is licensed under CC BY-NC-SA 4.0. See [`LICENSE.md`](LICENSE.md) for the complete terms and ownership statement.
 
