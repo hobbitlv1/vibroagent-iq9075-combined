@@ -16,15 +16,14 @@ Run the root installer from a real terminal:
 ```
 
 ```text
-                          _____ _______           ____
-                         / ____|__   __|         / __ \
-                        | (___    | |           | |  | |
-                         \___ \   | |           | |  | |
-                         ____) |  | |           | |__| |
-                        |_____/   |_|            \___\_\
-                         STMicroelectronics   &   Qualcomm
-                     ▃▃▄▄▄▄▄▃▃▂▁▁▁▁▁▂▃▃▄▄▄▄▄▃▃▂▁▁▁▁▁▂▃▃▄▄▄
-                      VIBROAGENT // IQ-9075 // HEXAGON HTP
+       ██  ██ ██ █████  █████   ████   ████   █████ █████ ███  ██ ██████
+       ██  ██ ██ ██  ██ ██  ██ ██  ██ ██  ██ ██     ██    ████ ██   ██
+       ██  ██ ██ █████  █████  ██  ██ ██████ ██ ███ ████  ██ ████   ██
+        ████  ██ ██  ██ ██ ██  ██  ██ ██  ██ ██  ██ ██    ██  ███   ██
+         ██   ██ █████  ██  ██  ████  ██  ██  █████ █████ ██   ██   ██
+                        STMicroelectronics  &  Qualcomm
+       ▃▃▄▄▄▄▄▃▃▂▁▁▁▁▁▂▃▃▄▄▄▄▄▃▃▂▁▁▁▁▁▂▃▃▄▄▄▄▄▃▃▂▁▁▁▁▁▂▃▃▄▄▄▄▄▃▃▂▁▁▁▁▁▂▃
+                      STWIN.BOX // IQ-9075 // HEXAGON HTP
 
   Choose a deployment
   VibroAgent-Codec  RVQ codec tokens · Qwen3-4B
@@ -39,6 +38,8 @@ Run the root installer from a real terminal:
   Discrete codec tokens + Qwen3-4B. Requires six STWIN.box boards.
   Enter runs  ./setup.sh
   Up/Down or j/k move  ·  1-5 jump  ·  Enter select  ·  q quit
+
+       Danilo Pau & Niks Kordjukovs  ·  System Research and Applications
 ```
 
 Use Up/Down, press Enter, and follow the printed run command. Setup is kept separate from startup because a first live USB installation may require a new login or reboot before group membership and udev rules take effect.
