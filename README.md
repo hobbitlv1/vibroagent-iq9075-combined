@@ -16,20 +16,29 @@ Run the root installer from a real terminal:
 ```
 
 ```text
-             _____ _______           ____
-            / ____|__   __|         / __ \
-           | (___    | |           | |  | |
-            \___ \   | |           | |  | |
-            ____) |  | |           | |__| |
-           |_____/   |_|            \___\_\
-            STMicroelectronics   &   Qualcomm
-         VIBROAGENT // IQ-9075 // HEXAGON HTP
+                          _____ _______           ____
+                         / ____|__   __|         / __ \
+                        | (___    | |           | |  | |
+                         \___ \   | |           | |  | |
+                         ____) |  | |           | |__| |
+                        |_____/   |_|            \___\_\
+                         STMicroelectronics   &   Qualcomm
+                     ▃▃▄▄▄▄▄▃▃▂▁▁▁▁▁▂▃▃▄▄▄▄▄▃▃▂▁▁▁▁▁▂▃▃▄▄▄
+                      VIBROAGENT // IQ-9075 // HEXAGON HTP
 
-  > VibroAgent-Codec  | Live six-board deployment
-    VibroAgent-Codec  | Offline five-minute replay
-    VibroAgent-Gemma  | Live six-board deployment
-    VibroAgent-Gemma  | Offline LUMO web pipeline
-    VibroAgent-Gemma  | Direct LUMO CLI demo
+  Choose a deployment
+  VibroAgent-Codec  RVQ codec tokens · Qwen3-4B
+  ▸ 1  Live six-board deployment
+    2  Offline five-minute replay
+  VibroAgent-Gemma  continuous encoder · Gemma 4 E2B Q8
+    3  Live six-board deployment
+    4  Offline LUMO web pipeline
+    5  Direct LUMO CLI demo
+    q  Exit installer
+
+  Discrete codec tokens + Qwen3-4B. Requires six STWIN.box boards.
+  Enter runs  ./setup.sh
+  Up/Down or j/k move  ·  1-5 jump  ·  Enter select  ·  q quit
 ```
 
 Use Up/Down, press Enter, and follow the printed run command. Setup is kept separate from startup because a first live USB installation may require a new login or reboot before group membership and udev rules take effect.
@@ -55,6 +64,13 @@ Useful installer controls:
 
 # Disable ANSI colors.
 NO_COLOR=1 ./install.sh --gemma-demo
+
+# Preview the installer without changing the machine.
+./install.sh --preview-animation
+
+# Use the plain-ASCII fallback or stream raw setup output.
+./install.sh --preview-animation --ascii
+./install.sh --gemma-live --no-animation
 
 # Show all options.
 ./install.sh --help
