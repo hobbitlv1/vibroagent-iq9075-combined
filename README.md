@@ -24,7 +24,7 @@ It opens with a short animated STMicroelectronics ASCII splash, then presents an
             \___ \   | |           | |  | |
             ____) |  | |           | |__| |
            |_____/   |_|            \___\_\
-            STMicroelectronics       Qualcomm
+            STMicroelectronics   &   Qualcomm
          VIBROAGENT // IQ-9075 // HEXAGON HTP
 
   > VibroAgent-Codec  | Live six-board deployment

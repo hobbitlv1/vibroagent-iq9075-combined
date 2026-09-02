@@ -71,7 +71,7 @@ logo() {
     "             \\___ \\   | |           | |  | |" \
     "             ____) |  | |           | |__| |" \
     "            |_____/   |_|            \\___\\_\\" \
-    "${RESET}${BOLD}             STMicroelectronics       Qualcomm${RESET}" \
+    "${RESET}${BOLD}             STMicroelectronics   &   Qualcomm${RESET}" \
     "${CYAN}          VIBROAGENT // IQ-9075 // HEXAGON HTP${RESET}"
 }
 
