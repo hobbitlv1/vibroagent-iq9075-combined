@@ -64,25 +64,37 @@ trap restore_cursor EXIT
 
 logo() {
   local spinner="${1:- }"
+  local pulse="${2:-  &  }"
+  local st_tone="${3:-$BLUE}"
+  local q_tone="${4:-$CYAN}"
   printf '%s\n' \
-    "${BLUE}        ${spinner}     _____ _______           ____       ${spinner}" \
-    "             / ____|__   __|         / __ \\" \
-    "            | (___    | |           | |  | |" \
-    "             \\___ \\   | |           | |  | |" \
-    "             ____) |  | |           | |__| |" \
-    "            |_____/   |_|            \\___\\_\\" \
-    "${RESET}${BOLD}             STMicroelectronics   &   Qualcomm${RESET}" \
+    "${st_tone}        ${spinner}     _____ _______${RESET}           ${q_tone}____       ${spinner}${RESET}" \
+    "${st_tone}             / ____|__   __|${RESET}         ${q_tone}/ __ \\${RESET}" \
+    "${st_tone}            | (___    | |${RESET}           ${q_tone}| |  | |${RESET}" \
+    "${st_tone}             \\___ \\   | |${RESET}           ${q_tone}| |  | |${RESET}" \
+    "${st_tone}             ____) |  | |${RESET}           ${q_tone}| |__| |${RESET}" \
+    "${st_tone}            |_____/   |_|${RESET}            ${q_tone}\\___\\_\\${RESET}" \
+    "${st_tone}${BOLD}             STMicroelectronics${RESET} ${CYAN}${BOLD}${pulse}${RESET} ${q_tone}${BOLD}Qualcomm${RESET}" \
     "${CYAN}          VIBROAGENT // IQ-9075 // HEXAGON HTP${RESET}"
 }
 
 splash() {
-  local frames=('|' '/' '-' $'\\' '|' '/' '-' $'\\') frame
+  local spinners=('|' '/' '-' $'\\' '|' '/' '-' $'\\')
+  local pulses=('&....' '.&...' '..&..' '...&.' '....&' '...&.' '..&..' '.&...')
+  local frame st_tone q_tone
   printf '\033[?25l'
-  for frame in "${frames[@]}"; do
+  for frame in "${!spinners[@]}"; do
+    if [ "$frame" -lt 3 ]; then
+      st_tone="$BLUE$BOLD"; q_tone="$MUTED"
+    elif [ "$frame" -lt 6 ]; then
+      st_tone="$MUTED"; q_tone="$CYAN$BOLD"
+    else
+      st_tone="$BLUE"; q_tone="$CYAN"
+    fi
     printf '\033[2J\033[H'
-    logo "$frame"
+    logo "${spinners[$frame]}" "${pulses[$frame]}" "$st_tone" "$q_tone"
     printf '\n%s              Preparing installer...%s\n' "$MUTED" "$RESET"
-    sleep 0.055
+    sleep 0.065
   done
   printf '\033[?25h'
 }
