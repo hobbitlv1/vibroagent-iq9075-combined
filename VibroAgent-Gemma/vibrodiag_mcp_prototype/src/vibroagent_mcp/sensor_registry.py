@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from pathlib import Path
 from typing import Any
 
@@ -263,12 +264,29 @@ def _resolve_optional_path(value: Any, *, config_path: Path, must_be_dir: bool) 
 
 
 def _path_candidates(raw: Path, *, config_path: Path) -> list[Path]:
+    acquisition_override = _acquisition_root_override_candidates(raw)
     remapped = _stdatalog_examples_remap_candidates(raw, config_path=config_path)
     if raw.is_absolute():
-        candidates = [*remapped, raw] if remapped else [raw]
+        candidates = [*acquisition_override, *remapped, raw]
     else:
-        candidates = [config_path.parent / raw, Path.cwd() / raw, *remapped]
+        candidates = [*acquisition_override, config_path.parent / raw, Path.cwd() / raw, *remapped]
     return _dedupe_paths(candidates)
+
+
+def _acquisition_root_override_candidates(raw: Path) -> list[Path]:
+    """Map the six configured live slots to an immutable replay root."""
+
+    override = str(os.environ.get("VIBRO_ACQUISITION_ROOT") or "").strip()
+    if not override or raw.name not in {
+        "live_baseline",
+        "live_target_1",
+        "live_target_2",
+        "live_target_3",
+        "live_target_4",
+        "live_target_5",
+    }:
+        return []
+    return [Path(override).expanduser().resolve() / raw.name]
 
 
 def _stdatalog_examples_remap_candidates(raw: Path, *, config_path: Path) -> list[Path]:

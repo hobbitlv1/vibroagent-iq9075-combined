@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install VibroAgent-Gemma for live six-board use or the board-free LUMO demo.
+# Install VibroAgent-Gemma for live boards, immutable replay, or the direct LUMO demo.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,8 +8,9 @@ MODE=live
 for arg in "$@"; do
     case "$arg" in
         --live) MODE=live ;;
+        --offline) MODE=offline ;;
         --demo) MODE=demo ;;
-        *) echo "usage: $0 [--live|--demo]" >&2; exit 2 ;;
+        *) echo "usage: $0 [--live|--offline|--demo]" >&2; exit 2 ;;
     esac
 done
 echo "$MODE" > "$ROOT/.vibro_mode"
@@ -24,6 +25,9 @@ if [ "$MODE" = live ]; then
     echo "== preparing USB and pinned STDATALOG-PYSDK v1.3.0"
     "$COMBINED_ROOT/setup_usb.sh"
     "$COMBINED_ROOT/setup_sdk.sh"
+elif [ "$MODE" = offline ]; then
+    echo "== offline mode: USB skipped; preparing STDATALOG for included immutable recordings"
+    "$COMBINED_ROOT/setup_sdk.sh"
 else
     echo "== demo mode: USB and STDATALOG setup skipped"
 fi
@@ -31,7 +35,7 @@ fi
 "$ROOT/setup_models.sh"
 "$ROOT/setup_geniex.sh"
 
-if [ "$MODE" = live ]; then
+if [ "$MODE" != demo ]; then
     VENV="$ROOT/vibrodiag_mcp_prototype/.run/vibrogemma-venv"
     SDK_DEPS="$(sed -n '/install_requires=\[/,/\]/p' "$COMBINED_ROOT/stdatalog_core/setup.py" \
         | grep -oE '"[^"]+"' | tr -d '"' | grep -v '^stdatalog_')"
@@ -48,6 +52,8 @@ fi
 echo "== VibroAgent-Gemma setup complete ($MODE)"
 if [ "$MODE" = live ]; then
     echo "Next: ./vibroagent.sh start"
+elif [ "$MODE" = offline ]; then
+    echo "Next: ./vibroagent.sh start   # no boards; LUMO events at 15 s and 45 s"
 else
     echo "Next: ./vibroagent.sh demo target_3   # or target_5"
 fi

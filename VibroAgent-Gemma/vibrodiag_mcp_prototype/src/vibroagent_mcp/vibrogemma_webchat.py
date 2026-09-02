@@ -16,6 +16,7 @@ import numpy as np
 
 from . import webchat_server
 from .features import STRUCTURAL_FREQUENCY_MAX_HZ
+from .offline_replay import offline_replay_from_environment
 from .vibrogemma_live import (
     SLOTS,
     _lumo_overlay_gain,
@@ -278,7 +279,11 @@ def _apply_popup_policy(popup: dict, result: dict) -> dict:
                 else f"Agent marked {len(affected)} target{'s' if len(affected) != 1 else ''} for review."
             ),
         )
-    if isinstance(synthetic_test, dict) and synthetic_test.get("active"):
+    if (
+        isinstance(synthetic_test, dict)
+        and synthetic_test.get("active")
+        and synthetic_test.get("kind") != "lumo_offline_replay"
+    ):
         output["synthetic_test"] = synthetic_test
         output["save_replay"] = False
     output["dedupe_key"] = "|".join([str(output["network_label"]), ",".join(affected)])
@@ -844,6 +849,31 @@ def _gemma_chat_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _synthetic_injection_status() -> dict[str, Any]:
+    replay = offline_replay_from_environment()
+    if replay:
+        snapshot = replay.snapshot()
+        position_s = float(snapshot["position_s"])
+        active = next(
+            (
+                item
+                for item in replay.schedule
+                if item.start_time_s <= position_s < item.start_time_s + item.duration_s
+            ),
+            None,
+        )
+        labels = active.labels if active else ()
+        targets = [label.removeprefix("lumo:") for label in labels if label.startswith("lumo:")]
+        target = targets[0] if len(targets) == 1 else None
+        return {
+            "ok": True,
+            "enabled": target is not None,
+            "scheduled": True,
+            "mode": "lumo_offline_replay",
+            "target": target,
+            "condition": {"target_3": "DAM4_010", "target_5": "DAM6_010"}.get(target),
+            "expected_target": target,
+            "replay": snapshot,
+        }
     configured = os.environ.get("VIBRO_LUMO_TRAINING_INJECTION", "").strip().lower()
     target = "target_3" if configured in {"1", "true", "yes", "on"} else configured
     tests = {"target_3": "DAM4_010", "target_5": "DAM6_010"}
@@ -859,6 +889,8 @@ def _synthetic_injection_status() -> dict[str, Any]:
 
 
 def _monitor_matches_current_injection(payload: dict[str, Any]) -> bool:
+    if isinstance((payload.get("replay") or {}).get("inference"), dict):
+        return True
     result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
     metadata = result.get("model_metadata") if isinstance(result.get("model_metadata"), dict) else {}
     monitor = metadata.get("vibrogemma_monitor") if isinstance(metadata.get("vibrogemma_monitor"), dict) else {}
@@ -945,6 +977,8 @@ def _lumo_waveform_payload(query: dict[str, list[str]]) -> dict[str, Any] | None
 
 def _set_synthetic_injection(enabled: bool, target: str = "target_3") -> dict[str, Any]:
     global _LATEST_MONITOR, _LATEST_MONITOR_AT
+    if offline_replay_from_environment():
+        raise ValueError("offline replay injections are scheduled by the manifest")
     if enabled and target not in {"target_3", "target_5"}:
         raise ValueError("target must be target_3 or target_5")
     if enabled:
@@ -1089,6 +1123,7 @@ def _monitor_loop(original_monitor) -> None:
     _pin_current_thread("VIBROGEMMA_INFERENCE_CPUS", "6-7")
     while True:
         cycle_started = time.monotonic()
+        payload = None
         with _POPUP_LOCK:
             query = copy.deepcopy(_MONITOR_QUERY)
         query["skip_cache"] = ["1"]
@@ -1097,7 +1132,9 @@ def _monitor_loop(original_monitor) -> None:
             if not payload.get("paused_for_chat") and _monitor_matches_current_injection(payload):
                 with _POPUP_LOCK:
                     _LATEST_MONITOR = copy.deepcopy(payload)
-                    _LATEST_MONITOR_AT = time.monotonic() - _capture_age_s(payload)
+                    _LATEST_MONITOR_AT = time.monotonic() - (
+                        0.0 if isinstance(payload.get("replay"), dict) else _capture_age_s(payload)
+                    )
         except Exception as exc:
             print(f"VibroAgent monitor cycle failed: {exc}", flush=True)
             with _POPUP_LOCK:
@@ -1115,7 +1152,13 @@ def _monitor_loop(original_monitor) -> None:
                     },
                 }
                 _LATEST_MONITOR_AT = time.monotonic()
-        time.sleep(max(0.1, _monitor_interval_s() - (time.monotonic() - cycle_started)))
+        delay_s = _monitor_interval_s() - (time.monotonic() - cycle_started)
+        replay = offline_replay_from_environment()
+        if replay and payload and payload.get("ok") is True and not payload.get("paused_for_chat"):
+            next_inference_s = replay.snapshot().get("next_inference_in_s")
+            if next_inference_s is not None:
+                delay_s = float(next_inference_s)
+        time.sleep(max(0.1, delay_s))
 
 
 def _install():
@@ -1137,6 +1180,9 @@ def _install():
             model_timeout_s=kwargs.get("model_timeout_s", 8.0),
             config_path=kwargs.get("config_path"),
             process_reader=kwargs.get("process_reader", False),
+            start_time_s=kwargs.get("start_time_s"),
+            require_current=kwargs.get("require_current", True),
+            replay_labels=kwargs.get("replay_labels", ()),
         )
 
     webchat_server._apply_monitor_llm_decision = decide
@@ -1159,7 +1205,7 @@ def _install():
         diagnostics["cached_age_s"] = round(age_s, 3)
         latest["diagnostics"] = diagnostics
         latest["deployment"] = _deployment_status()
-        if age_s > _monitor_stale_s():
+        if age_s > _monitor_stale_s() and not isinstance(latest.get("replay"), dict):
             latest["status"] = "stale"
             latest["stale"] = True
             latest["anomaly"] = False

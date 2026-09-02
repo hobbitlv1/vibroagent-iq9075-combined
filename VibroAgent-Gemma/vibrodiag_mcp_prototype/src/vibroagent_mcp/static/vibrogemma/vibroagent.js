@@ -12,6 +12,8 @@
     monitor: null,
     gemmaTargets: [],
     syntheticInjection: null,
+    syntheticScheduled: false,
+    offlineReplay: null,
     paused: false,
     monitorAxis: "norm",
     spectrumAxis: "norm",
@@ -108,7 +110,14 @@
       const payload = await api("/api/vibro/sensors?process_reader=1&prewarm=1");
       state.sensors = Array.isArray(payload.sensors) ? payload.sensors : [];
       state.baselineId = payload.baseline_sensor_id || "baseline";
-      setLiveState(state.sensors.length === 6, `Live · ${state.sensors.length}/6 boards`);
+      state.offlineReplay = payload.replay || null;
+      const monitorLabel = state.offlineReplay ? "Offline monitor" : "Live monitor";
+      $("#monitorTitle").textContent = monitorLabel;
+      $("[data-route='monitor']").textContent = monitorLabel;
+      setLiveState(
+        state.sensors.length === 6,
+        state.offlineReplay ? `Offline replay · ${state.sensors.length}/6 recordings` : `Live · ${state.sensors.length}/6 boards`,
+      );
     } catch (error) {
       state.sensors = [];
       setLiveState(false, "Boards unavailable");
@@ -126,7 +135,11 @@
     const rate = finite(firstReading?.sampling_rate_hz);
     const fixture = String(firstReading?.metadata?.source_fixture || "").split("/")[0];
     const overlay = firstReading?.metadata?.waveform_source === "live_with_lumo_overlay";
-    const parts = [overlay ? `Live + LUMO ${fixture}` : `${state.sensors.length}/6 boards`, `${axis} axis`, `last ${$("#monitorWindow")?.value || "10"} s`];
+    const replayPosition = finite(state.offlineReplay?.position_s);
+    const source = state.offlineReplay
+      ? `Offline replay${replayPosition === null ? "" : ` · ${formatNumber(replayPosition, 1)} s`}`
+      : `${state.sensors.length}/6 boards`;
+    const parts = [overlay ? `${state.offlineReplay ? "Offline" : "Live"} + LUMO ${fixture}` : source, `${axis} axis`, `${$("#monitorWindow")?.value || "10"} s window`];
     if (rate) parts.push(`${formatSig(rate / 1000, 3)} kHz`);
     parts.push(state.paused ? "paused" : "2 s refresh");
     status.textContent = parts.map((part) => part.replace(/ /g, "\u00a0")).join(" · ");
@@ -206,7 +219,7 @@
       const canvas = document.createElement("canvas");
       canvas.width = 900;
       canvas.height = 86;
-      canvas.setAttribute("aria-label", `${boardLabel(sensor.sensor_id)} live waveform`);
+      canvas.setAttribute("aria-label", `${boardLabel(sensor.sensor_id)} ${state.offlineReplay ? "recorded" : "live"} waveform`);
       canvasWrap.append(canvas);
       row.append(info, canvasWrap);
       stack.append(row);
@@ -247,6 +260,8 @@
       try { return [sensor.sensor_id, await api(waveformUrl(sensor))]; }
       catch (error) { return [sensor.sensor_id, { error: error.message }]; }
     }));
+    const replay = results.find(([, payload]) => payload?.replay)?.[1]?.replay;
+    if (replay) state.offlineReplay = replay;
     results.forEach(([id, payload]) => state.readings.set(id, payload));
     redrawWaveforms();
   }
@@ -301,13 +316,13 @@
       const readout = row.querySelector(".wave-readout");
       if (readout) {
         const stats = readoutStats(payload?.stats);
-        readout.children[0].textContent = stats ? `RMS ${formatSig(stats.acRms, 3)} g` : (payload?.error ? "no live data" : "reading…");
+        readout.children[0].textContent = stats ? `RMS ${formatSig(stats.acRms, 3)} g` : (payload?.error ? `no ${state.offlineReplay ? "replay" : "live"} data` : "reading…");
         readout.children[1].textContent = stats ? `peak ${formatSig(stats.peak, 3)} g` : "";
       }
       if (payload?.error) {
-        const error = document.createElement("span"); error.className = "wave-error"; error.textContent = "Live data unavailable"; wrapper.append(error);
+        const error = document.createElement("span"); error.className = "wave-error"; error.textContent = state.offlineReplay ? "Replay data unavailable" : "Live data unavailable"; wrapper.append(error);
       } else if (payload?.metadata?.waveform_source === "live_with_lumo_overlay") {
-        const source = document.createElement("span"); source.className = "wave-source"; source.textContent = "Live + LUMO test overlay"; wrapper.append(source);
+        const source = document.createElement("span"); source.className = "wave-source"; source.textContent = `${state.offlineReplay ? "Offline" : "Live"} + LUMO test overlay`; wrapper.append(source);
       }
     });
     renderMonitorStatus();
@@ -482,6 +497,13 @@
   function hideAlert() { $("#alertToast").hidden = true; }
 
   function renderSyntheticControl() {
+    if (state.syntheticScheduled) {
+      $("#toggleSynthetic").disabled = true;
+      $("#toggleSyntheticTarget5").disabled = true;
+      $("#syntheticActionLabel").textContent = "Target 3 LUMO event scheduled";
+      $("#syntheticTarget5ActionLabel").textContent = "Target 5 LUMO event scheduled";
+      return;
+    }
     const target3 = state.syntheticInjection === "target_3";
     const target5 = state.syntheticInjection === "target_5";
     $("#toggleSynthetic")?.setAttribute("aria-pressed", String(target3));
@@ -495,6 +517,7 @@
     try {
       const payload = await api("/api/vibro/synthetic-injection");
       state.syntheticInjection = payload.enabled ? payload.target : null;
+      state.syntheticScheduled = Boolean(payload.scheduled);
       renderSyntheticControl();
     } catch (error) {
       console.warn(error);

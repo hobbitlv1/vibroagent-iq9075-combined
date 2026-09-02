@@ -16,7 +16,7 @@ This repository intentionally keeps two independently deployable implementations
 | Localization | `affected_sensor_ids` generated in the model response | Exactly five target records; each target is independently affected or normal, so global and local states are not conflated |
 | Healthy reference | Recorded/reference window plus relative level | Reference board inside the synchronized episode plus the bundle's frozen healthy feature profile |
 | Live UI | Waveforms, PSD, chat, history, replay, and model-authored popup | Desktop live monitor, spectrum, replay, chat, validated target states, and test-only LUMO overlay controls |
-| Board-free path | Five-minute immutable STDATALOG replay plus a smaller codec self-test | Two included 10-second LUMO windows passed through the same packaged encoder and model |
+| Board-free path | Five-minute immutable STDATALOG replay plus a smaller codec self-test | Included 60-second immutable `.dat` web replay with scheduled LUMO overlays, plus two direct 10-second LUMO checks |
 | Large weight | 2.46 GB Q4 GGUF | 4.95 GB Q8 GGUF |
 
 ## When to use each
@@ -55,7 +55,15 @@ cd VibroAgent-Gemma
 ./vibroagent.sh start
 ```
 
-LUMO demo:
+Offline web pipeline (LUMO target 3 at 15 s; target 5 at 45 s):
+
+```bash
+cd VibroAgent-Gemma
+./setup.sh --offline
+./vibroagent.sh start
+```
+
+Direct LUMO demo:
 
 ```bash
 cd VibroAgent-Gemma

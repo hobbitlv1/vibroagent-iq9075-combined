@@ -2,7 +2,7 @@
 
 This repository now offers two complete deployment paths:
 
-- **VibroAgent-Gemma** — the newer continuous vibration encoder + Gemma Q8 path, with live six-board deployment and included LUMO demo windows. Start at [VibroAgent-Gemma/README.md](VibroAgent-Gemma/README.md).
+- **VibroAgent-Gemma** — the newer continuous vibration encoder + Gemma Q8 path, with live boards, a full offline `.dat` web pipeline, and direct LUMO demos. Start at [VibroAgent-Gemma/README.md](VibroAgent-Gemma/README.md).
 - **VibroAgent-Codec** — the established residual-VQ codec + Qwen3-4B path documented below, with live and immutable recorded-data modes.
 
 Read [DEPLOYMENT_PATHS.md](DEPLOYMENT_PATHS.md) for the technical comparison and copy-paste commands for both paths. They share the same reviewed STDATALOG-PYSDK acquisition patch; stop one live stack before starting the other.

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # vibroagent.sh — launch/stop VibroAgent-Gemma or run its bundled LUMO demo:
 #   1) model server on the NPU (Qualcomm Genie / Hexagon DSP)   :8910
-#   2) webchat (graph + chat + live readings panel)             :7860
-#   3) logger (drives the 6 STWIN.box boards over USB)
+#   2) webchat (graph + chat + live/offline readings panel)     :7860
+#   3) logger in live mode only (drives 6 STWIN.box boards)
 #
 # Usage:
 #   ./vibroagent.sh [start|stop|restart|status|start-model|stop-model|demo]
@@ -21,6 +21,7 @@ set -u
 
 # ---- resolve paths (script lives at repo root) -----------------------------
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMBINED_ROOT="$(cd "$REPO/.." && pwd)"
 PROTO="$REPO/vibrodiag_mcp_prototype"
 EX="$REPO/stdatalog_examples"
 VENV="${VIBROAGENT_PYTHON:-$PROTO/.venv/bin/python}"
@@ -37,6 +38,10 @@ mkdir -p "$RUN_DIR"
 #   descriptor monitor) — schema-stale, kept for comparison only.
 STACK=gemma
 MODE="${VIBROGEMMA_MODE:-$(cat "$REPO/.vibro_mode" 2>/dev/null || echo live)}"
+REPLAY_SOURCE_ROOT="${VIBRO_REPLAY_SOURCE_ROOT:-$COMBINED_ROOT/examples}"
+REPLAY_MANIFEST="${VIBRO_REPLAY_MANIFEST:-$REPO/offline/lumo_replay_manifest.json}"
+VIBRO_REPLAY_SPEED="${VIBRO_REPLAY_SPEED:-1}"
+VIBRO_REPLAY_LOOP="${VIBRO_REPLAY_LOOP:-1}"
 GENIEX_PORT="${GENIEX_PORT:-18181}"
 VIBROGEMMA_BUNDLE="${VIBROGEMMA_BUNDLE:-$REPO/models/vibroagent-gemma-g1}"
 VIBROGEMMA_GGUF="${VIBROGEMMA_GGUF:-$VIBROGEMMA_BUNDLE/gemma-4-e2b-g1-Q8_0.gguf}"
@@ -288,12 +293,26 @@ start_webchat() {
       export NO_PROXY="127.0.0.1,localhost${NO_PROXY:+,$NO_PROXY}"
       export no_proxy="127.0.0.1,localhost${no_proxy:+,$no_proxy}"
       export VIBROGEMMA_BUNDLE VIBROGEMMA_PIPELINE_SRC VIBROGEMMA_BUNDLE_MANIFEST_SHA256
-      if [ -f "$VIBROGEMMA_HEALTHY_PROFILE" ]; then
+      if [ "$MODE" != offline ] && [ -f "$VIBROGEMMA_HEALTHY_PROFILE" ]; then
         export VIBROGEMMA_HEALTHY_PROFILE VIBROGEMMA_HEALTHY_PROFILE_SHA256
       else
         unset VIBROGEMMA_HEALTHY_PROFILE VIBROGEMMA_HEALTHY_PROFILE_SHA256
       fi
-      export VIBRO_LIVE_DEVICE_MANIFEST VIBRO_REQUIRE_DEVICE_IDENTITY
+      export VIBRO_MODE="$MODE"
+      if [ "$MODE" = offline ]; then
+        export VIBRO_OFFLINE_REPLAY=1
+        export VIBRO_ACQUISITION_ROOT="$REPLAY_SOURCE_ROOT"
+        export VIBRO_REPLAY_MANIFEST="$REPLAY_MANIFEST"
+        export VIBRO_REPLAY_SPEED VIBRO_REPLAY_LOOP
+        export VIBRO_ALLOWED_HSD_DIR="$REPLAY_SOURCE_ROOT"
+        export VIBRO_REQUIRE_DEVICE_IDENTITY=0
+        unset VIBRO_LIVE_DEVICE_MANIFEST VIBRO_LUMO_TRAINING_INJECTION
+      else
+        export VIBRO_OFFLINE_REPLAY=0
+        unset VIBRO_ACQUISITION_ROOT VIBRO_REPLAY_MANIFEST
+        export VIBRO_ALLOWED_HSD_DIR="$EX"
+        export VIBRO_LIVE_DEVICE_MANIFEST VIBRO_REQUIRE_DEVICE_IDENTITY
+      fi
       export VIBROGEMMA_WORKER_PYTHON="${VIBROGEMMA_WORKER_PYTHON:-$VIBROGEMMA_PYTHON}"
       export VIBROGEMMA_INFERENCE_CPUS VIBROGEMMA_UI_CPUS VIBROGEMMA_MONITOR_STALE_S VIBRO_CURRENT_FILE_MAX_AGE_S
       export VIBRO_LUMO_OVERLAY_GAIN
@@ -323,7 +342,7 @@ start_webchat() {
     pyarrow_path=""
     [ "$VENV" = "$PROTO/.venv/bin/python" ] && pyarrow_path=":$RUN_DIR/pyarrow_shim"
     export PYTHONPATH="$PROTO/src:$SDK_PYTHONPATH$pyarrow_path${PYTHONPATH:+:$PYTHONPATH}"
-    export VIBRO_ALLOWED_HSD_DIR="$EX"
+    export VIBRO_ALLOWED_HSD_DIR="${VIBRO_ALLOWED_HSD_DIR:-$EX}"
     webchat_module="vibroagent_mcp.webchat_server"
     [ "$STACK" = "gemma" ] && webchat_module="vibroagent_mcp.vibrogemma_webchat"
     if [ "$STACK" = "gemma" ]; then
@@ -352,6 +371,20 @@ start_webchat() {
 }
 
 start_logger() {
+  if [ "$MODE" = offline ]; then
+    say "OFFLINE mode: immutable .dat replay — no USB logger starts."
+    [ -f "$REPLAY_MANIFEST" ] || { err "  Missing replay manifest: $REPLAY_MANIFEST"; return 1; }
+    local folder
+    for folder in live_baseline live_target_1 live_target_2 live_target_3 live_target_4 live_target_5; do
+      [ -s "$REPLAY_SOURCE_ROOT/$folder/iis3dwb_acc.dat" ] || {
+        err "  Missing or empty recording: $REPLAY_SOURCE_ROOT/$folder/iis3dwb_acc.dat"
+        return 1
+      }
+    done
+    rm -f "$RUN_DIR/logger.pid"
+    ok "  Replay ready; LUMO inference is scheduled at 15 s and 45 s."
+    return 0
+  fi
   if [ -n "$(logger_pid)" ]; then warn "Logger already running (pid $(logger_pid)) — skipping"; return 0; fi
   local n; n="$(board_count)"
   if ! baseline_present || [ "$n" -lt 2 ]; then
@@ -497,7 +530,7 @@ release_dsp() {
 
 do_stop() {
   say "== VibroAgent: stopping all services =="
-  stop_logger
+  if [ "$MODE" = offline ]; then say "USB logger not used in offline mode."; else stop_logger; fi
   stop_by_port webchat "$WEB_PORT"
   stop_by_port npu "$NPU_PORT"
   stop_by_port geniex "$GENIEX_PORT"
@@ -534,15 +567,20 @@ do_status() {
   else
     err "Webchat          : DOWN :$WEB_PORT"
   fi
-  if [ -n "$(logger_pid)" ]; then ok "Logger           : UP   (pid $(logger_pid))"; else err "Logger           : DOWN"; fi
-  say "Boards detected  : $n / 6   (baseline $(baseline_present && echo present || echo MISSING))"
+  if [ "$MODE" = offline ]; then
+    say "Data source      : OFFLINE immutable replay"
+    say "USB logger       : NOT USED"
+  else
+    if [ -n "$(logger_pid)" ]; then ok "Logger           : UP   (pid $(logger_pid))"; else err "Logger           : DOWN"; fi
+    say "Boards detected  : $n / 6   (baseline $(baseline_present && echo present || echo MISSING))"
+  fi
 }
 
 # ---------------------------------------------------------------------------- main
 case "${1:-start}" in
   start)   do_start ;;
   stop)    do_stop ;;
-  restart) do_stop; say "Letting USB settle before restart ..."; sleep 6; do_start ;;
+  restart) do_stop; [ "$MODE" = offline ] || { say "Letting USB settle before restart ..."; sleep 6; }; do_start ;;
   stop-npu)        stop_by_port npu "$NPU_PORT"; release_dsp; ok "NPU stopped, DSP released." ;;
   start-model)     start_geniex ;;
   stop-model)      stop_by_port geniex "$GENIEX_PORT"; release_dsp ;;

@@ -43,6 +43,10 @@ from .genie_openai_server import (
     shutdown_persistent_genie_runners,
 )
 from .model_client import ModelClient
+from .offline_replay import (
+    OfflineReplayConfigurationError,
+    offline_replay_from_environment,
+)
 from .board_reader_process import (
     board_reader_processes_enabled,
     board_reader_process_statuses,
@@ -1194,6 +1198,24 @@ def _live_vibrometer_payload(query: dict[str, list[str]]) -> dict[str, Any]:
     duration_s = min(10.0, max(0.1, _float_query(query, "duration_s", 1.0)))
     max_points = min(5000, max(64, _int_query(query, "max_points", 1800)))
     require_current = _bool_query(query, "require_current", True)
+    start_time_raw = _clean(_first(query, "start_time_s"))
+    try:
+        replay_controller = offline_replay_from_environment()
+        replay_snapshot = replay_controller.snapshot() if replay_controller else None
+        start_time_s = (
+            float(start_time_raw)
+            if start_time_raw is not None
+            else replay_controller.window_start(duration_s) if replay_controller else None
+        )
+    except (OfflineReplayConfigurationError, ValueError) as exc:
+        return {
+            "ok": False,
+            "status": "error",
+            "error": "replay_configuration_failed",
+            "message": format_exception_for_response(exc),
+        }
+    if replay_controller:
+        require_current = False
     request_started_s = time.perf_counter()
     process_reader = _bool_query(query, "process_reader", False)
     reader_fn = (
@@ -1209,6 +1231,7 @@ def _live_vibrometer_payload(query: dict[str, list[str]]) -> dict[str, Any]:
             acquisition_folder=acquisition_folder,
             sensor_name=sensor_name,
             axis=axis,
+            start_time_s=start_time_s,
             duration_s=duration_s,
             require_current=require_current,
         )
@@ -1289,6 +1312,7 @@ def _live_vibrometer_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         "sensor_name": sensor_name,
         "acquisition_folder": acquisition_folder,
         "axis": axis,
+        "replay": replay_snapshot,
         "sample_count": sample_count,
         "points_returned": int(values.size),
         "downsample_stride": int(stride),
@@ -1578,7 +1602,7 @@ def _psd_fft_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         MAX_PSD_FFT_WINDOW_S,
         max(0.1, _float_query(query, "duration_s", DEFAULT_PSD_FFT_WINDOW_S)),
     )
-    start_time_s = _clean(_first(query, "start_time_s"))
+    start_time_raw = _clean(_first(query, "start_time_s"))
     max_bins = min(MAX_PSD_FFT_BINS, max(64, _int_query(query, "max_bins", DEFAULT_PSD_FFT_MAX_BINS)))
     waveform_max_points = min(
         MAX_PSD_WAVEFORM_POINTS,
@@ -1593,6 +1617,23 @@ def _psd_fft_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         max(0.0, _float_query(query, "overlap_fraction", DEFAULT_WELCH_OVERLAP)),
     )
     require_current = _bool_query(query, "require_current", False)
+    try:
+        replay_controller = offline_replay_from_environment()
+        replay_snapshot = replay_controller.snapshot() if replay_controller else None
+        start_time_s = (
+            float(start_time_raw)
+            if start_time_raw is not None
+            else replay_controller.window_start(duration_s) if replay_controller else None
+        )
+    except (OfflineReplayConfigurationError, ValueError) as exc:
+        return {
+            "ok": False,
+            "status": "error",
+            "error": "replay_configuration_failed",
+            "message": format_exception_for_response(exc),
+        }
+    if replay_controller:
+        require_current = False
     process_reader = _bool_query(query, "process_reader", False)
     request_started_s = time.perf_counter()
     reader_fn = (
@@ -1608,7 +1649,7 @@ def _psd_fft_payload(query: dict[str, list[str]]) -> dict[str, Any]:
             acquisition_folder=acquisition_folder,
             sensor_name=sensor_name,
             axis=axis,
-            start_time_s=float(start_time_s) if start_time_s is not None else None,
+            start_time_s=start_time_s,
             duration_s=duration_s,
             require_current=require_current,
             max_duration_s=MAX_PSD_FFT_WINDOW_S,
@@ -1878,6 +1919,7 @@ def _psd_fft_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         "machine_id": actual_machine_id,
         "sensor_name": actual_sensor_name,
         "acquisition_folder": actual_acquisition_folder,
+        "replay": replay_snapshot,
         "source": source_payload,
         "axis": axis,
         "axis_warning": axis_warning,
@@ -2069,6 +2111,16 @@ def _live_sensors_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         }
         for sensor in registry.sensors.values()
     ]
+    try:
+        replay_controller = offline_replay_from_environment()
+        replay_snapshot = replay_controller.snapshot() if replay_controller else None
+    except OfflineReplayConfigurationError as exc:
+        return {
+            "ok": False,
+            "status": "error",
+            "error": "replay_configuration_failed",
+            "message": format_exception_for_response(exc),
+        }
     process_reader = _bool_query(query, "process_reader", False)
     prewarm = _bool_query(query, "prewarm", process_reader)
     process_enabled = board_reader_processes_enabled(default=process_reader)
@@ -2080,6 +2132,7 @@ def _live_sensors_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         "config_path": str(registry.config_path),
         "baseline_sensor_id": registry.baseline_sensor_id,
         "sensors": sensors,
+        "replay": replay_snapshot,
         "board_reader_process_enabled": bool(process_enabled),
         "board_reader_processes": process_statuses,
     }
@@ -2146,6 +2199,46 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
     requested_model = _clean(_first(query, "model")) or os.environ.get("MAIN_AGENT_MODEL") or os.environ.get("QWEN_MODEL") or DEFAULT_MODEL
     model = requested_model
     request_started_s = time.perf_counter()
+    analysis_start_time_s: float | None = None
+    replay_controller = None
+    replay_claim = None
+    replay_snapshot = None
+    try:
+        replay_controller = offline_replay_from_environment()
+        if replay_controller:
+            use_llm = True
+            require_llm = True
+            require_current = False
+            replay_snapshot = replay_controller.snapshot()
+            if _chat_is_inflight():
+                paused = _agent_monitor_paused_payload(request_started_s)
+                paused["replay"] = replay_snapshot
+                return paused
+            replay_claim = replay_controller.claim_due_inference()
+            if replay_claim is None:
+                return {
+                    "ok": True,
+                    "status": "waiting",
+                    "waiting_for_replay": True,
+                    "anomaly": False,
+                    "agent": {
+                        "llm_agent_active": False,
+                        "waiting_for_replay": True,
+                    },
+                    "replay": replay_snapshot,
+                    "diagnostics": {
+                        "server_duration_s": time.perf_counter() - request_started_s,
+                    },
+                }
+            analysis_start_time_s = replay_claim.window.start_time_s
+            duration_s = min(10.0, max(0.2, replay_claim.window.duration_s))
+    except OfflineReplayConfigurationError as exc:
+        return {
+            "ok": False,
+            "status": "error",
+            "error": "replay_configuration_failed",
+            "message": format_exception_for_response(exc),
+        }
     process_enabled = board_reader_processes_enabled(default=process_reader)
     cache_key = _agent_monitor_cache_key(
         config_path=config_path,
@@ -2153,6 +2246,7 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         sensor_ids=sensor_ids,
         axis=axis,
         duration_s=duration_s,
+        start_time_s=analysis_start_time_s,
         require_current=require_current,
         use_llm=use_llm,
         model_base_url=model_base_url,
@@ -2173,6 +2267,8 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         cached = _cached_agent_monitor_payload(cache_key, request_started_s=request_started_s)
         if cached is not None:
             return cached
+        if replay_controller and replay_claim:
+            replay_controller.release_claim(replay_claim)
         return _agent_monitor_paused_payload(request_started_s)
 
     try:
@@ -2180,6 +2276,7 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
             config_path=str(config_path),
             baseline_sensor_id=baseline_sensor_id,
             sensor_ids=sensor_ids,
+            start_time_s=analysis_start_time_s,
             duration_s=duration_s,
             axis=axis,
             require_current=require_current,
@@ -2194,6 +2291,8 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
             model_timeout_s=None,
         )
     except LiveSdkVibrometerDataRequiredError as exc:
+        if replay_controller and replay_claim:
+            replay_controller.release_claim(replay_claim)
         elapsed_s = time.perf_counter() - request_started_s
         return {
             "ok": False,
@@ -2204,6 +2303,8 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
             "diagnostics": {"server_duration_s": elapsed_s},
         }
     except Exception as exc:
+        if replay_controller and replay_claim:
+            replay_controller.release_claim(replay_claim)
         elapsed_s = time.perf_counter() - request_started_s
         return {
             "ok": False,
@@ -2248,6 +2349,9 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
                 vote_k=vote_k,
                 config_path=str(config_path),
                 process_reader=process_enabled,
+                start_time_s=analysis_start_time_s,
+                require_current=require_current,
+                replay_labels=(replay_claim.window.labels if replay_claim else ()),
             )
         else:
             result = _mark_monitor_llm_skipped(result)
@@ -2259,6 +2363,8 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
             require_llm=require_llm,
         )
         if require_llm and not agent_status["llm_agent_active"]:
+            if replay_controller and replay_claim:
+                replay_controller.release_claim(replay_claim)
             return {
                 "ok": False,
                 "status": "error",
@@ -2283,6 +2389,7 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
                 "baseline_sensor_id": baseline_sensor_id,
                 "sensor_ids": sensor_ids,
                 "axis": axis,
+                "start_time_s": analysis_start_time_s,
                 "duration_s": duration_s,
                 "require_current": require_current,
                 "use_llm": use_llm,
@@ -2297,6 +2404,10 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         payload = {
             "ok": True,
             "status": "ok",
+            "replay": (
+                {**replay_snapshot, "inference": replay_claim.as_dict()}
+                if replay_snapshot is not None and replay_claim is not None else None
+            ),
             "agent": agent_status,
             "anomaly": bool(popup["show_popup"]),
             "popup": popup,
@@ -2383,6 +2494,7 @@ def _agent_monitor_cache_key(
     sensor_ids: str | None,
     axis: str,
     duration_s: float,
+    start_time_s: float | None = None,
     require_current: bool,
     use_llm: bool,
     model_base_url: str,
@@ -2396,6 +2508,7 @@ def _agent_monitor_cache_key(
         sensor_ids or "",
         axis,
         round(float(duration_s), 3),
+        round(float(start_time_s), 3) if start_time_s is not None else None,
         bool(require_current),
         bool(use_llm),
         bool(process_reader),
@@ -3545,6 +3658,9 @@ def _apply_monitor_llm_decision(
     vote_k: int | None = None,
     config_path: str | None = None,
     process_reader: bool = False,
+    start_time_s: float | None = None,
+    require_current: bool = True,
+    replay_labels: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     if _existing_pipeline_llm_active(result):
         return result

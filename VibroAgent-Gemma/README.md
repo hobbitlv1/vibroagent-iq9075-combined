@@ -1,6 +1,6 @@
 # VibroAgent-Gemma
 
-VibroAgent-Gemma is the continuous-encoder deployment of VibroAgent for the Qualcomm IQ-9075. It preserves the six-board STWIN.box acquisition, live monitor, spectrum, replay, and chat interface, but replaces the older discrete codec/Qwen decision path with a vibration encoder and Gemma.
+VibroAgent-Gemma is the continuous-encoder deployment of VibroAgent for the Qualcomm IQ-9075. It preserves the six-board STWIN.box acquisition, live or recorded monitor, spectrum, replay, and chat interface, but replaces the older discrete codec/Qwen decision path with a vibration encoder and Gemma.
 
 > **Research status:** the included G1 checkpoint is explicitly **unpromoted** because its validation gate failed. Its model card reports affected-target F1 `0.4701` and single-target exact-set match `0.3393`. This package makes that checkpoint reproducibly deployable for evaluation and demonstrations; it does not promote it to a production or safety model.
 
@@ -11,6 +11,7 @@ See [../DEPLOYMENT_PATHS.md](../DEPLOYMENT_PATHS.md) for the side-by-side compar
 - Qualcomm IQ-9075 Linux system with working Hexagon HTP access
 - Python 3.12, Git, `g++`, `curl`, CMake/Ninja (installed into the environment where possible), and at least 12 GB free storage during split-part reconstruction
 - For live mode: six STEVAL-STWINBX1 boards running FP-SNS-DATALOG2 v3.2.0 and a powered USB hub
+- For offline mode: no boards or USB setup; the six recorded `.dat` inputs are already included
 - Access to the repository's [GitHub release assets](https://github.com/hobbitlv1/vibroagent-iq9075-codec/releases): authenticate with `gh auth login` or set `GITHUB_TOKEN` when the repository is private
 
 ## Path 1: live six-board deployment
@@ -37,7 +38,27 @@ Stop cleanly so every board receives `stop_log`:
 ./vibroagent.sh stop
 ```
 
-## Path 2: board-free LUMO demo
+## Path 2: offline web pipeline
+
+This mode starts the full web application and the same encoder + model path without any boards or USB logger:
+
+```bash
+cd VibroAgent-Gemma
+./setup.sh --offline
+./vibroagent.sh start
+```
+
+The monitor replays the six included `.dat` acquisitions under the combined repository's `examples/` directory. At replay time `15 s` it overlays the bundled LUMO `DAM4_010` window for target 3; at `45 s` it overlays `DAM6_010` for target 5. The inference claim, six-board read, overlay, encoder input, and model verdict all use that manifest's exact 10-second start time. The scheduler sleeps to the next event instead of continuously running the model.
+
+The `.dat` files are never edited; the LUMO signal is a runtime-only overlay. Both events repeat when the 60-second replay loops. Change speed or looping without changing the recordings:
+
+```bash
+VIBRO_REPLAY_SPEED=2 VIBRO_REPLAY_LOOP=0 ./vibroagent.sh start
+```
+
+Stop with `./vibroagent.sh stop`. Run `./setup.sh --live` to return to physical boards.
+
+## Path 3: direct board-free LUMO demo
 
 The demo uses the same encoder, continuous soft-token path, Q8 GGUF, structured decoder, and validation code as live inference; only the six-board input is replaced by included 10-second LUMO windows.
 
@@ -57,7 +78,7 @@ vibrodiag_mcp_prototype/.run/vibrogemma-venv/bin/python \
 
 The compact source windows and their checksums are versioned under `vibrodiag_mcp_prototype/data/external/lumo/`. Their source, licence, channel mapping, and transformations are documented in [demo/LUMO_ATTRIBUTION.md](demo/LUMO_ATTRIBUTION.md).
 
-In live mode the two UI injection buttons use these same windows as moving, amplitude-matched test overlays for target 3 or target 5. Test overlays are marked synthetic and are not registered as Replay alerts.
+In live mode the two UI injection buttons use these same windows as moving, amplitude-matched test overlays for target 3 or target 5. Manual live tests are marked synthetic and are not registered as Replay alerts. Offline scheduled events are identified separately and may be saved in Replay because their timestamp and source are manifest-bound.
 
 ## Model assets
 
@@ -78,8 +99,8 @@ No model or encoder artifact is served until its manifest-bound SHA-256 checks p
 
 ## Runtime path
 
-1. The logger writes one IIS3DWB stream per physical board through the patched STDATALOG-PYSDK native callback path.
-2. The monitor reads a synchronized 10-second XYZ episode and treats stale, missing, flat, clipped, or collapsed routing as deterministic data-quality failures.
+1. Live mode writes one IIS3DWB stream per physical board through the patched STDATALOG-PYSDK native callback path. Offline mode starts no logger and maps the same six logical slots to immutable recordings.
+2. The monitor reads a synchronized 10-second XYZ episode: the latest complete live episode, or the exact scheduled offline window. Stale, missing, flat, clipped, or collapsed routing remains a deterministic data-quality failure.
 3. The frozen ONNX encoder projects the six boards into `84 × 1536` continuous embeddings: 14 rows for the reference and 14 for each of five targets.
 4. The GenieX 0.4.0 patch inserts those rows at the model's reserved vibration positions. They are attended as native continuous context; acceleration arrays are not converted into prompt text.
 5. The Q8 Gemma checkpoint runs on `llama_cpp:HTP0` with a 4,096-token context. KV state is rebuilt for each classification episode.
@@ -101,6 +122,7 @@ bash -n setup.sh setup_models.sh setup_geniex.sh vibroagent.sh
 PYTHONPATH=vibrodiag_mcp_prototype/src:vibrodiag_mcp_prototype \
   vibrodiag_mcp_prototype/.run/vibrogemma-venv/bin/python -m pytest -q \
   vibrodiag_mcp_prototype/tests/test_vibrogemma_live.py \
+  vibrodiag_mcp_prototype/tests/test_vibrogemma_offline.py \
   vibrodiag_mcp_prototype/tests/test_vibrogemma_geniex_server.py \
   vibrodiag_mcp_prototype/tests/test_vibrogemma_deployment_health.py
 ```

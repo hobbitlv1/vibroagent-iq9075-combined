@@ -527,7 +527,17 @@ def _clipping_abs_g(window: Any) -> float | None:
     return full_scale if full_scale is not None and full_scale >= 8.0 else None
 
 
-def _capture_board(slot: str, sensor: Any, reader: Any) -> _CapturedBoard:
+def _capture_board(
+    slot: str,
+    sensor: Any,
+    reader: Any,
+    *,
+    start_time_s: float | None = None,
+    require_current: bool = True,
+) -> _CapturedBoard:
+    fixed_window = start_time_s is not None
+    read_duration_s = MODEL_WINDOW_S + 0.25 if fixed_window else CAPTURE_READ_S
+    history_s = MODEL_WINDOW_S if fixed_window else CAPTURE_HISTORY_S
     windows: dict[str, Any] = {}
     rates: list[float] = []
     for axis in ("x", "y", "z"):
@@ -536,15 +546,16 @@ def _capture_board(slot: str, sensor: Any, reader: Any) -> _CapturedBoard:
             acquisition_folder=sensor.acquisition_folder,
             sensor_name=sensor.hsd_sensor_name,
             axis=axis,
-            duration_s=CAPTURE_READ_S,
-            require_current=True,
+            start_time_s=start_time_s,
+            duration_s=read_duration_s,
+            require_current=require_current,
         )
         windows[axis] = window
         rates.append(float(window.sampling_rate_hz))
     if max(rates) - min(rates) > 1e-6:
         raise ValueError(f"{slot}: XYZ sampling rates differ: {rates}")
     rate = rates[0]
-    history_count = int(round(CAPTURE_HISTORY_S * rate))
+    history_count = int(round(history_s * rate))
     timestamps_by_axis: dict[str, np.ndarray] = {}
     timestamp_warning_by_axis: dict[str, str | None] = {}
     for axis, window in windows.items():
@@ -585,7 +596,18 @@ def _capture_board(slot: str, sensor: Any, reader: Any) -> _CapturedBoard:
     selected_timestamp_start_s: float | None = None
     selected_timestamp_end_s: float | None = None
     alignment_mode = "sample_tail_unverified"
-    if len(timestamps_by_axis) == 3 and not any(timestamp_warning_by_axis.values()):
+    if fixed_window:
+        for axis in ("x", "y", "z"):
+            values = np.asarray(windows[axis].signal, dtype=np.float32)
+            if values.size < history_count:
+                raise ValueError(f"{slot}: {axis} is shorter than {history_s:g} seconds")
+            selected.append(values[:history_count])
+            if axis in timestamps_by_axis:
+                selected_timestamps.append(timestamps_by_axis[axis][:history_count])
+        selected_timestamp_start_s = float(start_time_s)
+        selected_timestamp_end_s = selected_timestamp_start_s + MODEL_WINDOW_S
+        alignment_mode = "fixed_start_time_xyz"
+    elif len(timestamps_by_axis) == 3 and not any(timestamp_warning_by_axis.values()):
         selected_timestamp_end_s = min(
             float(timestamps[-1]) + 1.0 / rate for timestamps in timestamps_by_axis.values()
         )
@@ -594,19 +616,21 @@ def _capture_board(slot: str, sensor: Any, reader: Any) -> _CapturedBoard:
             stop = int(np.searchsorted(timestamps, selected_timestamp_end_s, side="left"))
             start = stop - history_count
             if start < 0:
-                raise ValueError(f"{slot}: {axis} lacks {CAPTURE_HISTORY_S:g} seconds before the common XYZ end")
+                raise ValueError(f"{slot}: {axis} lacks {history_s:g} seconds before the common XYZ end")
             selected.append(np.asarray(windows[axis].signal[start:stop], dtype=np.float32))
             selected_timestamps.append(timestamps[start:stop])
-        selected_timestamp_start_s = selected_timestamp_end_s - CAPTURE_HISTORY_S
+        selected_timestamp_start_s = selected_timestamp_end_s - history_s
         alignment_mode = "sdk_timestamp_common_xyz_end"
     else:
         for axis in ("x", "y", "z"):
             values = np.asarray(windows[axis].signal, dtype=np.float32)
             if values.size < history_count:
-                raise ValueError(f"{slot}: {axis} is shorter than {CAPTURE_HISTORY_S:g} seconds")
+                raise ValueError(f"{slot}: {axis} is shorter than {history_s:g} seconds")
             selected.append(values[-history_count:])
 
-    if timestamp_epoch_normalized and selected_timestamp_end_s is not None:
+    if fixed_window and selected_timestamp_end_s is not None:
+        approximate_end_utc = datetime.fromtimestamp(selected_timestamp_end_s, tz=timezone.utc)
+    elif timestamp_epoch_normalized and selected_timestamp_end_s is not None:
         approximate_end_utc = datetime.fromtimestamp(selected_timestamp_end_s, tz=timezone.utc)
     else:
         end_candidates = [
@@ -666,7 +690,7 @@ def _finalize_capture(
     usable_ends = [item.approximate_end_utc for item in captured.values()]
     aligned = all(value is not None for value in usable_ends) and all(
         item.metadata.get("timestamp_monotonic") is True
-        and item.metadata.get("alignment_mode") == "sdk_timestamp_common_xyz_end"
+        and item.metadata.get("alignment_mode") in {"sdk_timestamp_common_xyz_end", "fixed_start_time_xyz"}
         for item in captured.values()
     )
     common_end_utc = min(value for value in usable_ends if value is not None) if aligned else capture_completed_utc
@@ -1083,6 +1107,9 @@ def apply_vibrogemma_monitor_decision(
     model_timeout_s: float,
     config_path: str | None = None,
     process_reader: bool = False,
+    start_time_s: float | None = None,
+    require_current: bool = True,
+    replay_labels: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     decision_started = time.monotonic()
     project = _project_root()
@@ -1190,21 +1217,33 @@ def apply_vibrogemma_monitor_decision(
     sensors = registry.sensors
     if registry.baseline_sensor_id != "baseline" or not set(SLOTS).issubset(sensors):
         return failed(f"sensor_set_mismatch:{sorted(sensors)}")
+    replay_targets = {
+        label.removeprefix("lumo:")
+        for label in replay_labels
+        if label.startswith("lumo:")
+    }
+    if len(replay_targets) > 1 or any(target not in _LUMO_TRAINING_FIXTURES for target in replay_targets):
+        return failed(f"invalid_replay_labels:{sorted(replay_labels)}")
+    scheduled_lumo_target = next(iter(replay_targets), "")
     configured_lumo_target = os.environ.get("VIBRO_LUMO_TRAINING_INJECTION", "").strip().lower()
     lumo_training_target = (
         "target_3"
         if configured_lumo_target in {"1", "true", "yes", "on"}
         else configured_lumo_target
     )
+    lumo_training_target = scheduled_lumo_target or lumo_training_target
     lumo_training_test = lumo_training_target in _LUMO_TRAINING_FIXTURES
     try:
         source_bindings = _source_bindings(registry)
     except Exception as exc:
         return failed(f"sensor_source_failed:{format_exception_for_response(exc)}")
-    try:
-        device_identity = _device_identity(registry)
-    except Exception as exc:
-        return failed(f"device_identity_failed:{format_exception_for_response(exc)}")
+    if start_time_s is not None:
+        device_identity = {"verified": False, "reason": "immutable_offline_recording"}
+    else:
+        try:
+            device_identity = _device_identity(registry)
+        except Exception as exc:
+            return failed(f"device_identity_failed:{format_exception_for_response(exc)}")
 
     reader = (
         read_sdk_vibrometer_window_via_board_process
@@ -1223,7 +1262,16 @@ def apply_vibrogemma_monitor_decision(
         with ThreadPoolExecutor(max_workers=len(SLOTS), thread_name_prefix="vibrogemma-read") as executor:
             for slot, captured_board in zip(
                 SLOTS,
-                executor.map(lambda slot: _capture_board(slot, sensors[slot], reader), SLOTS),
+                executor.map(
+                    lambda slot: _capture_board(
+                        slot,
+                        sensors[slot],
+                        reader,
+                        start_time_s=start_time_s,
+                        require_current=require_current,
+                    ),
+                    SLOTS,
+                ),
                 strict=True,
             ):
                 captured[slot] = captured_board
@@ -1252,6 +1300,15 @@ def apply_vibrogemma_monitor_decision(
                 "source_bindings": source_bindings,
             }
         )
+        if start_time_s is not None:
+            capture_metadata.update(
+                {
+                    "offline_replay": True,
+                    "replay_start_time_s": float(start_time_s),
+                    "replay_labels": list(replay_labels),
+                    "window_time_source": "offline_replay_manifest",
+                }
+            )
         synthetic_by_slot = {
             slot: capture_by_slot[slot]["synthetic_injection"]
             for slot in SLOTS
@@ -1286,8 +1343,21 @@ def apply_vibrogemma_monitor_decision(
                 slot: np.asarray(overlay["axis_masks"][slot], dtype=bool)
                 for slot in SLOTS
             }
+            if start_time_s is not None:
+                overlay.update(
+                    {
+                        "kind": "lumo_offline_replay",
+                        "scheduled": True,
+                        "replay_start_time_s": float(start_time_s),
+                    }
+                )
+            data_provenance = (
+                "recorded_dat_with_lumo_training_overlay"
+                if start_time_s is not None
+                else "live_capture_with_lumo_training_overlay"
+            )
             capture_metadata["synthetic_injection"] = overlay
-            capture_metadata["data_provenance"] = "live_capture_with_lumo_training_overlay"
+            capture_metadata["data_provenance"] = data_provenance
             capture_metadata["phase_synchronized"] = True
             capture_metadata["synchronization_verification_id"] = overlay[
                 "synchronization_verification_id"
@@ -1303,9 +1373,7 @@ def apply_vibrogemma_monitor_decision(
                     **overlay,
                     "overlay_slot": slot,
                 }
-                capture_by_slot[slot]["data_provenance"] = (
-                    "live_capture_with_lumo_training_overlay"
-                )
+                capture_by_slot[slot]["data_provenance"] = data_provenance
         capture_metadata["resampled_window_sha256_by_slot"] = _capture_window_fingerprints(arrays)
         rates = dict.fromkeys(SLOTS, reference_rate)
     except Exception as exc:
