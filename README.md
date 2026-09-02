@@ -16,13 +16,13 @@ Run the root installer from a real terminal:
 ```
 
 ```text
-             _____ _______     &&      ____
-            / ____|__   __|   &  &    / __ \
-           | (___    | |       &&    | |  | |
-            \___ \   | |       &  & & | |  | |
-            ____) |  | |      &    &  | |__| |
-           |_____/   |_|        &&&& &  \___\_\
-            STMicroelectronics       Qualcomm
+             _____ _______           ____
+            / ____|__   __|         / __ \
+           | (___    | |           | |  | |
+            \___ \   | |           | |  | |
+            ____) |  | |           | |__| |
+           |_____/   |_|            \___\_\
+            STMicroelectronics   &   Qualcomm
          VIBROAGENT // IQ-9075 // HEXAGON HTP
 
   > VibroAgent-Codec  | Live six-board deployment
