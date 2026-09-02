@@ -39,7 +39,8 @@ Run the root installer from a real terminal:
   Enter runs  ./setup.sh
   Up/Down or j/k move  ·  1-5 jump  ·  Enter select  ·  q quit
 
-       Danilo Pau & Niks Kordjukovs  ·  System Research and Applications
+                          Danilo Pau & Niks Kordjukovs
+            System Research and Applications  ·  STMicroelectronics
 ```
 
 Use Up/Down, press Enter, and follow the printed run command. Setup is kept separate from startup because a first live USB installation may require a new login or reboot before group membership and udev rules take effect.

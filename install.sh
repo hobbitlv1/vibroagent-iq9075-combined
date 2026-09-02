@@ -244,6 +244,7 @@ ST_ROWS=$(( ${#ST_PX[@]} / 2 )); Q_ROWS=$(( ${#Q_PX[@]} / 2 ))
 INTRO_H=$(( ST_ROWS + 1 + 1 + Q_ROWS ))   # mark, life.augmented, ampersand, wordmark
 AUTHORS='Danilo Pau & Niks Kordjukovs'
 GROUP='System Research and Applications'
+COMPANY='STMicroelectronics'
 
 # Solid-block wordmark for Unicode terminals of 67 columns or more; the
 # line-art face is the fallback for narrow terminals and --ascii.
@@ -363,11 +364,34 @@ draw_logos() {
   done
 }
 
-# draw_footer: authors on the bottom row of the screen.
+# credit_lines -> CREDITS: the authors and affiliation, on one line when it
+# fits the terminal, otherwise names above and affiliation below.
+credit_lines() {
+  local one="$AUTHORS  $G_SEP  $GROUP  $G_SEP  $COMPANY"
+  if [ "${#one}" -le "$COLS" ]; then CREDITS=("$one")
+  elif [ $(( ${#GROUP} + ${#COMPANY} + 5 )) -le "$COLS" ]; then CREDITS=("$AUTHORS" "$GROUP  $G_SEP  $COMPANY")
+  else CREDITS=("$AUTHORS" "$GROUP")
+  fi
+}
+
+# draw_footer: credits on the bottom rows of the screen.
 draw_footer() {
-  local text="$AUTHORS  $G_SEP  $GROUP"
-  [ "${#text}" -le "$COLS" ] || text="$AUTHORS"
-  printf '\033[%d;1H%s%*s%s%s%s' "$ROWS" "$CLR" $(( (COLS - ${#text}) / 2 )) '' "$MUTED" "$text" "$RESET"
+  local i n
+  credit_lines
+  n=${#CREDITS[@]}
+  for i in "${!CREDITS[@]}"; do
+    printf '\033[%d;1H%s%*s%s%s%s' $((ROWS - n + 1 + i)) "$CLR" $(( (COLS - ${#CREDITS[$i]}) / 2 )) '' \
+      "$MUTED" "${CREDITS[$i]}" "$RESET"
+  done
+}
+
+# print_credits: the same credits as ordinary centred lines.
+print_credits() {
+  local line
+  credit_lines
+  for line in "${CREDITS[@]}"; do
+    printf '%*s%s%s%s\n' $(( (COLS - ${#line}) / 2 )) '' "$MUTED" "$line" "$RESET"
+  done
 }
 
 # draw_header <wordmark_cols> <caption: 0 hidden, 1 muted, 2 brand> <wave_row> <tagline_chars>
@@ -806,7 +830,8 @@ if [ -z "$TARGET" ]; then
   [ "$NO_SPLASH" -eq 1 ] || splash
   choose_target
   logo_static
-  printf '%s%*s%s%s  %s  %s%s\n\n' "$IND" $(( (LOGO_W - ${#AUTHORS} - ${#GROUP} - 6) / 2 + PAD - ${#IND} )) '' "$MUTED" "$AUTHORS" "$G_SEP" "$GROUP" "$RESET"
+  print_credits
+  printf '\n'
 elif [ "$IS_TTY" -eq 1 ]; then
   printf '%s  %sST%s %s&%s %sQualcomm%s  %sVibroAgent installer%s\n\n' "$IND" \
     "$ST$BOLD" "$RESET" "$CYAN_HI" "$RESET" "$QUALCOMM$BOLD" "$RESET" "$MUTED" "$RESET"
