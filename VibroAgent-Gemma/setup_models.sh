@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download and verify the VibroAgent-Gemma Q8 GGUF from this repository's release assets.
+# Download and verify the VibroAgent-Gemma Q8 GGUF from the established weight release.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,8 +21,7 @@ if [ -n "${VIBROGEMMA_GGUF_SOURCE:-}" ]; then
     echo "== copying local model source"
     cp "$VIBROGEMMA_GGUF_SOURCE" "$WORK/$GGUF_NAME"
 else
-    GH_REPO="${VIBRO_GH_REPO:-$(git -C "$ROOT" remote get-url origin 2>/dev/null \
-        | sed -E 's#(git@github\.com:|https://github\.com/)##; s#\.git$##')}"
+    GH_REPO="${VIBRO_GH_REPO:-hobbitlv1/vibroagent-iq9075-codec}"
     RELEASE_TAG="${VIBRO_GEMMA_RELEASE_TAG:-weights-v1}"
     [ -n "$GH_REPO" ] || { echo "cannot resolve GitHub repository" >&2; exit 1; }
     echo "== downloading $GGUF_NAME parts from $GH_REPO@$RELEASE_TAG"

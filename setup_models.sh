@@ -3,7 +3,7 @@
 #
 # The frozen codec checkpoint (models/codec_v1/best.pt, 15 MB) is versioned in
 # this repository; the fine-tuned LLM is not (2.4 GB). This script first tries
-# the application repository's private GitHub release, then falls back to the
+# the established Codec repository's GitHub release, then falls back to the
 # Hugging Face weights repository. The final GGUF is always verified against
 # its pinned sha256 before anything may serve it.
 #
@@ -36,13 +36,12 @@ fi
 # A public weights repo downloads anonymously; a private one needs HF_TOKEN
 # (or an 'hf auth login' token on disk) from an account with read access.
 
-# ---- source 1: GitHub release assets on the application repo -----------------
+# ---- source 1: GitHub release assets on the established weights repo ---------
 # The GGUF ships as two byte-split parts (GitHub caps release assets at 2 GB).
 # Reassembly is a pure byte concatenation; each part is sha256-verified against
 # release_assets_manifest.json first, and the final file must STILL match the
 # hard pin below — corruption anywhere fails closed.
-GH_REPO="${VIBRO_GH_REPO:-$(git -C "$REPO" remote get-url origin 2>/dev/null \
-    | sed -E 's#(git@github\.com:|https://github\.com/)##; s#\.git$##')}"
+GH_REPO="${VIBRO_GH_REPO:-hobbitlv1/vibroagent-iq9075-codec}"
 RELEASE_TAG="${VIBRO_RELEASE_TAG:-weights-v1}"
 github_release_fetch() {
     local asset="$1" dest="$2"

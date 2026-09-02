@@ -3,7 +3,7 @@
 #
 # Offline mode replays full-length recorded acquisitions; those are too large
 # for git (~280 MB for six 5-minute IIS3DWB streams), so this script first
-# tries the application repository's private GitHub release and then falls
+# tries the established Codec repository's GitHub release and then falls
 # back to the Hugging Face weights repository. Every downloaded file is
 # verified against the recording manifest's sha256 pins. The web service reads
 # fixed timestamp windows directly from ./recordings/live_*; no replay process
@@ -53,9 +53,8 @@ fi
 # A public weights repo downloads anonymously; a private one needs HF_TOKEN
 # (or an 'hf auth login' token on disk) from an account with read access.
 
-# ---- source 1: GitHub release asset on the application repo ------------------
-GH_REPO="${VIBRO_GH_REPO:-$(git -C "$REPO" remote get-url origin 2>/dev/null \
-    | sed -E 's#(git@github\.com:|https://github\.com/)##; s#\.git$##')}"
+# ---- source 1: GitHub release asset on the established weights repo ----------
+GH_REPO="${VIBRO_GH_REPO:-hobbitlv1/vibroagent-iq9075-codec}"
 RELEASE_TAG="${VIBRO_RELEASE_TAG:-weights-v1}"
 github_release_fetch() {
     local asset="$1" dest="$2"

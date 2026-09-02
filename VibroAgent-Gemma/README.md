@@ -12,7 +12,7 @@ See [../DEPLOYMENT_PATHS.md](../DEPLOYMENT_PATHS.md) for the side-by-side compar
 - Python 3.12, Git, `g++`, `curl`, CMake/Ninja (installed into the environment where possible), and at least 12 GB free storage during split-part reconstruction
 - For live mode: six STEVAL-STWINBX1 boards running FP-SNS-DATALOG2 v3.2.0 and a powered USB hub
 - For offline mode: no boards or USB setup; the six recorded `.dat` inputs are already included
-- Access to the repository's [GitHub release assets](https://github.com/hobbitlv1/vibroagent-iq9075-codec/releases): authenticate with `gh auth login` or set `GITHUB_TOKEN` when the repository is private
+- Access to the established [VibroAgent weight releases](https://github.com/hobbitlv1/vibroagent-iq9075-codec/releases): authenticate with `gh auth login` or set `GITHUB_TOKEN` when the assets are private
 
 ## Path 1: live six-board deployment
 

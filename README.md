@@ -110,7 +110,7 @@ The complete live and recorded-data stacks target Linux on the Qualcomm IQ-9075.
 | Privileges | `sudo` for libusb, udev rules, and the `hsdatalog` group | No USB setup |
 | Python | Python 3.10 or newer; environments are created automatically | Python 3.10 or newer; environments are created automatically |
 | Storage | At least 8 GB free for environments, SDK files, and model weights | At least 8 GB, plus about 280 MB for the five-minute recording set |
-| Network access | GitHub access to this private repository and its release assets, or access to the configured Hugging Face fallback | Same |
+| Network access | GitHub access to this source repository and the established Codec weight releases, or access to the configured Hugging Face fallback | Same |
 
 The setup scripts install `uv` automatically when it is not already available.
 
@@ -119,18 +119,18 @@ The setup scripts install `uv` automatically when it is not already available.
 Using GitHub CLI:
 
 ```bash
-gh repo clone hobbitlv1/vibroagent-iq9075-codec
-cd vibroagent-iq9075-codec
+gh repo clone hobbitlv1/vibroagent-iq9075-combined
+cd vibroagent-iq9075-combined
 ```
 
 Or using Git directly:
 
 ```bash
-git clone https://github.com/hobbitlv1/vibroagent-iq9075-codec.git
-cd vibroagent-iq9075-codec
+git clone https://github.com/hobbitlv1/vibroagent-iq9075-combined.git
+cd vibroagent-iq9075-combined
 ```
 
-Because the repository and release are private, authenticate before setup:
+If the source repository or weight release is private, authenticate before setup:
 
 ```bash
 gh auth login
@@ -566,7 +566,7 @@ Asset-source overrides are `VIBRO_GH_REPO`, `VIBRO_RELEASE_TAG`, `VIBRO_MODELS_R
 ## 6. Repository structure
 
 ```text
-vibroagent-iq9075-codec/
+vibroagent-iq9075-combined/
 ├── install.sh                       Interactive selector for both implementations
 ├── VibroAgent-Gemma/                Continuous encoder + Gemma Q8 deployment
 │   ├── setup.sh                     Live, offline, or direct-demo setup
