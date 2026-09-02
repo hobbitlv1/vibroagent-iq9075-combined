@@ -65,14 +65,14 @@ trap restore_cursor EXIT
 logo() {
   local spinner="${1:- }"
   printf '%s\n' \
-    "${BLUE}          ${spinner}      _____ _______      ${spinner}" \
-    "                / ____|__   __|" \
-    "               | (___    | |" \
-    "                \\___ \\   | |" \
-    "                ____) |  | |" \
-    "               |_____/   |_|" \
-    "${RESET}${BOLD}               STMicroelectronics${RESET}" \
-    "${CYAN}             VIBROAGENT // EDGE AI${RESET}"
+    "${BLUE}        ${spinner}     _____ _______           ____       ${spinner}" \
+    "             / ____|__   __|         / __ \\" \
+    "            | (___    | |           | |  | |" \
+    "             \\___ \\   | |           | |  | |" \
+    "             ____) |  | |           | |__| |" \
+    "            |_____/   |_|            \\___\\_\\" \
+    "${RESET}${BOLD}             STMicroelectronics       Qualcomm${RESET}" \
+    "${CYAN}          VIBROAGENT // IQ-9075 // HEXAGON HTP${RESET}"
 }
 
 splash() {

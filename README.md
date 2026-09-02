@@ -18,14 +18,14 @@ Run the root installer from a real terminal:
 It opens with a short animated STMicroelectronics ASCII splash, then presents an arrow-key menu:
 
 ```text
-                _____ _______
-               / ____|__   __|
-              | (___    | |
-               \___ \   | |
-               ____) |  | |
-              |_____/   |_|
-              STMicroelectronics
-            VIBROAGENT // EDGE AI
+             _____ _______           ____
+            / ____|__   __|         / __ \
+           | (___    | |           | |  | |
+            \___ \   | |           | |  | |
+            ____) |  | |           | |__| |
+           |_____/   |_|            \___\_\
+            STMicroelectronics       Qualcomm
+         VIBROAGENT // IQ-9075 // HEXAGON HTP
 
   > VibroAgent-Codec  | Live six-board deployment
     VibroAgent-Codec  | Offline five-minute replay
