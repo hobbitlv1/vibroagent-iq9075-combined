@@ -258,7 +258,7 @@ tail -f .run/webchat.log
 tail -f .run/logger.log
 ```
 
-Use `./vibroagent.sh stop` (or `safe-stop`) for this checkout's live fleet. The launcher sends one `SIGINT` to the logger and requires native `stop_log` acknowledgements before stopping the web application and model. A timeout leaves the logger alive and blocks restart; it never escalates to a forced kill or USB reset. The stop helper uses the system Python, so it remains available even when the application virtualenv is missing.
+Keep using `./vibroagent.sh stop` and `./vibroagent.sh restart`: safe shutdown is their default implementation, not a separate command or opt-in flag. Both use the same shutdown path, which sends one `SIGINT` to the logger and requires native `stop_log` acknowledgements before stopping the web application and model. `restart` starts the pipeline again only after shutdown succeeds. A timeout leaves the logger alive and blocks restart; neither command escalates to a forced kill or USB reset. The stop helper uses the system Python, so it remains available even when the application virtualenv is missing.
 
 Both live and offline logger startup validate retained shutdown evidence before probing hardware or replacing logs. A pending stop or failed native acknowledgement blocks `start` as well as `restart`, even if `logger.pid` is missing. The saved stop request and shutdown receipt remain authoritative; deleting a PID file is not a recovery procedure. A complete matching receipt permits the next startup without sending another signal.
 

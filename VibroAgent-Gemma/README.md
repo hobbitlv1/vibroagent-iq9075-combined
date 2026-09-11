@@ -32,10 +32,11 @@ If USB setup added your account to `hsdatalog`, log out and back in or reboot. C
 
 The launcher prints the LAN URL for the web interface. The model endpoint remains loopback-only at `http://127.0.0.1:18181/v1`.
 
-Stop cleanly so every board receives `stop_log`:
+The existing `stop` and `restart` commands both use the verified safe-shutdown path:
 
 ```bash
-./vibroagent.sh stop
+./vibroagent.sh stop       # stop safely; require board acknowledgements
+./vibroagent.sh restart    # stop safely, then start only after confirmed cleanup
 ```
 From the combined repository root, `bash linux_setup/vibroagent-safe-stop.sh` stops both checkout-owned stacks; add `--dry-run` to inspect targets only. The desktop stop shortcut uses this wrapper. Shutdown remains available through the system Python even if an application virtualenv is missing.
 

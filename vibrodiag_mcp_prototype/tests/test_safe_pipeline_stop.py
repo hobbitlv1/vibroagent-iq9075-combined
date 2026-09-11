@@ -379,7 +379,7 @@ def owned_webchat():
 def test_safe_stop_dry_run_without_application_runtime(combined_checkout, relative):
     stack = combined_checkout / relative
     result = subprocess.run(
-        [str(stack / "vibroagent.sh"), "safe-stop", "--dry-run"],
+        [str(stack / "vibroagent.sh"), "stop", "--dry-run"],
         env={**os.environ, "VIBROAGENT_PYTHON": "/missing/app/python", "VIBROGEMMA_PYTHON": "/missing/model/python"},
         capture_output=True, text=True, timeout=10,
     )
@@ -387,6 +387,30 @@ def test_safe_stop_dry_run_without_application_runtime(combined_checkout, relati
     assert json.loads(result.stdout[result.stdout.index("{"):]) == {
         "logger": [], "webchat": [], "geniex": [], "npu": [],
     }
+
+
+@pytest.mark.parametrize("relative", [".", "VibroAgent-Gemma"])
+@pytest.mark.parametrize("command", ["stop", "restart"])
+def test_default_commands_preserve_services_after_unconfirmed_board_stop(
+    combined_checkout, owned_webchat, relative, command,
+):
+    stack = combined_checkout / relative
+    webchat = owned_webchat(stack)
+    pidfile = stack / ".run/logger.pid"
+    logfile = stack / ".run/logger.log"
+    pidfile.write_text("2000000000")
+    failed_receipt = receipt(pid=2000000000, stopped=[], errors=["native stop failed"])
+    logfile.write_text(failed_receipt)
+
+    result = subprocess.run(
+        [str(stack / "vibroagent.sh"), command],
+        capture_output=True, text=True, timeout=10,
+    )
+
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert webchat.poll() is None
+    assert pidfile.read_text() == "2000000000"
+    assert logfile.read_text() == failed_receipt
 
 
 def test_combined_stop_dry_run_then_only_owned_stacks(combined_checkout, owned_webchat, tmp_path):

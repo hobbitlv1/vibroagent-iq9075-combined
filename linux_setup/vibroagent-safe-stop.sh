@@ -29,7 +29,7 @@ stop_combined() (
   flock --nonblock --conflict-exit-code 75 8 || return $?
   for stack in "$repo_dir" "$gemma_dir"; do
     printf '\n== Safe-stop scope: %s ==\n' "$stack"
-    /bin/bash "$stack/vibroagent.sh" --control-locked safe-stop "$@" 9>&- 8>&-
+    /bin/bash "$stack/vibroagent.sh" --control-locked stop "$@" 9>&- 8>&-
     result=$?
     if [[ "$result" != 0 ]]; then
       printf 'STOP INCOMPLETE: %s returned %s; no further stack was stopped.\n' "$stack" "$result" >&2

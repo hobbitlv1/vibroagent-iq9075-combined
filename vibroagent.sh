@@ -321,7 +321,7 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   shift
 case "${1:-start}" in
   start)   do_start ;;
-  stop|safe-stop) do_stop "${@:2}" ;;
+  stop)    do_stop "${@:2}" ;;
   restart) do_restart ;;
   stop-model) stop_by_port geniex "$GENIEX_PORT" ;;
   restart-webchat) stop_by_port webchat "$WEB_PORT" && start_webchat ;;
