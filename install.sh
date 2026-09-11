@@ -72,7 +72,7 @@ IS_TTY=0
 COLS=80
 [ "$IS_TTY" -eq 1 ] && COLS="$(tput cols 2>/dev/null || echo 80)"
 case "$COLS" in ''|*[!0-9]*) COLS=80 ;; esac
-[ "$COLS" -ge 48 ] || COLS=48
+[ "$COLS" -gt 0 ] || COLS=80
 WIDTH=$((COLS > 100 ? 100 : COLS))
 ROWS=24
 [ "$IS_TTY" -eq 1 ] && ROWS="$(tput lines 2>/dev/null || echo 24)"
@@ -120,7 +120,8 @@ else
   MUTED=""; DIM=""; RED=""; BOLD=""; RESET=""
 fi
 CLR=""
-[ "$IS_TTY" -eq 1 ] && CLR=$'\033[2K'
+# Erasing a row does not move the cursor. Every rendered row starts at column 1.
+[ "$IS_TTY" -eq 1 ] && CLR=$'\r\033[2K'
 COLOR=0
 [ -n "$RESET" ] && COLOR=1
 
@@ -132,7 +133,7 @@ cleanup() {
   fi
   if [ "$IS_TTY" -eq 1 ]; then
     [ "$ALT_SCREEN" -eq 1 ] && printf '\033[?1049l'
-    printf '\033[?25h'
+    printf '\r\033[?25h'
   fi
 }
 trap cleanup EXIT
@@ -392,7 +393,7 @@ print_credits() {
   local line
   credit_lines
   for line in "${CREDITS[@]}"; do
-    printf '%*s%s%s%s\n' $(( (COLS - ${#line}) / 2 )) '' "$MUTED" "$line" "$RESET"
+    printf '%s%*s%s%s%s\n' "$CLR" $(( (COLS - ${#line}) / 2 )) '' "$MUTED" "$line" "$RESET"
   done
 }
 
@@ -659,10 +660,12 @@ build_bar() {
 
 # phase_line <glyph_tone> <glyph> <text> <seconds>: one finished checklist row.
 phase_line() {
-  local tstr
+  local tstr avail
   tstr="$(fmt_time "$4")"
+  avail=$((IW - 8 - ${#tstr}))
+  [ "$avail" -ge 0 ] || avail=0
   printf '%s%s  %s%s%s %s  %s%s%s\n' "$CLR" "$IND" "$1" "$2" "$RESET" \
-    "${3:0:$((IW - 8 - ${#tstr}))}" "$MUTED" "$tstr" "$RESET"
+    "${3:0:$avail}" "$MUTED" "$tstr" "$RESET"
 }
 phase_done() { phase_line "$CYAN" "$G_OK" "$1" "$2"; }
 
@@ -673,7 +676,7 @@ run_setup() {
     return 1
   fi
 
-  if [ "$IS_TTY" -eq 0 ] || [ "$NO_ANIMATION" -eq 1 ] || [ -n "${VIBRO_NO_ANIMATION:-}" ]; then
+  if [ "$IS_TTY" -eq 0 ] || [ "$NO_ANIMATION" -eq 1 ] || [ -n "${VIBRO_NO_ANIMATION:-}" ] || [ "$COLS" -lt 24 ]; then
     # A dedicated process group lets cancellation stop pip/curl/compiler
     # descendants, including when Bash would otherwise wait on a pipeline.
     set -m
@@ -708,18 +711,26 @@ run_setup() {
     [ $((tick % 3)) -ne 0 ] || poll_log "$log"
 
     spin="${SPIN[tick % ${#SPIN[@]}]}"
-    build_bar "$bar_w" "$tick" "$pos" "$dir" "$step_n" "$step_total"
+    # Leave one column free: an automatic wrap would invalidate the two-row redraw.
+    tstr="$(fmt_time $((SECONDS - started)))"
+    bar_w=$((IW - 13 - ${#counter} - ${#tstr}))
+    [ "$bar_w" -le 24 ] || bar_w=24
+    if [ "$bar_w" -ge 2 ]; then
+      [ "$pos" -lt "$bar_w" ] || pos=$((bar_w - 1))
+      build_bar "$bar_w" "$tick" "$pos" "$dir" "$step_n" "$step_total"
+      avail=$((IW - 13 - bar_w - ${#counter} - ${#tstr}))
+      printf -v line2 '%s%s  %s%sST%s %s %s%sQ%s  %s%s %s%s  %s%s%s' "$CLR" "$IND" \
+        "$ST" "$BOLD" "$RESET" "$BAR" "$QUALCOMM" "$BOLD" "$RESET" \
+        "$MUTED" "$counter" "$tstr" "$RESET" "$DIM" "${detail:0:$avail}" "$RESET"
+    else
+      bar_w=2
+      printf -v line2 '%s%s  %s%s%s' "$CLR" "$IND" "$DIM" "${detail:0:$((IW - 3))}" "$RESET"
+    fi
     tstr="$(fmt_time $((SECONDS - phase_started)))"
     avail=$((IW - 7 - ${#tstr}))
     printf -v line1 '%s%s  %s%s%s %s%s%s  %s%s%s' "$CLR" "$IND" "$CYAN_HI" "$spin" "$RESET" \
       "$BOLD" "${current:0:$avail}" "$RESET" "$MUTED" "$tstr" "$RESET"
-    tstr="$(fmt_time $((SECONDS - started)))"
-    avail=$((IW - 13 - bar_w - ${#counter} - ${#tstr}))
-    [ "$avail" -gt 0 ] || avail=0
-    printf -v line2 '%s%s  %s%sST%s %s %s%sQ%s  %s%s %s%s  %s%s%s' "$CLR" "$IND" \
-      "$ST" "$BOLD" "$RESET" "$BAR" "$QUALCOMM" "$BOLD" "$RESET" \
-      "$MUTED" "$counter" "$tstr" "$RESET" "$DIM" "${detail:0:$avail}" "$RESET"
-    printf '%s\n%s\r\033[1A' "$line1" "$line2"
+    printf '%s\r\n%s\r\033[1A' "$line1" "$line2"
 
     sleep 0.08
     tick=$((tick + 1))
@@ -731,26 +742,26 @@ run_setup() {
   done
   wait "$SETUP_PID"; status=$?
   SETUP_PID=""
-  printf '%s\n%s\r\033[1A\033[?25h' "$CLR" "$CLR"
+  printf '%s\r\n%s\r\033[1A\033[?25h' "$CLR" "$CLR"
   poll_log "$log"
 
   if [ "$status" -ne 0 ]; then
     phase_line "$RED" "$G_FAIL" "$current" $((SECONDS - phase_started))
-    printf '\n%s  %sInstallation failed%s with exit code %s after %s.\n' "$IND" "$RED$BOLD" "$RESET" \
+    printf '\n%s  %sInstallation failed%s with exit code %s after %s.\n' "$CLR$IND" "$RED$BOLD" "$RESET" \
       "$status" "$(fmt_time $((SECONDS - started)))"
-    printf '%s  %sLast output:%s\n' "$IND" "$MUTED" "$RESET"
+    printf '%s  %sLast output:%s\n' "$CLR$IND" "$MUTED" "$RESET"
     tail -n 20 "$log" | tr '\r' '\n' | awk 'NF' | tail -n 20 | while IFS= read -r line; do
-      printf '%s  %s%s %s%s\n' "$IND" "$DIM" "$B_V" "${line:0:$((IW - 4))}" "$RESET"
+      printf '%s  %s%s %s%s\n' "$CLR$IND" "$DIM" "$B_V" "${line:0:$((IW - 4))}" "$RESET"
     done
-    printf '%s  %sFull log%s  %s\n' "$IND" "$MUTED" "$RESET" "$log"
+    printf '%s  %sFull log%s  %s\n' "$CLR$IND" "$MUTED" "$RESET" "$log"
     return "$status"
   fi
   [ "$phase" -gt 0 ] && phase_done "$current" $((SECONDS - phase_started))
   if [ "$step_total" -gt 0 ]; then completed="$step_total"; else completed="$phase"; fi
-  printf '\n%s  %s%s Installed%s %s  %s%d steps %s %s%s\n' "$IND" "$CYAN_HI$BOLD" "$G_OK" "$RESET" \
+  printf '\n%s  %s%s Installed%s %s  %s%d steps %s %s%s\n' "$CLR$IND" "$CYAN_HI$BOLD" "$G_OK" "$RESET" \
     "$LABEL" "$MUTED" "$completed" "$G_SEP" "$(fmt_time $((SECONDS - started)))" "$RESET"
   if [ -z "$PREVIEW_LOG" ]; then
-    printf '%s  %sLog%s  %s\n' "$IND" "$MUTED" "$RESET" "$log"
+    printf '%s  %sLog%s  %s\n' "$CLR$IND" "$MUTED" "$RESET" "$log"
   fi
 }
 
@@ -827,18 +838,18 @@ box() {
   for line in "$@"; do [ "${#line}" -gt "$inner" ] && inner="${#line}"; done
   w=$((inner + 4))
   if [ "$w" -gt $((IW - 2)) ]; then
-    printf '%s  %s%s%s\n' "$IND" "$BOLD" "$title" "$RESET"
-    for line in "$@"; do printf '%s    %s\n' "$IND" "$line"; done
+    printf '%s  %s%s%s\n' "$CLR$IND" "$BOLD" "$title" "$RESET"
+    for line in "$@"; do printf '%s    %s\n' "$CLR$IND" "$line"; done
     return
   fi
   printf -v rule '%*s' $((w - ${#title} - 4)) ''
   rule="${rule// /$B_H}"
-  printf '%s  %s%s%s %s%s%s %s%s%s\n' "$IND" "$DIM" "$B_TL$B_H" "$RESET" "$BOLD" "$title" "$RESET" "$DIM" "$rule$B_TR" "$RESET"
+  printf '%s  %s%s%s %s%s%s %s%s%s\n' "$CLR$IND" "$DIM" "$B_TL$B_H" "$RESET" "$BOLD" "$title" "$RESET" "$DIM" "$rule$B_TR" "$RESET"
   for line in "$@"; do
-    printf '%s  %s%s%s  %-*s  %s%s%s\n' "$IND" "$DIM" "$B_V" "$RESET" "$inner" "$line" "$DIM" "$B_V" "$RESET"
+    printf '%s  %s%s%s  %-*s  %s%s%s\n' "$CLR$IND" "$DIM" "$B_V" "$RESET" "$inner" "$line" "$DIM" "$B_V" "$RESET"
   done
   printf -v rule '%*s' $((w - 2)) ''
-  printf '%s  %s%s%s%s%s\n' "$IND" "$DIM" "$B_BL" "${rule// /$B_H}" "$B_BR" "$RESET"
+  printf '%s  %s%s%s%s%s\n' "$CLR$IND" "$DIM" "$B_BL" "${rule// /$B_H}" "$B_BR" "$RESET"
 }
 
 # --- Main ----------------------------------------------------------------------
@@ -855,7 +866,7 @@ if [ -z "$TARGET" ]; then
   print_credits
   printf '\n'
 elif [ "$IS_TTY" -eq 1 ]; then
-  printf '%s  %sST%s %s&%s %sQualcomm%s  %sVibroAgent installer%s\n\n' "$IND" \
+  printf '%s  %sST%s %s&%s %sQualcomm%s  %sVibroAgent installer%s\n\n' "$CLR$IND" \
     "$ST$BOLD" "$RESET" "$CYAN_HI" "$RESET" "$QUALCOMM$BOLD" "$RESET" "$MUTED" "$RESET"
 fi
 
@@ -870,15 +881,15 @@ if [ "$TARGET" = preview ]; then
   fi
   PREVIEW_LOG="$(mktemp "${TMPDIR:-/tmp}/vibroagent-preview.XXXXXX")" || exit 1
   LABEL='animation preview'
-  printf '%s  %sInstalling%s %s\n\n' "$IND" "$BOLD" "$RESET" "$LABEL"
+  printf '%s  %sInstalling%s %s\n\n' "$CLR$IND" "$BOLD" "$RESET" "$LABEL"
   run_setup preview_installation
   exit $?
 fi
 
 describe_target
-printf '%s  %sSelected%s  %s\n' "$IND" "$MUTED" "$RESET" "$LABEL"
-printf '%s  %sSetup%s    ' "$IND" "$MUTED" "$RESET"; print_command "${SETUP[@]}"
-printf '%s  %sRun%s      ' "$IND" "$MUTED" "$RESET"; print_command "${NEXT[@]}"
+printf '%s  %sSelected%s  %s\n' "$CLR$IND" "$MUTED" "$RESET" "$LABEL"
+printf '%s  %sSetup%s    ' "$CLR$IND" "$MUTED" "$RESET"; print_command "${SETUP[@]}"
+printf '%s  %sRun%s      ' "$CLR$IND" "$MUTED" "$RESET"; print_command "${NEXT[@]}"
 
 if [ "$DRY_RUN" -eq 1 ]; then
   exit 0
@@ -886,7 +897,7 @@ fi
 
 printf '\n'
 if [[ "$TARGET" == *-live ]] && [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
-  printf '%s  Live setup requires administrator access.\n' "$IND"
+  printf '%s  Live setup requires administrator access.\n' "$CLR$IND"
   # Passwordless sudo can permit commands while still rejecting `sudo -v`.
   # Reuse existing authorization before asking for interactive validation.
   if ! sudo -n true 2>/dev/null; then
@@ -894,11 +905,11 @@ if [[ "$TARGET" == *-live ]] && [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/nu
   fi
   SUDO_KEEPALIVE=1
 fi
-printf '%s  %sInstalling%s %s\n\n' "$IND" "$BOLD" "$RESET" "$LABEL"
+printf '%s  %sInstalling%s %s\n\n' "$CLR$IND" "$BOLD" "$RESET" "$LABEL"
 run_setup "${SETUP[@]}"
 status=$?
 if [ "$status" -ne 0 ]; then
-  printf '\nInstallation failed with exit code %s. Review the output above.\n' "$status" >&2
+  printf '\n%sInstallation failed with exit code %s. Review the output above.\n' "$CLR" "$status" >&2
   exit "$status"
 fi
 

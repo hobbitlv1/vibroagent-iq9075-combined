@@ -78,6 +78,8 @@ NO_COLOR=1 ./install.sh --gemma-demo
 ./install.sh --help
 ```
 
+Animated installation rows explicitly reset their cursor column, so they do not depend on the terminal's newline-translation setting. The progress bar shrinks to fit the actual terminal width; below 24 columns, installation uses plain scrolling output instead of a two-row animation.
+
 The installer accepts exactly one deployment selection. Re-running a selection is safe: the underlying setup scripts verify and reuse valid repositories, environments, recordings, and model artifacts.
 
 ## Choose the implementation

@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import pty
+import re
 import select
 import shutil
 import signal
@@ -37,6 +38,46 @@ elif 'import geniex' in sys.argv[-1]:
     lib=site/'geniex/lib'; (lib/'llama_cpp').mkdir(parents=True, exist_ok=True); print(lib)
 else: print(site)
 '''
+
+
+def progress_cursor_positions(output, columns):
+    """Track the cursor operations emitted by the real ASCII progress renderer."""
+    csi = re.compile(r"\x1b\[([0-9;?]*)([A-Za-z])")
+    positions = {"ST ": [], "[1/2]": [], "[2/2]": []}
+    column = offset = row_wraps = 0
+    progress_row = False
+    frame_wraps = []
+    while offset < len(output):
+        control = csi.match(output, offset)
+        if control:
+            params, command = control.groups()
+            if command == "K":
+                row_wraps = 0
+                progress_row = False
+            elif command == "A" and progress_row:
+                frame_wraps.append(row_wraps)
+            elif command == "G":
+                column = int(params or "1") - 1
+            elif command in {"H", "f"}:
+                parts = params.split(";")
+                column = int(parts[1] or "1") - 1 if len(parts) > 1 else 0
+            offset = control.end()
+            continue
+        character = output[offset]
+        if character == "\r":
+            column = 0
+        elif character != "\n" and ord(character) >= 32:
+            if column >= columns:
+                column = 0
+                row_wraps += 1
+            for marker, seen in positions.items():
+                if output.startswith(marker, offset):
+                    seen.append(column)
+                    if marker == "ST ":
+                        progress_row = True
+            column += 1
+        offset += 1
+    return positions, frame_wraps
 
 
 class InstallerFixture(unittest.TestCase):
@@ -118,9 +159,16 @@ while [ "$#" -gt 0 ]; do
 done
 ''')
 
-    def run_tty(self, *args, keys=None, signal_on=None, rows=24, cols=80):
+    def run_tty(self, *args, keys=None, signal_on=None, rows=24, cols=80, translate_newlines=True):
         master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+        attributes = termios.tcgetattr(slave)
+        attributes[1] |= termios.OPOST
+        if translate_newlines:
+            attributes[1] |= termios.ONLCR
+        else:
+            attributes[1] &= ~termios.ONLCR
+        termios.tcsetattr(slave, termios.TCSANOW, attributes)
         process = subprocess.Popen([str(self.repo / "install.sh"), *args], cwd=self.base,
                                    env=self.env, stdin=slave, stdout=slave, stderr=slave,
                                    start_new_session=True)
@@ -299,6 +347,36 @@ wait
                 self.assertIn("\x1b[?25h", output)
                 self.assertIn("final-message", (self.repo / ".run/install.log").read_text())
                 self.assertIn("Installed" if status == 0 else "Installation failed", output)
+
+    def test_animated_rows_keep_their_column_and_do_not_wrap(self):
+        self.stub("setup.sh", '''echo "==== [1/2] First phase with a long title ===="
+printf '%120s\\n' 'long detail'
+sleep 0.4
+echo "==== [2/2] Second phase with a long title ===="
+printf '%120s\\n' 'another detail'
+sleep 0.4
+''', repo=True)
+        for cols, translate_newlines in [(120, True), (120, False), (40, True), (40, False), (24, False)]:
+            with self.subTest(cols=cols, translate_newlines=translate_newlines):
+                code, output = self.run_tty(
+                    "--codec-offline", "--ascii", cols=cols,
+                    translate_newlines=translate_newlines,
+                )
+                self.assertEqual(code, 0, output[-1200:])
+                positions, frame_wraps = progress_cursor_positions(output, cols)
+                indent = max(0, (cols - 78) // 2 - 2)
+                self.assertEqual(set(positions["ST "]), {indent + 2})
+                self.assertEqual(set(positions["[1/2]"]), {indent + 4})
+                self.assertEqual(set(positions["[2/2]"]), {indent + 4})
+                self.assertGreaterEqual(len(frame_wraps), 2)
+                self.assertEqual(set(frame_wraps), {0}, "animated rows must fit without automatic wrapping")
+
+    def test_tiny_terminal_uses_plain_output_without_cursor_redraw(self):
+        self.stub("setup.sh", "echo tiny-output\nexit 42\n", repo=True)
+        code, output = self.run_tty("--codec-offline", "--ascii", cols=20)
+        self.assertEqual(code, 42)
+        self.assertIn("tiny-output", output)
+        self.assertNotIn("\x1b[1A", output)
 
 
 class SetupTests(InstallerFixture):
