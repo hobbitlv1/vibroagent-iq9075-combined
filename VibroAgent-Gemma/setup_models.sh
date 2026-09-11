@@ -84,7 +84,13 @@ for part in manifest["gguf"]["parts"]:
 PY
 )
     [ "${#parts[@]}" -ge 2 ] || { echo "release manifest contains no complete split-part set" >&2; exit 1; }
-    cat "${parts[@]}" > "$WORK/$GGUF_NAME"
+    # Discard each verified part after appending it, avoiding two full copies
+    # of the 4.9 GB model on small target-board disks.
+    : > "$WORK/$GGUF_NAME"
+    for part in "${parts[@]}"; do
+        cat "$part" >> "$WORK/$GGUF_NAME"
+        rm -f "$part"
+    done
 fi
 
 verify "$WORK/$GGUF_NAME" || { echo "VibroAgent-Gemma Q8 SHA-256 mismatch" >&2; exit 1; }

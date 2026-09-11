@@ -28,12 +28,13 @@ ptrs = []
 # Native libhs_datalog_v2 callback signature, verified against the exported
 # hs_datalog_set_data_ready_callback symbol:
 #   int callback(int d_id, char *component_name, uint8_t *data, int size)
-# The callback is invoked from the native USB endpoint thread when a new block is
-# available, so Python code can write the block immediately without polling.
+# The shipped native startLogging captures a temporary component-name pointer.
+# Keep that argument opaque: the dispatcher supplies the registered name instead
+# of allowing ctypes to dereference native stack memory on the USB thread.
 HSD_DATA_READY_CALLBACK = ctypes.CFUNCTYPE(
     ctypes.c_int,
     ctypes.c_int,
-    ctypes.c_char_p,
+    ctypes.c_void_p,
     ctypes.POINTER(ctypes.c_uint8),
     ctypes.c_int,
 )
@@ -361,9 +362,7 @@ class HSD_Dll:
         # threads may call them. If these objects are garbage-collected, the next
         # native callback can crash the process.
         self._data_ready_callbacks = {}
-        # Device_COM retains the component-name pointer alongside the callback.
-        # A temporary c_char_p becomes dangling as soon as registration returns,
-        # so keep one stable, NUL-terminated buffer per registration as well.
+        self._data_ready_handlers = {}
         self._data_ready_component_names = {}
 
     def hs_datalog_register_usb_hotplug_callback(self, plug_callback, unplug_callback) -> bool:
@@ -388,6 +387,12 @@ class HSD_Dll:
         res = None
         try:
             res = self.hsd_wrapper.hs_datalog_close()
+            if res == ST_HS_DATALOG_OK:
+                # Acquisition must already be stopped; native close is not a
+                # substitute for stop_log. Release only after native teardown.
+                self._data_ready_callbacks.clear()
+                self._data_ready_handlers.clear()
+                self._data_ready_component_names.clear()
             return res == ST_HS_DATALOG_OK
         except OSError:
             print("{} - HSDatalogApp.{} - ERROR - Error in closing the HSD device!".format(logger.get_datetime(), __name__))
@@ -480,59 +485,34 @@ class HSD_Dll:
         cmd_response = ctypes.c_char_p()
         dIdC = ctypes.c_int(dId)
         interfaceC = ctypes.c_int(interface)
-        cmd_res = ""
         res = self.hsd_wrapper.hs_datalog_start_log(dIdC, interfaceC, ctypes.byref(cmd_response))
-        try:
-            if res != ST_HS_DATALOG_ERROR:
-                if cmd_response.value is not None:
-                    cmd_res = cmd_response.value.decode('UTF-8')
-                    print("{} - HSDatalogApp.{} - INFO - PnPL Response: {}".format(logger.get_datetime(), __name__, cmd_res))
-                else:
-                    cmd_res = "Command sent successfully!"
-            else:
-                    cmd_res = "Command failed"
-        finally:
-            if cmd_response and cmd_response.value:
-                self.__hs_datalog_free(cmd_response)
-        return (res == ST_HS_DATALOG_OK, cmd_res)
+        return self._logging_command_response(res, cmd_response)
 
     def hs_datalog_stop_log(self, dId : int) -> bool:
         cmd_response = ctypes.c_char_p()
         dIdC = ctypes.c_int(dId)
-        cmd_res = ""
         res = self.hsd_wrapper.hs_datalog_stop_log(dIdC, ctypes.byref(cmd_response))
-        try:
-            if res != ST_HS_DATALOG_ERROR:
-                if cmd_response.value is not None:
-                    cmd_res = cmd_response.value.decode('UTF-8')
-                    print("{} - HSDatalogApp.{} - INFO - PnPL Response: {}".format(logger.get_datetime(), __name__, cmd_res))
-                else:
-                    cmd_res = "Command sent successfully!"
-            else:
-                cmd_res = "Command failed"
-        finally:
-            if cmd_response and cmd_response.value:
-                self.__hs_datalog_free(cmd_response)
-        return (res == ST_HS_DATALOG_OK, cmd_res)
+        return self._logging_command_response(res, cmd_response)
     
     def hs_datalog_set_rtc_time(self, dId : int) -> bool:
         cmd_response = ctypes.c_char_p()
         dIdC = ctypes.c_int(dId)
-        cmd_res = ""
         res = self.hsd_wrapper.hs_datalog_set_rtc_time(dIdC, ctypes.byref(cmd_response))
-        try:            
-            if res != ST_HS_DATALOG_ERROR:
-                if cmd_response.value is not None:
-                    cmd_res = cmd_response.value.decode('UTF-8')
-                    print("{} - HSDatalogApp.{} - INFO - PnPL Response: {}".format(logger.get_datetime(), __name__, cmd_res))
-                else:
-                    cmd_res = "Command sent successfully!"
-            else:
-                cmd_res = "Command failed"
+        return self._logging_command_response(res, cmd_response)
+
+    def _logging_command_response(self, res, cmd_response):
+        # The native error path can return an uninitialized/already-freed output
+        # pointer. Neither read nor free it unless the command succeeded.
+        if res != ST_HS_DATALOG_OK:
+            return (False, "Command failed (native status {})".format(res))
+        try:
+            cmd_res = (cmd_response.value.decode('UTF-8') if cmd_response
+                       else "Command sent successfully!")
+            print("{} - HSDatalogApp.{} - INFO - PnPL Response: {}".format(logger.get_datetime(), __name__, cmd_res))
+            return (True, cmd_res)
         finally:
-            if cmd_response and cmd_response.value:
+            if cmd_response:
                 self.__hs_datalog_free(cmd_response)
-        return (res == ST_HS_DATALOG_OK, cmd_res)
 
     def hs_datalog_get_device_status(self, dId : int) -> [bool, str]:
         device = ctypes.c_char_p()
@@ -746,30 +726,44 @@ class HSD_Dll:
         """Register/unregister a native low-latency data callback for HSD v2.
 
         callback must accept ``(device_id, component_name_bytes, data_ptr, size)``
-        and return 0 on success. Pass ``None`` to unregister the callback.
+        and return 0 on success. The name is the registered component name, not
+        the native temporary pointer. Pass ``None`` to disable delivery.
+
+        Native registration is insert-only, so replacing/unregistering there
+        does not release the old function. Keep one stable native dispatcher per
+        key until successful close; replace only its Python delegate.
         """
-        dIdC = ctypes.c_int(dId)
+        if not isinstance(comp_name, str) or not comp_name or '\x00' in comp_name:
+            raise ValueError("component name must be nonempty and contain no NUL")
+        if callback is not None and not callable(callback):
+            raise TypeError("callback must be callable or None")
         key = (int(dId), str(comp_name))
-        comp_name_buffer = self._data_ready_component_names.get(key)
-        if comp_name_buffer is None:
-            comp_name_buffer = ctypes.create_string_buffer(comp_name.encode('utf-8'))
-        comp_nameC = ctypes.cast(comp_name_buffer, ctypes.c_char_p)
-
         if callback is None:
-            callbackC = HSD_DATA_READY_CALLBACK()
-            res = self.hsd_wrapper.hs_datalog_set_data_ready_callback(dIdC, comp_nameC, callbackC)
-            if res == ST_HS_DATALOG_OK:
-                self._data_ready_callbacks.pop(key, None)
-                self._data_ready_component_names.pop(key, None)
-            return res == ST_HS_DATALOG_OK
+            self._data_ready_handlers.pop(key, None)
+            return True
+        self._data_ready_handlers[key] = callback
+        if key in self._data_ready_callbacks:
+            return True
 
-        if isinstance(callback, ctypes._CFuncPtr):
-            callbackC = callback
-        else:
-            callbackC = HSD_DATA_READY_CALLBACK(callback)
+        component_bytes = comp_name.encode('utf-8')
+        component_buffer = ctypes.create_string_buffer(component_bytes)
 
-        res = self.hsd_wrapper.hs_datalog_set_data_ready_callback(dIdC, comp_nameC, callbackC)
-        if res == ST_HS_DATALOG_OK:
-            self._data_ready_callbacks[key] = callbackC
-            self._data_ready_component_names[key] = comp_name_buffer
+        def dispatch(device_id, _native_name, data, size):
+            handler = self._data_ready_handlers.get(key)
+            if handler is None:
+                return 0
+            try:
+                return int(handler(device_id, component_bytes, data, size))
+            except Exception:
+                return ST_HS_DATALOG_ERROR
+
+        callbackC = HSD_DATA_READY_CALLBACK(dispatch)
+        self._data_ready_callbacks[key] = callbackC
+        self._data_ready_component_names[key] = component_buffer
+        res = self.hsd_wrapper.hs_datalog_set_data_ready_callback(
+            ctypes.c_int(dId), ctypes.cast(component_buffer, ctypes.c_char_p), callbackC)
+        if res != ST_HS_DATALOG_OK:
+            self._data_ready_callbacks.pop(key, None)
+            self._data_ready_handlers.pop(key, None)
+            self._data_ready_component_names.pop(key, None)
         return res == ST_HS_DATALOG_OK

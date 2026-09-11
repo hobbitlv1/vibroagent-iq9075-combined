@@ -21,22 +21,26 @@ PNPL_SHA=a6e36d29d9e8b463ef6c4b91f66a2561612bfb46
 DTK_SHA=46ceea78c149f6c2c8d20ae887cd8bf57106ee22
 GUI_SHA=708799237b504326ddad8f52227d2ae145028eee
 
-fetch_pinned() {
+fetch_pinned() (
     local name="$1" sha="$2" dest="$REPO/$1"
     if [ -f "$dest/.stock_sha" ] && [ "$(cat "$dest/.stock_sha")" = "$sha" ]; then
         echo "== $name already present at $sha — skipping fetch"
         return
     fi
     echo "== fetching $name @ $sha"
+    # Keep a working SDK intact if a fetch is interrupted or fails.
+    local staging
+    staging="$(mktemp -d "$REPO/.$name.XXXXXX")"
+    trap 'rm -rf "$staging"' EXIT
+    git -C "$staging" init -q
+    git -C "$staging" remote add origin "https://github.com/STMicroelectronics/$name.git"
+    git -C "$staging" fetch -q --depth 1 origin "$sha"
+    git -C "$staging" checkout -q FETCH_HEAD
+    rm -rf "$staging/.git"
+    echo "$sha" > "$staging/.stock_sha"
     rm -rf "$dest"
-    mkdir -p "$dest"
-    git -C "$dest" init -q
-    git -C "$dest" remote add origin "https://github.com/STMicroelectronics/$name.git"
-    git -C "$dest" fetch -q --depth 1 origin "$sha"
-    git -C "$dest" checkout -q FETCH_HEAD
-    rm -rf "$dest/.git"
-    echo "$sha" > "$dest/.stock_sha"
-}
+    mv "$staging" "$dest"
+)
 
 fetch_pinned stdatalog_core "$CORE_SHA"
 fetch_pinned stdatalog_pnpl "$PNPL_SHA"

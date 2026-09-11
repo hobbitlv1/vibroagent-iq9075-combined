@@ -4,8 +4,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMBINED_ROOT="$(cd "$ROOT/.." && pwd)"
-MODE=live
+MODE=""
 for arg in "$@"; do
+    [ -z "$MODE" ] || { echo "choose only one mode: --live, --offline, or --demo" >&2; exit 2; }
     case "$arg" in
         --live) MODE=live ;;
         --offline) MODE=offline ;;
@@ -13,7 +14,7 @@ for arg in "$@"; do
         *) echo "usage: $0 [--live|--offline|--demo]" >&2; exit 2 ;;
     esac
 done
-echo "$MODE" > "$ROOT/.vibro_mode"
+MODE="${MODE:-live}"
 
 if ! command -v uv >/dev/null 2>&1; then
     echo "== installing uv"
@@ -41,7 +42,7 @@ if [ "$MODE" != demo ]; then
         | grep -oE '"[^"]+"' | tr -d '"' | grep -v '^stdatalog_')"
     # shellcheck disable=SC2086
     uv pip install --quiet --python "$VENV/bin/python" $SDK_DEPS
-    SITE_PKGS="$($VENV/bin/python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
+    SITE_PKGS="$("$VENV/bin/python" -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
     printf '%s\n' \
         "$COMBINED_ROOT/stdatalog_core" \
         "$COMBINED_ROOT/stdatalog_pnpl" \
@@ -49,7 +50,13 @@ if [ "$MODE" != demo ]; then
         "$COMBINED_ROOT/stdatalog_gui" > "$SITE_PKGS/vibroagent_sdk.pth"
 fi
 
+MODE_FILE="$(mktemp "$ROOT/.vibro_mode.XXXXXX")"
+trap 'rm -f "$MODE_FILE"' EXIT
+printf '%s\n' "$MODE" > "$MODE_FILE"
+mv -f "$MODE_FILE" "$ROOT/.vibro_mode"
+
 echo "== VibroAgent-Gemma setup complete ($MODE)"
+printf 'From %s\n' "$ROOT"
 if [ "$MODE" = live ]; then
     echo "Next: ./vibroagent.sh start"
 elif [ "$MODE" = offline ]; then

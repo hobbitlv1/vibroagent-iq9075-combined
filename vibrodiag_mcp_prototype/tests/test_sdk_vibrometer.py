@@ -1,4 +1,5 @@
 # pyright: reportArgumentType=false, reportOperatorIssue=false, reportOptionalSubscript=false, reportOptionalMemberAccess=false, reportCallIssue=false, reportAttributeAccessIssue=false, reportIncompatibleMethodOverride=false
+import os
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ import numpy as np
 
 from vibroagent_mcp import sdk_vibrometer
 from vibroagent_mcp.sdk_vibrometer import (
+    _apply_synthetic_target5_test,
     _frames_to_arrays,
     _normalize_axis,
     _normalize_window_request,
@@ -41,6 +43,95 @@ requires_example_acquisition = pytest.mark.skipif(
     not EXAMPLE_ACQUISITION.exists() or not _has_stdatalog_sdk(),
     reason="local STDATALOG example acquisition or SDK is not available",
 )
+
+
+def test_synthetic_target5_hook_is_explicit_scoped_and_phase_aligned(monkeypatch):
+    sampling_rate_hz = 1_000
+    timestamps = 12.0 + np.arange(1_000, dtype=np.float64) / sampling_rate_hz
+    samples = np.zeros((1_000, 3), dtype=np.float64)
+
+    unchanged, descriptor = _apply_synthetic_target5_test(
+        samples, timestamps, sampling_rate_hz, machine_id="target_5"
+    )
+    assert unchanged is samples
+    assert descriptor is None
+
+    monkeypatch.setenv("VIBRO_SYNTHETIC_TARGET5_ENABLED", "1")
+    monkeypatch.setenv("VIBRO_SYNTHETIC_TARGET5_FREQUENCY_HZ", "25")
+    monkeypatch.setenv("VIBRO_SYNTHETIC_TARGET5_AMPLITUDE_G", "0.5")
+    monkeypatch.setenv("VIBRO_SYNTHETIC_TARGET5_AXIS", "z")
+    monkeypatch.setenv("VIBRO_SYNTHETIC_TARGET", "target_4")
+    other, other_descriptor = _apply_synthetic_target5_test(
+        samples, timestamps, sampling_rate_hz, machine_id="target_5"
+    )
+    injected, descriptor = _apply_synthetic_target5_test(
+        samples, timestamps, sampling_rate_hz, machine_id="target_4"
+    )
+
+    assert other is samples and other_descriptor is None
+    assert np.array_equal(injected[:, :2], samples[:, :2])
+    np.testing.assert_allclose(
+        injected[:, 2],
+        0.5 * np.sin(2 * np.pi * 25 * timestamps),
+        atol=1e-12,
+    )
+    assert descriptor == {
+        "active": True,
+        "test_only": True,
+        "kind": "sine",
+        "target": "target_4",
+        "axis": "z",
+        "frequency_hz": 25.0,
+        "amplitude_g": 0.5,
+        "source": "env_test_hook",
+    }
+
+    monkeypatch.setenv("VIBRO_SYNTHETIC_TARGET", "target_1,target_3,target_4")
+    for machine_id in ("target_1", "target_3", "target_4"):
+        _, descriptor = _apply_synthetic_target5_test(
+            samples, timestamps, sampling_rate_hz, machine_id=machine_id
+        )
+        assert descriptor["target"] == machine_id
+    _, descriptor = _apply_synthetic_target5_test(
+        samples, timestamps, sampling_rate_hz, machine_id="target_2"
+    )
+    assert descriptor is None
+
+    monkeypatch.setenv("VIBRO_SYNTHETIC_TARGET", "all")
+    for machine_id in ("target_1", "target_5"):
+        _, descriptor = _apply_synthetic_target5_test(
+            samples, timestamps, sampling_rate_hz, machine_id=machine_id
+        )
+        assert descriptor["target"] == machine_id
+
+
+def test_board_reader_process_syncs_runtime_synthetic_injection(monkeypatch, tmp_path):
+    from vibroagent_mcp import board_reader_process
+
+    captured = {}
+
+    class FakeClient:
+        def read_window(self, kwargs, *, timeout_s=None):
+            captured.update(kwargs)
+            return "window"
+
+    monkeypatch.setattr(board_reader_process, "_get_client", lambda _key: FakeClient())
+    monkeypatch.setenv("VIBRO_SYNTHETIC_TARGET5_ENABLED", "1")
+    monkeypatch.setenv("VIBRO_SYNTHETIC_TARGET", "target_1")
+
+    assert board_reader_process.read_sdk_vibrometer_window_via_board_process(
+        acquisition_folder=tmp_path,
+        machine_id="target_1",
+    ) == "window"
+    runtime_env = captured.pop("_synthetic_injection_env")
+    assert runtime_env["VIBRO_SYNTHETIC_TARGET5_ENABLED"] == "1"
+    assert runtime_env["VIBRO_SYNTHETIC_TARGET"] == "target_1"
+
+    monkeypatch.setenv("VIBRO_SYNTHETIC_TARGET5_ENABLED", "0")
+    monkeypatch.setenv("VIBRO_SYNTHETIC_TARGET", "target_5")
+    board_reader_process._apply_synthetic_injection_env(runtime_env)
+    assert os.environ["VIBRO_SYNTHETIC_TARGET5_ENABLED"] == "1"
+    assert os.environ["VIBRO_SYNTHETIC_TARGET"] == "target_1"
 
 
 class _FakeSeries:

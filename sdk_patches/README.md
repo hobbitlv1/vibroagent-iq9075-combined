@@ -46,6 +46,15 @@ Contents:
 - Registered callback objects are kept in `_data_ready_callbacks` so Python does
   not garbage-collect them while native USB endpoint threads may still call them.
 - Exposes `hs_datalog_set_data_ready_callback()` as a Python method.
+- Uses a stable dispatcher for the native insert-only callback map. Replacing or
+  disabling a Python delegate does not discard the native function pointer;
+  callback references and component buffers survive until successful teardown.
+- Treats the native component-name pointer as opaque and validates the actual
+  callback device identity. Start, stop, and RTC commands reject every nonzero
+  result before reading or freeing a response pointer. Successful responses are
+  freed exactly once, including empty responses and decoding failures.
+- The aggregate `.diff` was regenerated and checked against the same updated
+  `hsd_dll.py` installed by the overlay.
 
 ### 4. `stdatalog_core/stdatalog_core/HSD_link/communication/PnPL_HSD/PnPLHSD_com_manager.py`
 

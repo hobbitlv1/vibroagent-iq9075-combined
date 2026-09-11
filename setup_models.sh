@@ -27,7 +27,6 @@ if [ -f "$TARGET" ]; then
         exit 0
     fi
     echo "== existing file FAILS verification — re-downloading"
-    rm -f "$TARGET"
 fi
 
 if [ -z "${HF_TOKEN:-}" ] && [ -f "$HOME/.cache/huggingface/token" ]; then
@@ -59,33 +58,43 @@ github_release_fetch() {
             -o "$dest" "https://api.github.com/repos/$GH_REPO/releases/assets/$asset_id"
     fi
 }
+mkdir -p "$REPO/models"
+WORK="$(mktemp -d "$REPO/models/.download.XXXXXX")"
+trap 'rm -rf "$WORK"' EXIT
 if [ -n "$GH_REPO" ]; then
     echo "== trying GitHub release $GH_REPO@$RELEASE_TAG"
-    WORK="$REPO/models/.parts"; mkdir -p "$WORK"
-    if github_release_fetch "release_assets_manifest.json" "$WORK/release_assets_manifest.json"; then
+    if github_release_fetch "release_assets_manifest.json" "$WORK/release_assets_manifest.json" &&
+            cmp -s "$REPO/models/release_assets_manifest.json" "$WORK/release_assets_manifest.json"; then
         ok=1
-        while read -r part sha; do
+        python3 - "$WORK/release_assets_manifest.json" > "$WORK/parts.tsv" <<'PARTS'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as stream:
+    manifest = json.load(stream)
+parts = manifest["gguf"]["parts"]
+if not parts:
+    raise ValueError("release manifest has no parts")
+for part in parts:
+    print(part["name"], part["sha256"], sep="\t")
+PARTS
+        parts=()
+        while IFS=$'\t' read -r part sha; do
             echo "==   part $part"
             github_release_fetch "$part" "$WORK/$part" || { ok=0; break; }
             echo "$sha  $WORK/$part" | sha256sum -c --quiet - || { ok=0; break; }
-        done < <(python3 -c "
-import json
-m = json.load(open('$WORK/release_assets_manifest.json'))
-for p in m['gguf']['parts']:
-    print(p['name'], p['sha256'])")
-        if [ "$ok" = "1" ]; then
-            cat "$WORK"/*.part > "$TARGET"
-            rm -rf "$WORK"
-            echo "== verifying reassembled sha256"
-            echo "$GGUF_SHA256  $TARGET" | sha256sum -c -
+            parts+=("$WORK/$part")
+        done < "$WORK/parts.tsv"
+        if [ "$ok" = 1 ] && cat "${parts[@]}" > "$WORK/$GGUF_NAME" &&
+                echo "$GGUF_SHA256  $WORK/$GGUF_NAME" | sha256sum -c --quiet -; then
+            mv -f "$WORK/$GGUF_NAME" "$TARGET"
             echo "== codes_v3 GGUF ready (GitHub release): $TARGET"
             exit 0
         fi
         echo "== GitHub release path incomplete — falling back to Hugging Face"
-        rm -rf "$WORK"
     else
-        echo "== no release assets reachable — falling back to Hugging Face"
+        echo "== no matching release manifest reachable — falling back to Hugging Face"
     fi
+    # Reclaim split-part storage before trying the fallback source.
+    rm -f "$WORK"/*.part
 fi
 
 # ---- source 2: Hugging Face weights repo ------------------------------------
@@ -99,8 +108,9 @@ fi
 echo "== downloading $GGUF_NAME from $MODELS_REPO (2.4 GB)"
 mkdir -p "$REPO/models"
 HF_TOKEN="${HF_TOKEN:-}" uv tool run --from 'huggingface_hub[cli]' \
-    hf download "$MODELS_REPO" "$GGUF_NAME" --local-dir "$REPO/models"
+    hf download "$MODELS_REPO" "$GGUF_NAME" --local-dir "$WORK"
 
 echo "== verifying sha256"
-echo "$GGUF_SHA256  $TARGET" | sha256sum -c -
+echo "$GGUF_SHA256  $WORK/$GGUF_NAME" | sha256sum -c -
+mv -f "$WORK/$GGUF_NAME" "$TARGET"
 echo "== codes_v3 GGUF ready: $TARGET"

@@ -7,3 +7,5 @@
 # Frozen model-bundle files are checksum-bound and must not be whitespace-normalized.
 VibroAgent-Gemma/models/vibroagent-gemma-g1/** -text -diff -whitespace
 VibroAgent-Gemma/vibrodiag_mcp_prototype/patches/*.patch -whitespace
+# Unified SDK diffs preserve upstream whitespace in context and removed lines.
+sdk_patches/*.diff -whitespace

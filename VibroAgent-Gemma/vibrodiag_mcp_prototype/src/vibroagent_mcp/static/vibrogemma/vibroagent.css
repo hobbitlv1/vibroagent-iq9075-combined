@@ -197,7 +197,7 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .verdict-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
 .verdict-head .verdict-icon { width: 30px; height: 30px; color: var(--state-text); }
 .verdict-head h2 { margin: 0; color: var(--state-text); font-size: 21px; letter-spacing: -.02em; }
-.verdict-card > p { margin: 0 0 14px; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.verdict-card > p { margin: 0 0 14px; color: var(--muted); font-size: 12.5px; line-height: 1.45; overflow-wrap: anywhere; }
 .board-ribbon { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
 .ribbon-cell { --board-color: var(--blue); display: grid; gap: 5px; text-align: center; }
 .ribbon-cell i { display: block; height: 10px; border: 1.5px solid var(--board-color); border-radius: 3px; background: var(--board-color); transition: opacity .2s ease; }

@@ -37,6 +37,10 @@ Stop cleanly so every board receives `stop_log`:
 ```bash
 ./vibroagent.sh stop
 ```
+From the combined repository root, `bash linux_setup/vibroagent-safe-stop.sh` stops both checkout-owned stacks; add `--dry-run` to inspect targets only. The desktop stop shortcut uses this wrapper. Shutdown remains available through the system Python even if an application virtualenv is missing.
+
+Live and offline startup both refuse unresolved logger shutdowns before probing the boards or replacing logs. Failed-stop evidence is retained independently of `logger.pid`; do not delete runtime state to bypass the check. A valid completed shutdown receipt releases the startup gate.
+
 
 ## Path 2: offline web pipeline
 
@@ -57,6 +61,8 @@ VIBRO_REPLAY_SPEED=2 VIBRO_REPLAY_LOOP=0 ./vibroagent.sh start
 ```
 
 Stop with `./vibroagent.sh stop`. Run `./setup.sh --live` to return to physical boards.
+
+Offline windows retain `mode=replay` and do not require current file timestamps. Old recording files are not a stale-data defect in this mode; measured clipping, missing samples, and other signal-quality failures still apply. Live mode remains strict and does not silently switch to recordings when acquisition stops.
 
 ## Path 3: direct board-free LUMO demo
 
@@ -79,6 +85,10 @@ vibrodiag_mcp_prototype/.run/vibrogemma-venv/bin/python \
 The compact source windows and their checksums are versioned under `vibrodiag_mcp_prototype/data/external/lumo/`. Their source, licence, channel mapping, and transformations are documented in [demo/LUMO_ATTRIBUTION.md](demo/LUMO_ATTRIBUTION.md).
 
 In live mode the two UI injection buttons use these same windows as moving, amplitude-matched test overlays for target 3 or target 5. Manual live tests are marked synthetic and are not registered as Replay alerts. Offline scheduled events are identified separately and may be saved in Replay because their timestamp and source are manifest-bound.
+
+Replay history contains completed anomaly, inconclusive, and signal-quality checks. Failed acquisition/encoder/model checks remain visible as unavailable on the monitor but are not saved as recorded events. Earlier failed-check entries are excluded from Replay and its chat context without deleting their diagnostic archive files under `vibrodiag_mcp_prototype/validation_exports/anomaly_windows/`. Genuine captured `data_invalid` events keep their label.
+
+Ask Agent uses one server-owned evidence snapshot for each request. Eligible older saved checks remain usable even when they predate the model-completion field; explicit failure records remain unavailable. Replay refresh preserves the selected check while its detail is loading. The reference board's **Live** badge requires fresh displayed acquisition data and expires with stale readings; offline sources are labelled **Replay**.
 
 ## Model assets
 

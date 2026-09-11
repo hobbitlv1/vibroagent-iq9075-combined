@@ -16,6 +16,7 @@ import math
 import os
 import random
 import ipaddress
+import stat
 import threading
 import time
 from bisect import bisect_right
@@ -63,7 +64,7 @@ from .qwen_mcp_host import (
     _load_openai_client,
     chat_with_mcp,
 )
-from .sdk_vibrometer import LiveSdkVibrometerDataRequiredError, read_sdk_vibrometer_window
+from .sdk_vibrometer import LiveSdkVibrometerDataRequiredError, read_sdk_vibrometer_window, _current_file_max_age_s
 from .schemas import NETWORK_LABELS, find_out_of_domain_component_terms
 from .sensor_registry import SensorRegistry
 from .service import run_building_vibration_agent_pipeline_service
@@ -1183,7 +1184,7 @@ def _bool_query(query: dict[str, list[str]], key: str, default: bool) -> bool:
     return raw.strip().lower() not in {"0", "false", "no", "off"}
 
 
-def _live_vibrometer_payload(query: dict[str, list[str]]) -> dict[str, Any]:
+def _live_vibrometer_payload(query: dict[str, list[str]], *, reader=None) -> dict[str, Any]:
     axis = (_first(query, "axis") or "norm").strip().lower()
     if axis not in VALID_LIVE_AXES:
         return {
@@ -1218,7 +1219,7 @@ def _live_vibrometer_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         require_current = False
     request_started_s = time.perf_counter()
     process_reader = _bool_query(query, "process_reader", False)
-    reader_fn = (
+    reader_fn = reader or (
         read_sdk_vibrometer_window_via_board_process
         if board_reader_processes_enabled(default=process_reader)
         else read_sdk_vibrometer_window
@@ -1509,7 +1510,7 @@ def _resolve_psd_source(query: dict[str, list[str]]) -> dict[str, Any]:
     }
 
 
-def _psd_fft_payload(query: dict[str, list[str]]) -> dict[str, Any]:
+def _psd_fft_payload(query: dict[str, list[str]], *, reader=None) -> dict[str, Any]:
     """Read an SDK window and return a display-ready one-sided PSD.
 
     ``estimator=welch`` is the webchat default because averaging overlapping
@@ -1636,7 +1637,7 @@ def _psd_fft_payload(query: dict[str, list[str]]) -> dict[str, Any]:
         require_current = False
     process_reader = _bool_query(query, "process_reader", False)
     request_started_s = time.perf_counter()
-    reader_fn = (
+    reader_fn = reader or (
         read_sdk_vibrometer_window_via_board_process
         if board_reader_processes_enabled(default=process_reader)
         else read_sdk_vibrometer_window
@@ -2121,6 +2122,25 @@ def _live_sensors_payload(query: dict[str, list[str]]) -> dict[str, Any]:
             "error": "replay_configuration_failed",
             "message": format_exception_for_response(exc),
         }
+    # Lightweight acquisition status for views that do not decode waveforms.
+    # This describes file freshness, not model verdict or decoded-signal quality.
+    max_age_s = _current_file_max_age_s()
+    for sensor in sensors:
+        stream = {"data_is_current": False, "data_file_age_s": None,
+                  "data_currentness_max_age_s": max_age_s}
+        folder, name = sensor["acquisition_folder"], sensor["hsd_sensor_name"]
+        if folder and name and Path(name).name == name:
+            try:
+                info = (Path(folder) / f"{name}.dat").stat()
+                age_s = time.time() - info.st_mtime
+                stream["data_file_age_s"] = age_s
+                stream["data_is_current"] = bool(
+                    stat.S_ISREG(info.st_mode) and info.st_size > 0
+                    and 0 <= age_s <= max_age_s
+                )
+            except OSError:
+                pass
+        sensor["stream"] = stream
     process_reader = _bool_query(query, "process_reader", False)
     prewarm = _bool_query(query, "prewarm", process_reader)
     process_enabled = board_reader_processes_enabled(default=process_reader)
@@ -2560,7 +2580,7 @@ def _register_anomaly_window(
     encoder_input = result.pop("_vibrogemma_encoder_replay_input", None)
     if popup.get("synthetic_test"):
         return {"registered": False, "reason": "synthetic_test"}
-    if not (popup.get("show_popup") or popup.get("save_replay")):
+    if not popup.get("save_replay", popup.get("show_popup")):
         return {"registered": False, "reason": "not_anomaly"}
     if not _env_bool("VIBRO_REGISTER_ANOMALY_WINDOWS", True):
         return {"registered": False, "reason": "disabled"}
@@ -2686,18 +2706,11 @@ def _register_anomaly_window(
         }
 
 
-def _anomaly_windows_payload(query: dict[str, list[str]]) -> dict[str, Any]:
-    limit = min(1000, max(1, _int_query(query, "limit", 50)))
-    registry_dir = _resolve_anomaly_window_dir()
-    jsonl_path = registry_dir / "anomaly_windows.jsonl"
+def _anomaly_window_records():
+    """Read the archive newest first; consumers limit after selecting usable checks."""
+    jsonl_path = _resolve_anomaly_window_dir() / "anomaly_windows.jsonl"
     if not jsonl_path.exists():
-        return {
-            "ok": True,
-            "status": "ok",
-            "registry_dir": str(registry_dir),
-            "jsonl_path": str(jsonl_path),
-            "windows": [],
-        }
+        return
 
     records: list[dict[str, Any]] = []
     with jsonl_path.open("r", encoding="utf-8") as handle:
@@ -2711,12 +2724,24 @@ def _anomaly_windows_payload(query: dict[str, list[str]]) -> dict[str, Any]:
                 continue
             if isinstance(item, dict):
                 records.append(item)
+    yield from reversed(records)
+
+
+def _anomaly_windows_payload(query: dict[str, list[str]]) -> dict[str, Any]:
+    limit = min(1000, max(1, _int_query(query, "limit", 50)))
+    registry_dir = _resolve_anomaly_window_dir()
+    jsonl_path = registry_dir / "anomaly_windows.jsonl"
+    records = []
+    for record in _anomaly_window_records():
+        records.append(record)
+        if len(records) >= limit:
+            break
     return {
         "ok": True,
         "status": "ok",
         "registry_dir": str(registry_dir),
         "jsonl_path": str(jsonl_path),
-        "windows": records[-limit:][::-1],
+        "windows": records,
     }
 
 

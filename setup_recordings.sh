@@ -21,14 +21,19 @@ MODELS_REPO="${VIBRO_MODELS_REPO:-hobbitlv/vibroagent-models}"
 TARGET="$REPO/recordings"
 
 verify_recordings() {
-    python3 - "$TARGET" <<'PY'
+    python3 - "${1:-$TARGET}" "$REPO/models/release_assets_manifest.json" <<'PY'
 import hashlib, json, sys
 from pathlib import Path
 root = Path(sys.argv[1])
 manifest_path = root / "recordings_manifest.json"
 if not manifest_path.is_file():
     sys.exit(1)
+release = json.loads(Path(sys.argv[2]).read_text())
+if hashlib.sha256(manifest_path.read_bytes()).hexdigest() != release["recordings"]["manifest_sha256"]:
+    sys.exit(1)
 manifest = json.loads(manifest_path.read_text())
+if not manifest.get("slots") or any(not entry.get("files") for entry in manifest["slots"].values()):
+    sys.exit(1)
 for slot, entry in manifest["slots"].items():
     for name, sha in entry["files"].items():
         path = root / slot / name
@@ -72,21 +77,27 @@ github_release_fetch() {
             -o "$dest" "https://api.github.com/repos/$GH_REPO/releases/assets/$asset_id"
     fi
 }
+mkdir -p "$TARGET"
+WORK="$(mktemp -d "$TARGET/.download.XXXXXX")"
+trap 'rm -rf "$WORK"' EXIT
 if [ -n "$GH_REPO" ]; then
     echo "== trying GitHub release $GH_REPO@$RELEASE_TAG"
-    mkdir -p "$TARGET"
-    if github_release_fetch "offline_recordings.tar.gz" "$TARGET/.recordings.tar.gz"; then
-        tar xzf "$TARGET/.recordings.tar.gz" -C "$TARGET"
-        rm -f "$TARGET/.recordings.tar.gz"
-        echo "== verifying manifest sha256 pins"
-        if verify_recordings; then
-            echo "== offline recordings ready (GitHub release): $TARGET"
-            exit 0
-        fi
-        echo "== GitHub release recordings failed verification — falling back to Hugging Face"
-    else
-        echo "== no release asset reachable — falling back to Hugging Face"
+    ARCHIVE_SHA="$(python3 - "$REPO/models/release_assets_manifest.json" <<'HASH'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as stream:
+    print(json.load(stream)["recordings"]["sha256"])
+HASH
+)"
+    mkdir -p "$WORK/extracted"
+    if github_release_fetch "offline_recordings.tar.gz" "$WORK/recordings.tar.gz" &&
+            echo "$ARCHIVE_SHA  $WORK/recordings.tar.gz" | sha256sum -c --quiet - &&
+            tar xzf "$WORK/recordings.tar.gz" -C "$WORK/extracted" &&
+            verify_recordings "$WORK/extracted"; then
+        cp -r "$WORK/extracted/." "$TARGET/"
+        echo "== offline recordings ready (GitHub release): $TARGET"
+        exit 0
     fi
+    echo "== GitHub release recordings unavailable or invalid — falling back to Hugging Face"
 fi
 
 # ---- source 2: Hugging Face weights repo ------------------------------------
@@ -101,11 +112,9 @@ echo "== downloading 5-minute recordings from $MODELS_REPO (~280 MB)"
 mkdir -p "$TARGET"
 HF_TOKEN="${HF_TOKEN:-}" uv tool run --from 'huggingface_hub[cli]' \
     hf download "$MODELS_REPO" --include 'offline_recordings/*' \
-    --local-dir "$TARGET/.download"
-# flatten offline_recordings/ into ./recordings/
-cp -r "$TARGET/.download/offline_recordings/." "$TARGET/"
-rm -rf "$TARGET/.download"
-
+    --local-dir "$WORK/hf"
 echo "== verifying manifest sha256 pins"
-verify_recordings
+verify_recordings "$WORK/hf/offline_recordings"
+# Publish only after every recording matches the reviewed manifest.
+cp -r "$WORK/hf/offline_recordings/." "$TARGET/"
 echo "== offline recordings ready: $TARGET"

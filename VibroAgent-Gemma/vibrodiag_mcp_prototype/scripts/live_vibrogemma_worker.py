@@ -17,6 +17,8 @@ from pathlib import Path
 
 import numpy as np
 
+from vibroagent_mcp.vibration_quality import raw_window_quality
+
 SLOTS = ("baseline", "target_1", "target_2", "target_3", "target_4", "target_5")
 RATE_PREFIX = "fs_hz__"
 METADATA_PREFIX = "metadata__"
@@ -347,18 +349,25 @@ def _episode(payload, bundle: Path, *, amplitude_calibrated: bool):
         if not axis_mask.any():
             raise ValueError(f"{slot}: at least one measured axis is required")
         finite = np.isfinite(values)
+        raw_quality = raw_window_quality(values, axis_mask=axis_mask,
+                                         clipping_by_axis=capture.get("clipping_abs_g_by_axis"))
+        flatline = raw_quality["flatline"] or capture.get("flatline") is True
         sample_mask = finite[axis_mask].all(axis=0)
+        if flatline:
+            sample_mask[:] = False
         values[~finite] = 0.0
         values[~axis_mask] = 0.0
-        valid_fraction = float(sample_mask.mean())
+        valid_fraction = min(float(sample_mask.mean()), float(capture.get("valid_fraction", 1.0)))
         timestamp_warning = capture.get("timestamp_warning")
         timestamp_monotonic = capture.get("timestamp_monotonic")
         if timestamp_monotonic is None:
             timestamp_monotonic = not bool(timestamp_warning)
         notes = [str(item) for item in capture.get("quality_notes") or [] if str(item).strip()]
+        if flatline:
+            notes.append("acquisition_flatline")
         if capture.get("clock_skew_ms") is None:
             notes.append("clock_skew_unmeasured")
-        if capture.get("clipped_fraction") is None:
+        if capture.get("clipped_fraction") is None and raw_quality["clipped_fraction"] is None:
             notes.append("clipping_unmeasured")
         if capture.get("packet_loss_count") is None:
             notes.append("packet_loss_unmeasured")
@@ -397,7 +406,8 @@ def _episode(payload, bundle: Path, *, amplitude_calibrated: bool):
                 quality=QualityReport(
                     valid_fraction=valid_fraction,
                     missing_fraction=1.0 - valid_fraction,
-                    clipped_fraction=float(capture.get("clipped_fraction") or 0.0),
+                    clipped_fraction=max(float(capture.get("clipped_fraction") or 0.0),
+                                         float(raw_quality["clipped_fraction"] or 0.0)),
                     timestamp_monotonic=bool(timestamp_monotonic),
                     clock_skew_ms=float(capture.get("clock_skew_ms") or 0.0),
                     axes_present=tuple(bool(value) for value in axis_mask),
@@ -410,7 +420,8 @@ def _episode(payload, bundle: Path, *, amplitude_calibrated: bool):
                     "sensor_useful_band_hz": min(6000.0, sample_rate / 2.0),
                     "amplitude_calibrated": amplitude_calibrated,
                     "clock_skew_measured": capture.get("clock_skew_ms") is not None,
-                    "clipping_measured": capture.get("clipped_fraction") is not None,
+                    "clipping_measured": capture.get("clipped_fraction") is not None or raw_quality["clipped_fraction"] is not None,
+                    "flatline": flatline,
                     "packet_loss_measured": capture.get("packet_loss_count") is not None,
                     "clipping_abs_g": clipping_abs_g,
                     "capture": capture,
@@ -521,6 +532,18 @@ def _validate_encoder_output(tokens: np.ndarray, mask: np.ndarray) -> None:
             raise ValueError(f"encoder produced only zero-valued valid soft tokens for board {board_index}")
 
 
+def _preserve_acquisition_quality(episode, prepared) -> None:
+    for index, source in enumerate(episode.boards):
+        quality = prepared.episode.boards[index].quality
+        quality.valid_fraction = min(quality.valid_fraction, source.quality.valid_fraction)
+        quality.missing_fraction = max(quality.missing_fraction, source.quality.missing_fraction)
+        quality.clipped_fraction = max(quality.clipped_fraction, source.quality.clipped_fraction)
+        quality.timestamp_monotonic &= source.quality.timestamp_monotonic
+        quality.notes = list(dict.fromkeys([*quality.notes, *source.quality.notes]))
+        prepared.quality_features[index, :4] = [quality.valid_fraction, quality.missing_fraction,
+                                               quality.clipped_fraction, float(quality.timestamp_monotonic)]
+
+
 def encode_live_window(payload, bundle: Path, *, amplitude_calibrated: bool = False) -> dict:
     bundle = bundle.resolve()
     artifact_verification = _verify_runtime_artifacts(bundle)
@@ -531,10 +554,7 @@ def encode_live_window(payload, bundle: Path, *, amplitude_calibrated: bool = Fa
     )
     episode = _episode(payload, bundle, amplitude_calibrated=amplitude_calibrated)
     prepared = preprocessor.prepare(episode)
-    for index, source_board in enumerate(episode.boards):
-        if not source_board.quality.timestamp_monotonic:
-            prepared.episode.boards[index].quality.timestamp_monotonic = False
-            prepared.quality_features[index, 3] = 0.0
+    _preserve_acquisition_quality(episode, prepared)
     window_end_utc = _payload_text(payload, "window_end_utc")
     window_start_utc = _payload_text(payload, "window_start_utc")
     window_time_source = _payload_text(payload, "window_time_source", "sdk_capture_metadata")

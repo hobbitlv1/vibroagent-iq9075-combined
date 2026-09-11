@@ -11,6 +11,7 @@ ASCII=0
 SETUP_PID=""
 ALT_SCREEN=0
 SUDO_KEEPALIVE=0
+PREVIEW_LOG=""
 
 usage() {
   cat <<'USAGE'
@@ -93,18 +94,18 @@ esac
 
 if [ "$UNICODE" -eq 1 ]; then
   SPIN=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
-  G_OK='✔'; G_FAIL='✘'; G_PTR='▸'; G_FILL='━'; G_EMPTY='┈'; G_SEP='·'
+  G_OK='✔'; G_FAIL='✘'; G_PTR='▸'; G_SEP='·'
   LEVELS=('▁' '▂' '▃' '▄' '▅' '▆' '▇' '█')
   B_H='─'; B_V='│'; B_TL='╭'; B_TR='╮'; B_BL='╰'; B_BR='╯'
 else
   SPIN=('|' '/' '-' '\')
-  G_OK='+'; G_FAIL='x'; G_PTR='>'; G_FILL='='; G_EMPTY='.'; G_SEP='-'
+  G_OK='+'; G_FAIL='x'; G_PTR='>'; G_SEP='-'
   LEVELS=('_' '.' '-' '~' '=' '+' '*' '#')
   B_H='-'; B_V='|'; B_TL='+'; B_TR='+'; B_BL='+'; B_BR='+'
 fi
 
 if [ "$IS_TTY" -eq 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-dumb}" != dumb ]; then
-  ST=$'\033[38;2;60;180;229m'; BLUE_DIM=$'\033[38;5;24m'
+  ST=$'\033[38;2;60;180;229m'
   CYAN=$'\033[38;5;39m'; CYAN_HI=$'\033[38;5;51m'
   QUALCOMM=$'\033[38;2;50;83;220m'; QUALCOMM_B=$'\033[48;2;50;83;220m'
   NAVY=$'\033[38;2;3;35;75m'; NAVY_B=$'\033[48;2;3;35;75m'
@@ -114,7 +115,7 @@ if [ "$IS_TTY" -eq 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-dumb}" != dumb ];
   MUTED=$'\033[38;5;244m'; DIM=$'\033[38;5;238m'; RED=$'\033[38;5;203m'
   BOLD=$'\033[1m'; RESET=$'\033[0m'
 else
-  ST=""; BLUE_DIM=""; CYAN=""; CYAN_HI=""; QUALCOMM=""; QUALCOMM_B=""
+  ST=""; CYAN=""; CYAN_HI=""; QUALCOMM=""; QUALCOMM_B=""
   NAVY=""; NAVY_B=""; WHITE=""; WHITE_B=""; GREY=""; GREY_B=""; GREY2=""; GREY2_B=""
   MUTED=""; DIM=""; RED=""; BOLD=""; RESET=""
 fi
@@ -124,8 +125,9 @@ COLOR=0
 [ -n "$RESET" ] && COLOR=1
 
 cleanup() {
+  [ -z "$PREVIEW_LOG" ] || rm -f -- "$PREVIEW_LOG"
   if [ -n "$SETUP_PID" ] && kill -0 "$SETUP_PID" 2>/dev/null; then
-    kill "$SETUP_PID" 2>/dev/null || true
+    kill -- "-$SETUP_PID" 2>/dev/null || kill "$SETUP_PID" 2>/dev/null || true
     wait "$SETUP_PID" 2>/dev/null || true
   fi
   if [ "$IS_TTY" -eq 1 ]; then
@@ -554,7 +556,7 @@ choose_target() {
 
     IFS= read -rsn1 -t 0.12 key; rc=$?
     if [ "$rc" -gt 128 ]; then tick=$((tick + 1)); continue; fi
-    [ "$rc" -eq 0 ] || { TARGET=exit; break; }
+    [ "$rc" -eq 0 ] || { TARGET="exit"; break; }
     case "$key" in
       $'\033')
         rest=""
@@ -572,7 +574,7 @@ choose_target() {
       j|J) selected=$((selected + 1 < ${#labels[@]} ? selected + 1 : 0)) ;;
       [1-5]) selected=$((key - 1)) ;;
       ''|' ') TARGET="${targets[$selected]}"; break ;;
-      q|Q) TARGET=exit; break ;;
+      q|Q) TARGET="exit"; break ;;
     esac
   done
   leave_alt
@@ -665,13 +667,29 @@ phase_line() {
 phase_done() { phase_line "$CYAN" "$G_OK" "$1" "$2"; }
 
 run_setup() {
-  local log="$ROOT/.run/install.log"
-  mkdir -p "$ROOT/.run"
-  : > "$log"
+  local log="${PREVIEW_LOG:-$ROOT/.run/install.log}"
+  if ! mkdir -p "$(dirname "$log")" || ! : > "$log"; then
+    printf 'Cannot write installation log: %s\n' "$log" >&2
+    return 1
+  fi
 
   if [ "$IS_TTY" -eq 0 ] || [ "$NO_ANIMATION" -eq 1 ] || [ -n "${VIBRO_NO_ANIMATION:-}" ]; then
-    "$@" 2>&1 | tee "$log"
-    return "${PIPESTATUS[0]}"
+    # A dedicated process group lets cancellation stop pip/curl/compiler
+    # descendants, including when Bash would otherwise wait on a pipeline.
+    set -m
+    (
+      set +m
+      "$@" 2>&1 | tee "$log"
+      results=("${PIPESTATUS[@]}")
+      [ "${results[0]}" -eq 0 ] || exit "${results[0]}"
+      exit "${results[1]}"
+    ) &
+    SETUP_PID=$!
+    set +m
+    local status
+    wait "$SETUP_PID"; status=$?
+    SETUP_PID=""
+    return "$status"
   fi
 
   local bar_w=24 started=$SECONDS phase_started=$SECONDS
@@ -681,8 +699,10 @@ run_setup() {
   LOG_OFFSET=0
   local step_n=0 step_total=0 counter='' tstr avail line1 line2 spin
 
-  "$@" >>"$log" 2>&1 &
+  set -m
+  (set +m; "$@") >>"$log" 2>&1 &
   SETUP_PID=$!
+  set +m
   printf '\033[?25l'
   while kill -0 "$SETUP_PID" 2>/dev/null; do
     [ $((tick % 3)) -ne 0 ] || poll_log "$log"
@@ -729,7 +749,9 @@ run_setup() {
   if [ "$step_total" -gt 0 ]; then completed="$step_total"; else completed="$phase"; fi
   printf '\n%s  %s%s Installed%s %s  %s%d steps %s %s%s\n' "$IND" "$CYAN_HI$BOLD" "$G_OK" "$RESET" \
     "$LABEL" "$MUTED" "$completed" "$G_SEP" "$(fmt_time $((SECONDS - started)))" "$RESET"
-  printf '%s  %sLog%s  %s\n' "$IND" "$MUTED" "$RESET" "$log"
+  if [ -z "$PREVIEW_LOG" ]; then
+    printf '%s  %sLog%s  %s\n' "$IND" "$MUTED" "$RESET" "$log"
+  fi
 }
 
 preview_installation() {
@@ -842,6 +864,11 @@ if [ "$TARGET" = preview ]; then
     printf 'Animation preview needs a terminal.\n' >&2
     exit 2
   fi
+  if [ "$DRY_RUN" -eq 1 ]; then
+    printf 'Animation preview (dry run; nothing changed).\n'
+    exit 0
+  fi
+  PREVIEW_LOG="$(mktemp "${TMPDIR:-/tmp}/vibroagent-preview.XXXXXX")" || exit 1
   LABEL='animation preview'
   printf '%s  %sInstalling%s %s\n\n' "$IND" "$BOLD" "$RESET" "$LABEL"
   run_setup preview_installation
@@ -860,7 +887,11 @@ fi
 printf '\n'
 if [[ "$TARGET" == *-live ]] && [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
   printf '%s  Live setup requires administrator access.\n' "$IND"
-  sudo -v || exit $?
+  # Passwordless sudo can permit commands while still rejecting `sudo -v`.
+  # Reuse existing authorization before asking for interactive validation.
+  if ! sudo -n true 2>/dev/null; then
+    sudo -v || exit $?
+  fi
   SUDO_KEEPALIVE=1
 fi
 printf '%s  %sInstalling%s %s\n\n' "$IND" "$BOLD" "$RESET" "$LABEL"

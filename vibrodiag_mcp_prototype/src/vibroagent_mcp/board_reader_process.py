@@ -30,6 +30,13 @@ BOARD_READER_PROCESSES_ENV = "VIBRO_BOARD_READER_PROCESSES"
 BOARD_READER_TIMEOUT_ENV = "VIBRO_BOARD_READER_TIMEOUT_S"
 BOARD_READER_STARTUP_GRACE_ENV = "VIBRO_BOARD_READER_STARTUP_GRACE_S"
 BOARD_READER_START_METHOD_ENV = "VIBRO_BOARD_READER_START_METHOD"
+SYNTHETIC_INJECTION_ENV = (
+    "VIBRO_SYNTHETIC_TARGET5_ENABLED",
+    "VIBRO_SYNTHETIC_TARGET",
+    "VIBRO_SYNTHETIC_TARGET5_FREQUENCY_HZ",
+    "VIBRO_SYNTHETIC_TARGET5_AMPLITUDE_G",
+    "VIBRO_SYNTHETIC_TARGET5_AXIS",
+)
 
 
 class BoardReaderProcessError(RuntimeError):
@@ -256,9 +263,25 @@ def read_sdk_vibrometer_window_via_board_process(
             "duration_s": duration_s,
             "require_current": require_current,
             "max_duration_s": max_duration_s,
+            "_synthetic_injection_env": _synthetic_injection_env(),
         },
         timeout_s=timeout_s,
     )
+
+
+def _synthetic_injection_env() -> dict[str, str | None]:
+    return {name: os.environ.get(name) for name in SYNTHETIC_INJECTION_ENV}
+
+
+def _apply_synthetic_injection_env(values: Any) -> None:
+    if not isinstance(values, dict):
+        return
+    for name in SYNTHETIC_INJECTION_ENV:
+        value = values.get(name)
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = str(value)
 
 
 def prewarm_board_reader_processes(
@@ -372,12 +395,39 @@ def _safe_float(value: Any) -> float | None:
     return number if number == number and number not in {float("inf"), float("-inf")} else None
 
 
+def _reader_cpu_affinity(cpu_index: int) -> set[int]:
+    raw = os.environ.get("VIBRO_BOARD_READER_CPUS") or os.environ.get("VIBROGEMMA_UI_CPUS") or ""
+    cpus: set[int] = set()
+    for part in raw.split(","):
+        bounds = part.strip().split("-", 1)
+        try:
+            start = int(bounds[0])
+            stop = int(bounds[-1])
+        except ValueError:
+            continue
+        cpus.update(range(min(start, stop), max(start, stop) + 1))
+    # Keep the configured logical CPU IDs intact.  Containers and test runners
+    # can report a reduced os.cpu_count() even when the production taskset is
+    # valid on the host; filtering here silently folded board six back onto CPU
+    # zero.  The child applies a safe host-affinity fallback below if needed.
+    available = sorted(cpu for cpu in cpus if cpu >= 0)
+    return {available[cpu_index % len(available)]} if available else set()
+
+
 def _board_reader_worker_main(
     key: tuple[str, str],
     request_q: Any,
     response_q: Any,
 ) -> None:
     os.environ[BOARD_READER_CHILD_ENV] = "1"
+    affinity = _reader_cpu_affinity(cpu_index)
+    if affinity and hasattr(os, "sched_setaffinity"):
+        try:
+            os.sched_setaffinity(0, affinity)
+        except OSError:
+            allowed = sorted(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else []
+            if allowed:
+                os.sched_setaffinity(0, {allowed[cpu_index % len(allowed)]})
     while True:
         request = request_q.get()
         if not isinstance(request, dict):
@@ -401,6 +451,7 @@ def _board_reader_worker_main(
             from .sdk_vibrometer import read_sdk_vibrometer_window
 
             kwargs = dict(request.get("kwargs") or {})
+            _apply_synthetic_injection_env(kwargs.pop("_synthetic_injection_env", None))
             window = read_sdk_vibrometer_window(**kwargs)
             response_q.put({"request_id": request_id, "ok": True, "window": window})
         except LiveSdkVibrometerDataRequiredError as exc:

@@ -8,13 +8,14 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import json
 import logging
+import os
 from pathlib import Path
 
 import numpy as np
 
 from vibroagent_mcp.sdk_vibrometer import read_sdk_vibrometer_window
 
-from live_vibrogemma_worker import SLOTS, _episode, _load_contracts, _runtime_config
+from live_vibrogemma_worker import SLOTS, _episode, _load_contracts, _runtime_config, _preserve_acquisition_quality
 
 logging.getLogger("HSDatalogApp").setLevel(logging.WARNING)
 logging.disable(logging.INFO)
@@ -77,7 +78,7 @@ def main() -> int:
     project = Path(__file__).resolve().parents[1]
     repo = project.parent
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--bundle", type=Path, default=repo / "models" / "vibroagent-gemma-g1")
+    parser.add_argument("--bundle", type=Path, default=Path(os.environ.get("VIBROGEMMA_BUNDLE", repo / "models" / "vibroagent-gemma-g1")))
     parser.add_argument("--devices", type=Path, default=repo / "stdatalog_examples" / "vibroagent_live_devices.json")
     parser.add_argument("--output", type=Path, default=project / "configs" / "vibroagent_live_healthy_profile.json")
     parser.add_argument("--older-age-s", type=float, default=300.0)
@@ -87,8 +88,9 @@ def main() -> int:
     parser.add_argument("--window-s", type=float, default=10.0)
     parser.add_argument("--amplitude-calibrated", action=argparse.BooleanOptionalAction, default=True)
     args = parser.parse_args()
+    bundle = args.bundle.resolve()
 
-    if args.windows_per_group < 4 or args.window_s <= 0 or args.stride_s < args.window_s:
+    if args.windows_per_group < 4 or args.window_s != 10.0 or args.stride_s < args.window_s:
         parser.error("use at least four non-overlapping windows per group")
     block_s = args.window_s + (args.windows_per_group - 1) * args.stride_s
     if block_s > 60.0 or args.older_age_s <= args.recent_age_s + block_s:
@@ -104,13 +106,13 @@ def main() -> int:
     if min(start for starts in starts_by_group.values() for start in starts.values()) < 0:
         raise RuntimeError("recordings are not yet long enough for two separated healthy blocks")
 
-    *_, MultiResolutionEpisodePreprocessor = _load_contracts()
-    config = _runtime_config(args.bundle.resolve())
+    BoardWindow, *_, MultiResolutionEpisodePreprocessor = _load_contracts(bundle)
+    config = _runtime_config(bundle)
     physics = config["model"]["multiresolution"]["physics"]
     physics["healthy_profile_path"] = None
     physics["require_healthy_profile"] = False
     preprocessor = MultiResolutionEpisodePreprocessor.from_config(config)
-    source = _load_contracts()[0].__module__.split(".contracts", 1)[0]
+    source = BoardWindow.__module__.split(".contracts", 1)[0]
     from vibrogemma.signal.profile import HealthyProfile, HealthyProfileBuilder
 
     builder = HealthyProfileBuilder(preprocessor.physics_extractor.profile_feature_names)
@@ -126,9 +128,11 @@ def main() -> int:
                 stop = start + int(round(args.window_s * rate))
                 window_payload[slot] = arrays[slot][:, start:stop]
                 window_payload[f"fs_hz__{slot}"] = np.float64(rate)
-            prepared = preprocessor.prepare(
-                _episode(window_payload, amplitude_calibrated=args.amplitude_calibrated)
-            )
+            episode = _episode(window_payload, bundle, amplitude_calibrated=args.amplitude_calibrated)
+            prepared = preprocessor.prepare(episode)
+            _preserve_acquisition_quality(episode, prepared)
+            if not all(board.quality.is_valid for board in prepared.episode.boards):
+                raise ValueError("Healthy profile capture contains invalid signal quality")
             for target_index in range(1, 6):
                 builder.add(
                     prepared.profile_feature_values[target_index],

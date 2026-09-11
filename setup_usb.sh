@@ -17,7 +17,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 echo "== [1/3] libusb-1.0"
-if ! ldconfig -p | grep -q libusb-1.0; then
+if ! ldconfig -p | grep -F libusb-1.0 >/dev/null; then
     $SUDO apt-get update -qq
     $SUDO apt-get install -y -qq libusb-1.0-0
 else

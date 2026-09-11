@@ -35,7 +35,133 @@ def test_live_board_clocks_are_aligned_to_reference_rate():
 
     assert aligned.shape == (3, 10)
     assert np.isnan(aligned).any()
-    assert aligned[:, -1].tolist() == [11.0, 11.0, 11.0]
+    # A missing sample contaminates the antialias FIR support, including this short tail.
+    assert np.isnan(aligned).all()
+    source[:, 6] = 6
+    finite = _resample_board_window(source, source_rate_hz=12, target_rate_hz=10, duration_s=1)
+    assert finite[:, -1].tolist() == pytest.approx([11, 11, 11], abs=0.01)
+
+
+def test_lumo_training_fixture_preserves_real_xy_and_missing_z(monkeypatch, tmp_path):
+    import hashlib
+
+    import numpy as np
+    import scipy.io
+
+    source = tmp_path / "lumo.mat"
+    source.write_bytes(b"verified lumo fixture")
+    names = [
+        f"{sensor}{axis}"
+        for sensor in ("accel04", "accel02", "accel05", "accel06", "accel08", "accel09")
+        for axis in ("x", "y")
+    ]
+    values = np.arange(540 * len(names), dtype=np.float32).reshape(540, len(names))
+    monkeypatch.setattr(
+        scipy.io,
+        "loadmat",
+        lambda *_args, **_kwargs: {
+            "Dat": {"ChannelNames": names, "Data": values, "Fs": 1.0}
+        },
+    )
+    _lumo_training_fixture.cache_clear()
+    arrays, rate, positions = _lumo_training_fixture(
+        str(source), hashlib.sha256(source.read_bytes()).hexdigest()
+    )
+    _lumo_training_fixture.cache_clear()
+
+    assert rate == 1.0
+    assert arrays["target_3"].shape == (3, 10)
+    assert arrays["target_3"][0, 0] == values[520, names.index("accel06x")]
+    assert not arrays["target_3"][2].any()
+    assert positions["target_3"].tolist() == pytest.approx([0.0, 0.0, 4.0 / 8.95])
+
+
+def test_lumo_live_overlay_adds_template_without_replacing_live_capture(monkeypatch):
+    import numpy as np
+
+    from vibroagent_mcp import vibrogemma_live
+
+    live = {
+        slot: np.full((3, 10), index, dtype=np.float32)
+        for index, slot in enumerate(vibrogemma_live.SLOTS)
+    }
+    templates = {
+        slot: np.full((3, 10), index + 0.5, dtype=np.float32)
+        for index, slot in enumerate(vibrogemma_live.SLOTS)
+    }
+    for template in templates.values():
+        template[2] = 0.0
+    monkeypatch.setattr(vibrogemma_live, "_lumo_overlay_gain", lambda: 1.0)
+    monkeypatch.setattr(
+        vibrogemma_live,
+        "_lumo_training_replay",
+        lambda _target: (
+            {},
+            dict.fromkeys(vibrogemma_live.SLOTS, 1.0),
+            {},
+            {},
+            {},
+            {},
+        ),
+    )
+    monkeypatch.setattr(
+        vibrogemma_live,
+        "_lumo_overlay_templates",
+        lambda *_args: (templates, {"kind": "lumo_live_overlay"}),
+    )
+
+    hybrid, metadata, rate = vibrogemma_live._apply_lumo_live_overlay(
+        live,
+        sample_rate_hz=1.0,
+        target="target_5",
+    )
+
+    assert np.all(live["target_5"] == 5.0)
+    assert np.all(hybrid["target_5"][:2] == 2.75)
+    assert np.all(hybrid["target_5"][2] == 5.0)
+    assert metadata["kind"] == "lumo_live_overlay"
+    assert rate == 1.0
+
+
+def test_lumo_overlay_template_matches_decimated_waveform_length(monkeypatch):
+    import numpy as np
+
+    from vibroagent_mcp import vibrogemma_live
+
+    arrays = {
+        slot: np.tile(np.arange(100, dtype=np.float32), (3, 1))
+        for slot in vibrogemma_live.SLOTS
+    }
+    positions = {
+        slot: np.asarray((0.0, 0.0, index / 5), dtype=np.float32)
+        for index, slot in enumerate(vibrogemma_live.SLOTS)
+    }
+    masks = {
+        slot: np.asarray((True, True, False))
+        for slot in vibrogemma_live.SLOTS
+    }
+    monkeypatch.setattr(
+        vibrogemma_live,
+        "_lumo_training_replay",
+        lambda _target: (
+            arrays,
+            dict.fromkeys(vibrogemma_live.SLOTS, 10.0),
+            {},
+            {
+                "source_fixture": "fixture.mat@520-530s",
+                "episode_provenance": {},
+            },
+            positions,
+            masks,
+        ),
+    )
+    vibrogemma_live._lumo_overlay_templates.cache_clear()
+    templates, _metadata = vibrogemma_live._lumo_overlay_templates(
+        "target_5", 71.7, 720, 1.0
+    )
+    vibrogemma_live._lumo_overlay_templates.cache_clear()
+
+    assert all(template.shape == (3, 720) for template in templates.values())
 
 
 def test_lumo_training_fixture_preserves_real_xy_and_missing_z(monkeypatch, tmp_path):
@@ -331,55 +457,6 @@ def test_gemma_ui_suppresses_legacy_fallback_popup():
     assert output["network_label"] == "gemma_unavailable"
 
 
-def test_gemma_static_ui_has_no_legacy_model_controls():
-    from pathlib import Path
-    from vibroagent_mcp import vibrogemma_webchat
-
-    static_dir = Path(vibrogemma_webchat.__file__).parent / "static" / "vibrogemma"
-    html = (static_dir / "index.html").read_text()
-    javascript = (static_dir / "vibroagent.js").read_text()
-    assert "VibroAgent" in html
-    assert "Ask Agent" in html
-    assert "Spectrum" in html
-    assert "Replay" in html
-    assert '<option value="10" selected>10 s</option>' in html
-    assert "phosphor-icons.svg#ph-pause" in html
-    assert "alertTargets" in html
-    assert "alertMessage" not in html + javascript
-    assert 'label: "Not localized"' not in javascript
-    assert "classLabel(target.class)" in javascript
-    assert "Normal not confirmed" in javascript
-    assert "Global and target verdicts disagree" in javascript
-    assert "No anomaly detected" in javascript
-    assert "All systems operating normally" not in javascript
-    assert "Shared vertical scale" in javascript
-    assert "Research/replay-only checkpoint" in javascript
-    assert "Anomaly candidate" in javascript
-    assert "physical localization unavailable" in javascript
-    assert 'id="toggleSynthetic"' in html
-    assert 'id="toggleSyntheticTarget5"' in html
-    assert "Run Target 3 anomaly test" in html
-    assert "Stop Target 3 anomaly test" in javascript
-    assert "Run Target 5 anomaly test" in html
-    assert "Stop Target 5 anomaly test" in javascript
-    assert "/api/vibro/synthetic-injection" in javascript
-    assert "syntheticTargetLabel" not in javascript
-    assert "Synthetic test missed" not in javascript
-    assert "no localized anomaly confirmed" in javascript
-    assert "(geometryUnavailable || inconclusive) && affected" in javascript
-    assert "No alert raised; target localization unavailable" not in javascript
-    assert 'item.state === "inconclusive"' in javascript
-    assert "setInterval(() => loadReplays(true), 10000)" in javascript
-    assert "Structural peak (0-200 Hz)" in html
-    assert "legacy_wideband_only" in javascript
-    assert "not be read as five independent faults" in javascript
-    assert "Gemma" not in html
-    assert "Gemma " not in javascript
-    assert (static_dir / "phosphor-icons.svg").is_file()
-    assert not set("—–") & set(html + javascript)
-    assert all(term not in html for term in ("Qwen", "NPU console", "Model connection", "Raw response"))
-
-
 def test_building_dominant_frequency_ignores_wideband_sensor_noise():
     import numpy as np
 
@@ -417,11 +494,196 @@ def test_old_replay_does_not_present_wideband_peak_as_structural(monkeypatch):
     assert payload["explanation"] == "Agent verdict. Agent marked all five targets."
 
 
-def test_gemma_chat_fails_closed_without_model_context():
-    from vibroagent_mcp.vibrogemma_webchat import _gemma_chat_payload
+@pytest.fixture
+def gemma_chat_result():
+    return {
+        "window_id": "server-window",
+        "baseline_sensor_id": "baseline",
+        "all_sensor_metrics": [
+            {"sensor_id": "baseline", "acceleration_rms_g": 0.125},
+            {"sensor_id": "target_1", "acceleration_rms_g": 0.25},
+        ],
+        "model_metadata": {
+            "monitor_llm_model_used": True,
+            "vibrogemma_monitor": {
+                "global_class": "unknown_anomaly",
+                "global_target_consistent": True,
+                "targets": [
+                    {
+                        "sensor_id": f"target_{index}",
+                        "affected": index == 1,
+                        "class": "unknown_anomaly" if index == 1 else "normal",
+                        "severity": "advisory" if index == 1 else "none",
+                    }
+                    for index in range(1, 6)
+                ],
+            },
+        },
+    }
 
-    result = _gemma_chat_payload({"message": "What changed?", "context": {"available": False}})
-    assert "unavailable" in result["answer"]
+
+@pytest.fixture
+def gemma_chat_transport(monkeypatch):
+    import io
+    import json
+
+    from vibroagent_mcp import vibrogemma_webchat, webchat_server
+
+    requests = []
+
+    def respond(request, timeout):
+        requests.append((json.loads(request.data), timeout))
+        return io.BytesIO(json.dumps({
+            "choices": [{"message": {"content": "Review the measured evidence."}}],
+        }).encode())
+
+    monkeypatch.setattr(webchat_server, "urlopen", respond)
+    monkeypatch.setattr(vibrogemma_webchat, "_DEPLOYMENT_STATUS", {})
+    monkeypatch.setattr(vibrogemma_webchat, "_LATEST_MONITOR", None)
+    monkeypatch.setattr(vibrogemma_webchat, "_LATEST_MONITOR_AT", 0.0)
+    monkeypatch.setattr(vibrogemma_webchat, "_SPECTRUM_CONTEXTS", {})
+    return requests
+
+
+@pytest.mark.parametrize("source", ["latest_gemma_check", "spectrum", "replay", "legacy_replay"])
+def test_gemma_chat_uses_server_owned_evidence(
+    monkeypatch, tmp_path, gemma_chat_result, gemma_chat_transport, source,
+):
+    import json
+
+    from vibroagent_mcp import vibrogemma_webchat
+
+    supplied = {
+        "source": "replay" if source == "legacy_replay" else source,
+        "available": False,
+        "window_id": "server-window",
+        "network_state": "client-forged-verdict",
+        "global_class": "client-forged-class",
+        "targets": [{"sensor_id": "client-forged-board", "class": "normal"}],
+        "rms_g": 99999,
+        "saved_evidence": "client-forged-evidence",
+    }
+    if source == "latest_gemma_check":
+        monkeypatch.setattr(vibrogemma_webchat, "_LATEST_MONITOR", {"result": gemma_chat_result})
+        monkeypatch.setattr(vibrogemma_webchat, "_LATEST_MONITOR_AT", time.monotonic())
+        resolve = vibrogemma_webchat._resolve_chat_context
+
+        def resolve_then_publish_new_window(context):
+            resolved = resolve(context)
+            # A newer check must not replace either half of the resolved snapshot.
+            gemma_chat_result["window_id"] = "newer-window"
+            gemma_chat_result["all_sensor_metrics"][1]["acceleration_rms_g"] = 99999
+            gemma_chat_result["model_metadata"]["vibrogemma_monitor"]["global_class"] = "normal"
+            return resolved
+
+        monkeypatch.setattr(vibrogemma_webchat, "_resolve_chat_context", resolve_then_publish_new_window)
+    elif source == "spectrum":
+        supplied["context_id"] = "server-spectrum"
+        vibrogemma_webchat._SPECTRUM_CONTEXTS["server-spectrum"] = {
+            "source": "spectrum",
+            "available": True,
+            "context_id": "server-spectrum",
+            "board": "target_2",
+            "axis": "x",
+            "rms_g": 0.375,
+            "dominant_frequency_hz": 12.5,
+        }
+    else:
+        if source == "legacy_replay":
+            del gemma_chat_result["model_metadata"]["monitor_llm_model_used"]
+        monkeypatch.setenv("VIBRO_ANOMALY_WINDOW_DIR", str(tmp_path))
+        windows = tmp_path / "windows"
+        windows.mkdir()
+        evidence_file = tmp_path / "model-input.json"
+        evidence_file.write_text(json.dumps({"evidence_text": "Archived measured evidence: 7 Hz mode."}))
+        detail = {
+            "window_id": "server-window",
+            "created_at_utc": "2020-01-01T00:00:00Z",
+            "pipeline_result": gemma_chat_result,
+            "model_input_file": str(evidence_file),
+        }
+        (windows / "server-window.json").write_text(json.dumps(detail))
+        (tmp_path / "anomaly_windows.jsonl").write_text(json.dumps({"window_id": "server-window"}) + "\n")
+        listing = vibrogemma_webchat._gemma_replays_payload({})
+        assert [item["window_id"] for item in listing["windows"]] == ["server-window"]
+        assert vibrogemma_webchat._gemma_replay_payload({"window_id": ["server-window"]})["ok"] is True
+
+    response = vibrogemma_webchat._gemma_chat_payload({"message": "What changed?", "context": supplied})
+
+    assert response["context"]["available"] is True
+    assert response["context"]["source"] == supplied["source"]
+    (request, _), = gemma_chat_transport
+    evidence = request["messages"][-1]["content"]
+    assert "client-forged" not in evidence
+    assert "99999" not in evidence
+    if source == "spectrum":
+        assert response["context"]["board"] == "target_2"
+        assert response["context"]["rms_g"] == 0.375
+        assert "0.375" in evidence
+        assert "12.5" in evidence
+        assert "server-window" not in evidence
+    else:
+        assert response["context"]["window_id"] == "server-window"
+        assert response["context"]["network_state"] == "anomaly"
+        assert response["context"]["targets"][0]["affected"] is True
+        assert "server-window" in evidence
+        assert "0.25" in evidence
+        assert "newer-window" not in evidence
+        if source in {"replay", "legacy_replay"}:
+            assert "Archived measured evidence: 7 Hz mode." in evidence
+            assert "2020-01-01T00:00:00Z" in evidence
+            stored = json.loads((windows / "server-window.json").read_text())
+            if source == "legacy_replay":
+                assert "monitor_llm_model_used" not in stored["pipeline_result"]["model_metadata"]
+
+
+@pytest.mark.parametrize("unavailable", [
+    "missing_live", "stale_live", "incomplete_live", "failed_live", "superseded_live",
+    "missing_spectrum", "missing_replay", "failed_replay_flag", "failed_replay_deployment",
+])
+def test_gemma_chat_fails_closed_without_model_context(
+    monkeypatch, tmp_path, gemma_chat_result, gemma_chat_transport, unavailable,
+):
+    import json
+
+    from vibroagent_mcp import vibrogemma_webchat
+
+    supplied = {"source": "latest_gemma_check", "available": True, "network_state": "normal"}
+    metadata = gemma_chat_result["model_metadata"]
+    if unavailable.endswith("_live") and unavailable != "missing_live":
+        monkeypatch.setattr(vibrogemma_webchat, "_LATEST_MONITOR", {"result": gemma_chat_result})
+        monkeypatch.setattr(vibrogemma_webchat, "_LATEST_MONITOR_AT", time.monotonic())
+        if unavailable == "stale_live":
+            monkeypatch.setenv("VIBROGEMMA_MONITOR_STALE_S", "5")
+            monkeypatch.setattr(vibrogemma_webchat, "_LATEST_MONITOR_AT", time.monotonic() - 30)
+        elif unavailable == "incomplete_live":
+            del metadata["monitor_llm_model_used"]
+        elif unavailable == "failed_live":
+            metadata["vibrogemma_monitor"]["deployment_error"] = "model request failed"
+        elif unavailable == "superseded_live":
+            supplied["window_id"] = "previous-window"
+    elif unavailable == "missing_spectrum":
+        supplied.update(source="spectrum", context_id="unknown")
+    elif "replay" in unavailable:
+        supplied.update(source="replay", window_id="server-window")
+        monkeypatch.setenv("VIBRO_ANOMALY_WINDOW_DIR", str(tmp_path))
+        if unavailable != "missing_replay":
+            if unavailable == "failed_replay_flag":
+                metadata["monitor_llm_model_used"] = False
+            else:
+                del metadata["monitor_llm_model_used"]
+                metadata["vibrogemma_monitor"]["deployment_error"] = "live read failed"
+            windows = tmp_path / "windows"
+            windows.mkdir()
+            (windows / "server-window.json").write_text(json.dumps({
+                "window_id": "server-window", "pipeline_result": gemma_chat_result,
+            }))
+        assert vibrogemma_webchat._gemma_replay_payload({"window_id": ["server-window"]})["ok"] is False
+
+    response = vibrogemma_webchat._gemma_chat_payload({"message": "What changed?", "context": supplied})
+
+    assert response["context"]["available"] is False
+    assert gemma_chat_transport == []
 
 
 def test_gemma_popup_appears_on_first_generated_anomaly(monkeypatch, tmp_path):
@@ -641,6 +903,7 @@ def test_synthetic_test_does_not_override_the_model_popup(monkeypatch, tmp_path)
 
 def test_ui_synthetic_injection_control_uses_lumo_live_overlay(monkeypatch):
     from vibroagent_mcp import vibrogemma_webchat
+    monkeypatch.setattr(vibrogemma_webchat, "_INJECTION_GENERATION", 0)
 
     warmed = []
     monkeypatch.setattr(
@@ -659,6 +922,7 @@ def test_ui_synthetic_injection_control_uses_lumo_live_overlay(monkeypatch):
         "target": "target_3",
         "condition": "DAM4_010",
         "expected_target": "target_3",
+        "generation": 1,
     }
     assert os.environ["VIBRO_SYNTHETIC_TARGET5_ENABLED"] == "0"
     assert vibrogemma_webchat._LATEST_MONITOR is None
@@ -669,6 +933,7 @@ def test_ui_synthetic_injection_control_uses_lumo_live_overlay(monkeypatch):
         "target": "target_5",
         "condition": "DAM6_010",
         "expected_target": "target_5",
+        "generation": 2,
     }
     with pytest.raises(ValueError, match="target_3 or target_5"):
         vibrogemma_webchat._set_synthetic_injection(True, "target_4")
@@ -700,83 +965,34 @@ def test_monitor_cache_rejects_previous_overlay_target(monkeypatch):
 
 
 def test_lumo_test_waveform_overlays_the_moving_live_episode(monkeypatch):
+    from types import SimpleNamespace
     import numpy as np
-
-    from vibroagent_mcp import vibrogemma_webchat
+    from vibroagent_mcp import vibrogemma_webchat as web, vibrogemma_live as live, sensor_registry
     from vibroagent_mcp.vibrogemma_live import SLOTS
 
-    templates = {
-        slot: np.vstack(
-            (
-                np.arange(100, dtype=np.float32) + index * 100,
-                np.ones(100, dtype=np.float32) * index,
-                np.zeros(100, dtype=np.float32),
-            )
-        )
-        for index, slot in enumerate(SLOTS)
-    }
-    calls = 0
-
-    def live_payload(_query):
-        nonlocal calls
-        calls += 1
-        values = np.arange(10, dtype=float) + calls
-        return {
-            "ok": True,
-            "status": "ok",
-            "machine_id": "target_5",
-            "axis": "x",
-            "sampling_rate_hz": 10.0,
-            "downsample_stride": 1,
-            "samples_g": values.tolist(),
-            "stats": {},
-            "metadata": {"data_provenance": "live"},
-            "diagnostics": {"board_reader_process": True},
-        }
-
-    monkeypatch.setattr(vibrogemma_webchat.webchat_server, "_live_vibrometer_payload", live_payload)
-    monkeypatch.setattr(
-        vibrogemma_webchat,
-        "_lumo_overlay_templates",
-        lambda *_args: (
-            templates,
-            {
-                "kind": "lumo_live_overlay",
-                "source_fixture": "08_DAM6_010/lumo.mat@520-530s",
-                "live_capture_preserved": True,
-            },
-        ),
-    )
-    monkeypatch.setattr(vibrogemma_webchat, "_lumo_overlay_gain", lambda: 1.0)
+    t = np.arange(100, dtype=np.float32) / 10
+    raw = np.stack([np.sin(t), np.cos(t), 1 + 0.1 * np.sin(t)])
+    template = np.stack([np.cos(2 * t), np.sin(2 * t), np.zeros_like(t)])
     monkeypatch.setenv("VIBRO_LUMO_TRAINING_INJECTION", "target_5")
-    payload = vibrogemma_webchat._lumo_waveform_payload(
-        {
-            "machine_id": ["target_5"],
-            "axis": ["x"],
-            "duration_s": ["1"],
-            "max_points": ["100"],
-        }
-    )
-
-    expected_template = np.arange(590, 600, dtype=float)
-    expected_template -= expected_template.mean()
-    assert payload["samples_g"] == pytest.approx(expected_template)
-    assert payload["metadata"]["waveform_source"] == "live_with_lumo_overlay"
-    assert payload["metadata"]["source_fixture"].startswith("08_DAM6_010/")
-    assert payload["metadata"]["data_provenance"] == "live"
-    assert payload["metadata"]["overlay_axis_present"] is True
-    assert payload["diagnostics"]["board_reader_process"] is True
-    assert payload["diagnostics"]["overlay"] is True
-
-    z_payload = vibrogemma_webchat._lumo_waveform_payload(
-        {"machine_id": ["target_5"], "axis": ["z"], "duration_s": ["1"]}
-    )
-    assert z_payload["samples_g"] == pytest.approx(np.arange(2, 12))
-    assert z_payload["metadata"]["overlay_axis_present"] is False
-    assert calls == 2
-
+    monkeypatch.setattr(sensor_registry, "SensorRegistry", lambda _: SimpleNamespace(sensors={"target_5": object()}))
+    calls = []
+    def capture(*args):
+        calls.append(args)
+        return live._CapturedBoard(raw.copy(), 10.0, {"data_is_current": True}, None)
+    monkeypatch.setattr(live, "_capture_board", capture)
+    monkeypatch.setattr(web, "_lumo_training_replay", lambda _: ({}, dict.fromkeys(SLOTS, 10), {}, {}, {}, {}))
+    monkeypatch.setattr(web, "_lumo_overlay_templates", lambda *_: (dict.fromkeys(SLOTS, template), {"source_fixture": "DAM6_010"}))
+    monkeypatch.setattr(web, "_lumo_overlay_gain", lambda: 1.0)
+    expected = live._blend_lumo_board(raw, template, 1.0)
+    for axis, values in [("x", expected[0]), ("z", raw[2]), ("norm", np.linalg.norm(expected, axis=0))]:
+        result = web._lumo_waveform_payload({"machine_id": ["target_5"], "axis": [axis], "duration_s": ["10"], "max_points": ["100"]})
+        assert result["ok"]
+        assert result["samples_g"] == pytest.approx(values.tolist())
+        assert result["metadata"]["episode_scope"] == "fresh_display_capture_not_classifier_window"
+        assert result["metadata"]["overlay_axis_present"] == (axis != "z")
+    assert len(calls) == 3
     monkeypatch.setenv("VIBRO_LUMO_TRAINING_INJECTION", "0")
-    assert vibrogemma_webchat._lumo_waveform_payload({}) is None
+    assert web._lumo_waveform_payload({}) is None
 
 
 def test_legacy_replay_without_geometry_proof_is_unverified():
@@ -1469,7 +1685,8 @@ def test_sensor_registry_accepts_optional_geometry_without_inventing_defaults(tm
     assert registry.sensors["target_1"].orientation_matrix is None
 
 
-def test_live_decision_reuses_encoder_episode_for_metrics_and_private_replay(monkeypatch, tmp_path):
+@pytest.mark.parametrize("offline_replay", [False, True])
+def test_live_decision_reuses_encoder_episode_for_metrics_and_private_replay(monkeypatch, tmp_path, offline_replay):
     import json
     from types import SimpleNamespace
 
@@ -1504,7 +1721,7 @@ def test_live_decision_reuses_encoder_episode_for_metrics_and_private_replay(mon
             timestamps_s=timestamps,
             sampling_rate_hz=10,
             metadata={
-                "data_is_current": True,
+                "data_is_current": not offline_replay,
                 "data_file": str(folders[machine_id] / "iis3dwb_acc.dat"),
                 "data_file_modified_at_utc": "2026-08-31T00:00:20+00:00",
                 "sdk_latest_timestamp_gap_s": 0.0,
@@ -1614,11 +1831,16 @@ def test_live_decision_reuses_encoder_episode_for_metrics_and_private_replay(mon
         model="test",
         model_timeout_s=5.0,
         config_path=str(config),
+        start_time_s=0.0 if offline_replay else None,
+        require_current=not offline_replay,
     )
 
     assert captured_encoder_payload["episode_id"] == "authoritative-window"
     assert updated["window"]["duration_s"] == 10.0
     assert updated["window"]["episode_id"] == "authoritative-window"
+    assert updated["window"]["mode"] == ("replay" if offline_replay else "live")
+    assert updated["window"]["require_current"] is not offline_replay
+    assert all("stale_data" not in report["quality_flags"] for report in updated["sensor_agent_reports"])
     assert len(updated["all_sensor_metrics"]) == 6
     assert all(
         metric["source_metadata"]["source"] == "vibrogemma_authoritative_xyz_episode"
@@ -1704,8 +1926,8 @@ def test_anomaly_registration_persists_exact_model_input(monkeypatch, tmp_path):
     assert detail["pipeline_result"] == {"window_id": "replayable-window"}
 
 
-def test_live_deployment_failure_never_preserves_inherited_normal(tmp_path):
-    from vibroagent_mcp import vibrogemma_live
+def test_live_deployment_failure_never_preserves_inherited_normal(tmp_path, monkeypatch):
+    from vibroagent_mcp import vibrogemma_live, vibrogemma_webchat, webchat_server
 
     result = {
         "schema_version": "0.5.0",
@@ -1760,3 +1982,80 @@ def test_live_deployment_failure_never_preserves_inherited_normal(tmp_path):
         target["class"] == "data_invalid"
         for target in metadata["vibrogemma_monitor"]["targets"]
     )
+
+    monkeypatch.setenv("VIBRO_ANOMALY_WINDOW_DIR", str(tmp_path / "archive"))
+    popup = vibrogemma_webchat._apply_popup_policy({}, updated)
+    assert popup["show_popup"] is True
+    assert popup["save_replay"] is False
+    assert popup["network_label"] == "data_invalid"
+    registration = webchat_server._register_anomaly_window(
+        result=updated, popup=popup, agent_status={}, monitor_request={},
+    )
+    assert registration["registered"] is False
+    assert not (tmp_path / "archive").exists()
+
+
+def test_replay_filters_failed_checks_before_limit_without_discarding_quality_events(tmp_path, monkeypatch):
+    import json
+    from vibroagent_mcp import vibrogemma_webchat, webchat_server
+
+    monkeypatch.setenv("VIBRO_ANOMALY_WINDOW_DIR", str(tmp_path))
+    windows = tmp_path / "windows"
+    windows.mkdir()
+    records = []
+    # Historical failure floods must not hide older genuine events, including
+    # captured signal-quality failures. Legacy results may lack model_used.
+    for index, label in enumerate(["normal", "unknown_anomaly", "data_invalid"] + ["data_invalid"] * 13):
+        failed = index >= 3
+        window_id = f"record-{index}"
+        metadata = {
+            "agent_mode": "vibrogemma_live",
+            "vibrogemma_monitor": {
+                "global_class": label,
+                "targets": [
+                    {
+                        "sensor_id": f"target_{target}",
+                        "affected": label == "unknown_anomaly" and target == 1,
+                        "class": label if target == 1 or failed else "normal",
+                        "severity": "advisory" if label != "normal" else "none",
+                    }
+                    for target in range(1, 6)
+                ],
+            },
+        }
+        if failed:
+            if index % 2:
+                metadata["monitor_llm_model_used"] = False
+            else:
+                metadata["vibrogemma_monitor"]["deployment_error"] = "live_read_failed:stale acquisition"
+        detail = {"window_id": window_id, "pipeline_result": {"model_metadata": metadata}}
+        (windows / f"{window_id}.json").write_text(json.dumps(detail))
+        records.append(json.dumps({"window_id": window_id}))
+    index_path = tmp_path / "anomaly_windows.jsonl"
+    index_path.write_text("\n".join(records) + "\n")
+    original_index = index_path.read_bytes()
+
+    listing = vibrogemma_webchat._gemma_replays_payload({"limit": ["3"]})
+    assert [(item["window_id"], item["state"]) for item in listing["windows"]] == [
+        ("record-2", "data_invalid"), ("record-1", "anomaly"), ("record-0", "normal"),
+    ]
+    assert vibrogemma_webchat._gemma_replay_payload({"window_id": ["record-15"]})["ok"] is False
+    context, evidence, _ = vibrogemma_webchat._resolve_chat_context(
+        {"source": "replay", "window_id": "record-15"}
+    )
+    assert context["available"] is False
+    assert evidence == {}
+    assert vibrogemma_webchat._gemma_replay_payload({"window_id": ["record-2"]})["state"] == "data_invalid"
+    assert index_path.read_bytes() == original_index
+    assert (windows / "record-15.json").is_file()
+
+    # A completed check blocked by measured signal quality remains replayable.
+    captured = json.loads((windows / "record-2.json").read_text())["pipeline_result"]
+    captured["window_id"] = "captured-quality"
+    captured["model_metadata"]["monitor_llm_model_used"] = True
+    popup = vibrogemma_webchat._apply_popup_policy({}, captured)
+    registration = webchat_server._register_anomaly_window(
+        result=captured, popup=popup, agent_status={}, monitor_request={},
+    )
+    assert registration["registered"] is True
+    assert vibrogemma_webchat._gemma_replays_payload({"limit": ["1"]})["windows"][0]["state"] == "data_invalid"

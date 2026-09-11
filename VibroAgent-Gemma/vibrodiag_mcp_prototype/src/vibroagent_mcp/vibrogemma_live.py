@@ -185,7 +185,7 @@ def _lumo_training_replay(target: str = "target_3") -> tuple[
         "window_time_source": "lumo_training_split_replay",
         "cross_board_alignment_verified": True,
         "cross_board_trim_s": dict.fromkeys(SLOTS, 0.0),
-        "phase_synchronized": True,
+        "phase_synchronized": False,
         "synchronization_verification_id": "lumo_shared_dat_matrix_v1",
         "geometry_valid": True,
         "geometry_source": "lumo_publisher_geometry",
@@ -269,8 +269,8 @@ def _lumo_overlay_templates(
         "live_residual_amplitude_matched": True,
         "overlay_phase_synchronized": True,
         "live_capture_preserved": True,
-        "phase_synchronized": True,
-        "synchronization_verification_id": "synthetic_lumo_overlay_phase_v1",
+        "phase_synchronized": False,
+        "synchronization_verification_id": None,
         "geometry_source": "lumo_publisher_geometry",
         "sensor_positions": {
             slot: positions[slot].tolist() for slot in SLOTS
@@ -311,22 +311,24 @@ def _apply_lumo_live_overlay(
     )
     hybrid: dict[str, np.ndarray] = {}
     for slot in SLOTS:
-        live = np.asarray(live_arrays[slot], dtype=np.float32)
-        live_residual = live - np.mean(live, axis=1, keepdims=True)
-        template = templates[slot]
-        template_rms = np.sqrt(np.mean((template / gain) ** 2, axis=1, keepdims=True))
-        live_rms = np.sqrt(np.mean(live_residual ** 2, axis=1, keepdims=True))
-        live_scale = np.divide(
-            template_rms,
-            live_rms,
-            out=np.zeros_like(template_rms),
-            where=live_rms > 1e-12,
-        )
-        hybrid[slot] = (live_residual * live_scale + template) / (1.0 + gain)
-    for slot in SLOTS:
-        hybrid[slot][2] = live_arrays[slot][2]  # LUMO has no measured Z axis.
+        hybrid[slot] = _blend_lumo_board(live_arrays[slot], templates[slot], gain)
     metadata = {**metadata, "encoder_sample_rate_hz": overlay_rate_hz}
     return hybrid, metadata, overlay_rate_hz
+
+
+def _blend_lumo_board(live, template, gain):
+    """Blend XYZ before axis selection, norm, graph reduction or spectrum."""
+    live = np.asarray(live, dtype=np.float32)
+    valid = np.isfinite(live).all(axis=0)
+    clean = np.where(np.isfinite(live), live, 0.0)
+    residual = clean - (clean[:, valid].mean(axis=1, keepdims=True) if valid.any() else 0.0)
+    template_rms = np.sqrt(np.mean((template / gain) ** 2, axis=1, keepdims=True))
+    live_rms = np.sqrt(np.mean(residual[:, valid] ** 2, axis=1, keepdims=True)) if valid.any() else np.zeros((3, 1))
+    scale = np.divide(template_rms, live_rms, out=np.zeros_like(template_rms), where=live_rms > 1e-12)
+    hybrid = (residual * scale + template) / (1.0 + gain)
+    hybrid[2] = live[2]  # LUMO has no measured Z axis.
+    hybrid[:, ~valid] = np.nan
+    return hybrid
 
 
 def _resample_board_window(
@@ -337,20 +339,33 @@ def _resample_board_window(
     duration_s: float = 10.0,
 ) -> np.ndarray:
     """Align one board's measured clock to the reference-board clock."""
+    from math import gcd
+    from scipy.ndimage import maximum_filter1d
+    from scipy.signal import resample_poly
+
+    if not all(np.isfinite(rate) and rate > 0 for rate in (source_rate_hz, target_rate_hz, duration_s)):
+        raise ValueError("sample rates and duration must be finite and positive")
     source_count = int(round(duration_s * source_rate_hz))
     target_count = int(round(duration_s * target_rate_hz))
+    if source_count < 2 or target_count < 2:
+        raise ValueError("resampling needs at least two input and output samples")
     if values.ndim != 2 or values.shape[0] != 3 or values.shape[1] < source_count:
         raise ValueError(f"expected [3, >= {source_count}] values, got {values.shape}")
     values = np.asarray(values[:, -source_count:], dtype=np.float32)
     if source_count == target_count and abs(source_rate_hz - target_rate_hz) <= 1e-6:
         return values
 
-    source_time = (np.arange(source_count, dtype=np.float64) - (source_count - 1)) / source_rate_hz
-    target_time = (np.arange(target_count, dtype=np.float64) - (target_count - 1)) / target_rate_hz
     valid = np.isfinite(values).all(axis=0)
     clean = np.where(np.isfinite(values), values, 0.0)
-    aligned = np.stack([np.interp(target_time, source_time, axis) for axis in clean]).astype(np.float32)
-    aligned[:, np.interp(target_time, source_time, valid.astype(np.float32)) < 0.999999] = np.nan
+    divisor = gcd(source_count, target_count)
+    up, down = target_count // divisor, source_count // divisor
+    # Reverse to anchor both clocks at the newest sample, as the SDK tail reads do.
+    aligned = resample_poly(clean[:, ::-1], up, down, axis=1, padtype="line")[:, ::-1].copy()
+    # Invalid input contaminates the FIR support, not only its nearest output sample.
+    radius = int(np.ceil(10 * max(up, down) / up))
+    invalid = maximum_filter1d((~valid)[::-1], size=2 * radius + 1, mode="constant", cval=0)
+    indices = np.minimum(source_count - 1, np.rint(np.arange(target_count) * down / up).astype(int))
+    aligned[:, invalid[indices][::-1]] = np.nan
     return aligned
 
 
@@ -734,20 +749,8 @@ def _finalize_capture(
         slot_metadata["clock_skew_source"] = (
             "common_end_rounding_residual" if aligned else "unavailable"
         )
-        clipping_by_axis = slot_metadata.get("clipping_abs_g_by_axis") or {}
-        thresholds = [
-            _safe_float(clipping_by_axis.get(axis)) for axis in ("x", "y", "z")
-        ]
-        if all(value is not None and value > 0 for value in thresholds):
-            clipped = np.stack(
-                [
-                    np.abs(selected_values[index]) >= float(thresholds[index])
-                    for index in range(3)
-                ]
-            )
-            slot_metadata["clipped_fraction"] = float(clipped.mean())
-        else:
-            slot_metadata["clipped_fraction"] = None
+        from .vibration_quality import raw_window_quality
+        slot_metadata.update(raw_window_quality(selected_values, clipping_by_axis=slot_metadata.get("clipping_abs_g_by_axis")))
         if slot_metadata.get("selected_timestamp_end_s") is not None:
             selected_end = float(slot_metadata["selected_timestamp_end_s"]) - shift_s
             slot_metadata["selected_timestamp_end_s"] = selected_end
@@ -846,6 +849,7 @@ def _replace_result_measurements(
     from .llm_sensor_agent import SensorWindow, build_building_metrics, compare_building_metrics
 
     rate = int(round(sampling_rate_hz))
+    offline_replay = bool(capture_metadata.get("offline_replay"))
     metrics_by_slot: dict[str, dict[str, Any]] = {}
     for slot in SLOTS:
         capture = capture_by_slot[slot]
@@ -856,7 +860,7 @@ def _replace_result_measurements(
             else None
         )
         quality_flags: list[str] = []
-        if capture.get("data_is_current") is False:
+        if not offline_replay and capture.get("data_is_current") is False:
             quality_flags.append("stale_data")
         if capture.get("timestamp_monotonic") is False:
             quality_flags.append("timestamp_quality_issue")
@@ -901,8 +905,8 @@ def _replace_result_measurements(
         "end_utc": capture_metadata["window_end_utc"],
         "time_source": capture_metadata["window_time_source"],
         "duration_s": MODEL_WINDOW_S,
-        "mode": "live",
-        "require_current": True,
+        "mode": "replay" if offline_replay else "live",
+        "require_current": not offline_replay,
     }
     result["baseline_metrics"] = baseline_metrics
     result["sensor_metrics"] = [metrics_by_slot[slot] for slot in SLOTS[1:]]
@@ -1358,7 +1362,7 @@ def apply_vibrogemma_monitor_decision(
             )
             capture_metadata["synthetic_injection"] = overlay
             capture_metadata["data_provenance"] = data_provenance
-            capture_metadata["phase_synchronized"] = True
+            capture_metadata["phase_synchronized"] = False
             capture_metadata["synchronization_verification_id"] = overlay[
                 "synchronization_verification_id"
             ]

@@ -27,8 +27,7 @@ for arg in "$@"; do
         *) echo "unknown option: $arg (supported: --offline)" >&2; exit 2 ;;
     esac
 done
-echo "$MODE" > "$REPO/.vibro_mode"
-echo "==== data-source mode: $MODE (persisted in .vibro_mode) ===="
+echo "==== data-source mode: $MODE ===="
 
 if ! command -v uv >/dev/null 2>&1; then
     echo "==== installing uv (https://astral.sh/uv) ===="
@@ -95,6 +94,12 @@ if [ "$MODE" = "offline" ]; then
     echo "==== [offline] 5-minute recorded acquisitions (hash-verified) ===="
     "$REPO/setup_recordings.sh"
 fi
+
+# Publish the new mode only after all required steps have succeeded.
+MODE_FILE="$(mktemp "$REPO/.vibro_mode.XXXXXX")"
+trap 'rm -f "$MODE_FILE"' EXIT
+printf '%s\n' "$MODE" > "$MODE_FILE"
+mv -f "$MODE_FILE" "$REPO/.vibro_mode"
 
 echo
 echo "==== setup complete ===="

@@ -102,6 +102,65 @@ class _TrimmedWindow:
     timestamp_warning: str | None
 
 
+def _apply_synthetic_target5_test(
+    samples_2d: np.ndarray,
+    timestamps_s: np.ndarray | None,
+    sampling_rate_hz: int,
+    *,
+    machine_id: str,
+) -> tuple[np.ndarray, dict[str, Any] | None]:
+    """Apply an explicit, default-off sine test before axis selection."""
+    if os.environ.get("VIBRO_SYNTHETIC_TARGET5_ENABLED", "").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        return samples_2d, None
+    requested_targets = {
+        target.strip().lower()
+        for target in os.environ.get("VIBRO_SYNTHETIC_TARGET", "target_5").split(",")
+        if target.strip()
+    }
+    allowed_targets = {f"target_{index}" for index in range(1, 6)}
+    targets = allowed_targets if requested_targets == {"all"} else requested_targets
+    if not targets <= allowed_targets:
+        raise ValueError("VIBRO_SYNTHETIC_TARGET must be all or a comma-separated subset of target_1 through target_5")
+    if machine_id not in targets:
+        return samples_2d, None
+
+    frequency_hz = _safe_float(os.environ.get("VIBRO_SYNTHETIC_TARGET5_FREQUENCY_HZ", "37"))
+    amplitude_g = _safe_float(os.environ.get("VIBRO_SYNTHETIC_TARGET5_AMPLITUDE_G", "0.5"))
+    axis_name = os.environ.get("VIBRO_SYNTHETIC_TARGET5_AXIS", "z").strip().lower()
+    axis_by_name = {"x": 0, "y": 1, "z": 2}
+    if axis_name not in axis_by_name:
+        raise ValueError("VIBRO_SYNTHETIC_TARGET5_AXIS must be x, y, or z")
+    if frequency_hz is None or frequency_hz <= 0 or frequency_hz >= sampling_rate_hz / 2:
+        raise ValueError("synthetic target frequency must be finite and below Nyquist")
+    if amplitude_g is None or amplitude_g <= 0 or amplitude_g > 4.0:
+        raise ValueError("synthetic target amplitude must be within (0, 4] g")
+    if samples_2d.ndim != 2 or samples_2d.shape[1] < 3:
+        raise ValueError("synthetic target test requires XYZ samples")
+
+    if timestamps_s is not None and timestamps_s.size == samples_2d.shape[0]:
+        time_s = np.asarray(timestamps_s, dtype=np.float64)
+    else:
+        time_s = np.arange(samples_2d.shape[0], dtype=np.float64) / sampling_rate_hz
+    output = np.asarray(samples_2d, dtype=np.float64).copy()
+    output[:, axis_by_name[axis_name]] += amplitude_g * np.sin(2 * np.pi * frequency_hz * time_s)
+    descriptor = {
+        "active": True,
+        "test_only": True,
+        "kind": "sine",
+        "target": machine_id,
+        "axis": axis_name,
+        "frequency_hz": frequency_hz,
+        "amplitude_g": amplitude_g,
+        "source": "env_test_hook",
+    }
+    return output, descriptor
+
+
 class _PersistentLiveBoardDecoder:
     def __init__(self, folder: Path, sensor: str):
         self.folder = folder

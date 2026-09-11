@@ -9,11 +9,15 @@
     sensors: [],
     baselineId: "baseline",
     readings: new Map(),
+    waveformRequest: null,
+    waveformGeneration: 0,
+    waveformRefreshPending: false,
     monitor: null,
     gemmaTargets: [],
     syntheticInjection: null,
     syntheticScheduled: false,
     offlineReplay: null,
+    injectionGeneration: 0,
     paused: false,
     monitorAxis: "norm",
     spectrumAxis: "norm",
@@ -24,12 +28,15 @@
     replay: null,
     context: null,
     history: [],
+    streamStatus: null,
+    streamStatusAt: 0,
+    streamStatusRequest: null,
   };
 
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => [...document.querySelectorAll(selector)];
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  const finite = (value) => Number.isFinite(Number(value)) ? Number(value) : null;
+  const finite = (value) => value === null || value === undefined || value === "" ? null : (Number.isFinite(Number(value)) ? Number(value) : null);
   const formatNumber = (value, digits = 3) => {
     const number = finite(value);
     if (number === null) return "-";
@@ -114,10 +121,9 @@
       const monitorLabel = state.offlineReplay ? "Offline monitor" : "Live monitor";
       $("#monitorTitle").textContent = monitorLabel;
       $("[data-route='monitor']").textContent = monitorLabel;
-      setLiveState(
-        state.sensors.length === 6,
-        state.offlineReplay ? `Offline replay · ${state.sensors.length}/6 recordings` : `Live · ${state.sensors.length}/6 boards`,
-      );
+      setLiveState(Boolean(state.offlineReplay), state.offlineReplay
+        ? `Offline replay · ${state.sensors.length}/6 recordings`
+        : `${state.sensors.length} boards configured · awaiting data`);
     } catch (error) {
       state.sensors = [];
       setLiveState(false, "Boards unavailable");
@@ -138,11 +144,48 @@
     const replayPosition = finite(state.offlineReplay?.position_s);
     const source = state.offlineReplay
       ? `Offline replay${replayPosition === null ? "" : ` · ${formatNumber(replayPosition, 1)} s`}`
-      : `${state.sensors.length}/6 boards`;
+      : `${liveBoardCount()}/6 live boards`;
     const parts = [overlay ? `${state.offlineReplay ? "Offline" : "Live"} + LUMO ${fixture}` : source, `${axis} axis`, `${$("#monitorWindow")?.value || "10"} s window`];
     if (rate) parts.push(`${formatSig(rate / 1000, 3)} kHz`);
     parts.push(state.paused ? "paused" : "2 s refresh");
     status.textContent = parts.map((part) => part.replace(/ /g, "\u00a0")).join(" · ");
+  }
+
+  function renderStreamStatus() {
+    if (state.offlineReplay) {
+      setLiveState(true, `Offline replay · ${state.sensors.length}/6 recordings`);
+      return;
+    }
+    if (!state.streamStatus) { setLiveState(false, "Stream status unavailable"); return; }
+    const elapsed = (Date.now() - state.streamStatusAt) / 1000;
+    const count = state.streamStatus.filter((sensor) => {
+      const stream = sensor.stream || {};
+      const age = finite(stream.data_file_age_s);
+      const limit = finite(stream.data_currentness_max_age_s);
+      return stream.data_is_current === true && elapsed >= 0 && elapsed < 10
+        && age !== null && age >= 0 && limit !== null && age + elapsed <= limit;
+    }).length;
+    setLiveState(count === 6, `${count === 6 ? "Live" : "Waiting"} · ${count}/6 boards`);
+  }
+
+  async function refreshStreamStatus() {
+    if (state.streamStatusRequest) return;
+    const controller = new AbortController();
+    state.streamStatusRequest = controller;
+    const timer = setTimeout(() => controller.abort(), 3000);
+    try {
+      const payload = await api("/api/vibro/sensors?process_reader=0&prewarm=0", {signal: controller.signal});
+      state.offlineReplay = payload.replay || null;
+      state.streamStatus = Array.isArray(payload.sensors) ? payload.sensors : null;
+      state.streamStatusAt = Date.now();
+    } catch (error) {
+      state.streamStatus = null;
+      console.warn(error);
+    } finally {
+      clearTimeout(timer);
+      state.streamStatusRequest = null;
+      renderStreamStatus();
+    }
   }
 
   function renderSensorControls() {
@@ -177,7 +220,10 @@
   }
 
   function targetState(sensorId) {
-    if (sensorId === state.baselineId) return { label: "Live", kind: "normal" };
+    if (sensorId === state.baselineId) {
+      if (state.offlineReplay) return { label: "Replay", kind: "normal" };
+      return isLiveReading(sensorId) ? { label: "Live", kind: "normal" } : { label: "Waiting", kind: "unavailable" };
+    }
     const target = state.gemmaTargets.find((item) => item.sensor_id === sensorId);
     if (!target) return { label: "Waiting", kind: "unavailable" };
     if (target.class === "data_invalid") return { label: "Data invalid", kind: "quality" };
@@ -235,7 +281,7 @@
     });
     renderRibbon($("#verdictRibbon"), state.sensors.map((sensor, index) => {
       const mapped = targetState(sensor.sensor_id);
-      return { sensor_id: sensor.sensor_id, color: BOARD_COLORS[index % BOARD_COLORS.length], kind: sensor.sensor_id === state.baselineId ? "normal" : mapped.kind, label: mapped.label };
+      return { sensor_id: sensor.sensor_id, color: BOARD_COLORS[index % BOARD_COLORS.length], kind: mapped.kind, label: mapped.label };
     }));
     redrawWaveforms();
   }
@@ -256,14 +302,78 @@
 
   async function fetchWaveforms() {
     if (state.paused || state.view !== "monitor" || !state.sensors.length) return;
-    const results = await Promise.all(state.sensors.map(async (sensor) => {
-      try { return [sensor.sensor_id, await api(waveformUrl(sensor))]; }
-      catch (error) { return [sensor.sensor_id, { error: error.message }]; }
-    }));
-    const replay = results.find(([, payload]) => payload?.replay)?.[1]?.replay;
-    if (replay) state.offlineReplay = replay;
-    results.forEach(([id, payload]) => state.readings.set(id, payload));
-    redrawWaveforms();
+    if (state.waveformRequest) return;
+    const generation = state.waveformGeneration;
+    const controller = new AbortController();
+    state.waveformRequest = controller;
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    try {
+      const results = await Promise.all(state.sensors.map(async (sensor) => {
+        try { return [sensor.sensor_id, { ...await api(waveformUrl(sensor), { signal: controller.signal }), receivedAt: Date.now() }]; }
+        catch (error) { return [sensor.sensor_id, { error: error.message }]; }
+      }));
+      if (generation !== state.waveformGeneration || state.paused) return;
+      const replay = results.find(([, payload]) => payload?.replay)?.[1]?.replay;
+      if (replay) state.offlineReplay = replay;
+      results.forEach(([id, payload]) => state.readings.set(id, payload));
+      redrawWaveforms();
+    } finally {
+      clearTimeout(timeout);
+      state.waveformRequest = null;
+      updateLiveCount();
+      if (state.waveformRefreshPending) {
+        state.waveformRefreshPending = false;
+        fetchWaveforms();
+      }
+    }
+  }
+
+  function isLiveReading(sensorId) {
+    const reading = state.readings.get(sensorId);
+    const elapsed = Date.now() - reading?.receivedAt;
+    return reading?.metadata?.data_is_current === true && reading?.samples_g?.length > 0 &&
+      !reading.error && elapsed >= 0 && elapsed < 10000;
+  }
+
+  function liveBoardCount() {
+    return state.sensors.filter((sensor) => isLiveReading(sensor.sensor_id)).length;
+  }
+
+  function renderBaselineStatus() {
+    const index = state.sensors.findIndex((sensor) => sensor.sensor_id === state.baselineId);
+    if (index < 0) return;
+    const mapped = targetState(state.baselineId);
+    const row = $("#waveformStack")?.children[index];
+    const status = row?.querySelector(".wave-status");
+    const value = $("#boardStates")?.children[index]?.querySelector(".state-value");
+    const ribbon = $("#verdictRibbon")?.children[index];
+    [row, ribbon].forEach((element) => {
+      element?.classList.toggle("normal", mapped.kind === "normal");
+      element?.classList.toggle("unavailable", mapped.kind === "unavailable");
+    });
+    if (status) { status.className = `wave-status ${mapped.kind}`; status.textContent = mapped.label; }
+    if (value) { value.className = `state-value ${mapped.kind}`; value.textContent = mapped.label; }
+    if (ribbon) ribbon.title = `${boardLabel(state.baselineId)} · ${mapped.label}`;
+  }
+
+  function updateLiveCount() {
+    renderBaselineStatus();
+    if (state.offlineReplay) {
+      setLiveState(true, `Offline replay · ${state.sensors.length}/6 recordings`);
+      return;
+    }
+    const count = liveBoardCount();
+    setLiveState(count === 6, `${count === 6 ? "Live" : "Waiting"} · ${count}/6 boards`);
+  }
+
+  function refreshWaveforms() {
+    state.waveformGeneration += 1;
+    state.readings.clear();
+    redrawWaveforms(); updateLiveCount();
+    if (state.waveformRequest) {
+      state.waveformRefreshPending = true;
+      state.waveformRequest.abort();
+    } else fetchWaveforms();
   }
 
   function waveformAmplitude(payload) {
@@ -322,7 +432,7 @@
       if (payload?.error) {
         const error = document.createElement("span"); error.className = "wave-error"; error.textContent = state.offlineReplay ? "Replay data unavailable" : "Live data unavailable"; wrapper.append(error);
       } else if (payload?.metadata?.waveform_source === "live_with_lumo_overlay") {
-        const source = document.createElement("span"); source.className = "wave-source"; source.textContent = `${state.offlineReplay ? "Offline" : "Live"} + LUMO test overlay`; wrapper.append(source);
+        const source = document.createElement("span"); source.className = "wave-source"; source.textContent = "Live + LUMO · fresh display capture"; source.title = "Same XYZ blend as inference; captured independently from the latest Agent check."; wrapper.append(source);
       }
     });
     renderMonitorStatus();
@@ -357,8 +467,10 @@
     else if (geometryUnavailable && targetAnomaly) explanation = `The Agent marked ${targets.filter((target) => target.affected).map((target) => boardLabel(target.sensor_id)).join(", ")} as model candidates, but physical localization is unavailable because sensor geometry is not configured.`;
     return {
       source: "latest_gemma_check",
+      window_id: result.window_id || result.window?.episode_id,
       available: Boolean(!payload?.stale && meta.monitor_llm_model_used && targets.length === 5),
       stale: Boolean(payload?.stale),
+      error: monitor.deployment_error || null,
       network_state: quality ? "data_invalid" : (globalAnomaly ? "anomaly" : (inconclusive ? "inconclusive" : (targetAnomaly ? "anomaly" : "normal"))),
       shared_pattern: sharedPattern,
       global_only: globalAnomaly && !targetAnomaly,
@@ -378,9 +490,11 @@
   }
 
   async function fetchMonitor() {
+    const generation = state.injectionGeneration;
     const params = new URLSearchParams({ axis: "norm", duration_s: "10", require_current: "1", require_llm: "0", use_llm: "1", model_timeout_s: "60", vote_k: "1", skip_cache: "1", process_reader: "1" });
     try {
       const payload = await api(`/api/vibro/monitor?${params}`);
+      if (generation !== state.injectionGeneration) return;
       state.monitor = payload;
       const context = monitorContext(payload);
       state.gemmaTargets = context.available ? context.targets : [];
@@ -388,8 +502,9 @@
       if (state.view === "monitor") renderMonitorResult(context, payload.popup || {});
       if (state.view === "ask" && state.context?.source === "latest_gemma_check") renderContext();
     } catch (error) {
+      if (generation !== state.injectionGeneration) return;
       console.warn(error);
-      const unavailable = { source: "latest_gemma_check", available: false, stale: false, targets: [] };
+      const unavailable = { source: "latest_gemma_check", available: false, stale: false, targets: [], error: error.message };
       state.monitor = null;
       state.gemmaTargets = [];
       if (!state.context || state.context.source === "latest_gemma_check") state.context = unavailable;
@@ -413,7 +528,7 @@
       setIcon(verdictIcon, "clock");
       detail.textContent = context.stale
         ? `Last analyzed window is ${age}; verdict withheld until a fresh check completes.${researchNote}`
-        : `Live waveforms remain available.${researchNote}`;
+        : (context.error ? `Check failed: ${context.error}` : `Waiting for a complete Agent check.${researchNote}`);
     } else if (context.network_state === "normal") {
       verdict.classList.add("normal"); title.textContent = "No anomaly detected";
       setIcon(verdictIcon, "check-circle"); detail.textContent = `Latest analyzed ${coverage} window · updated ${age}${researchNote}`;
@@ -539,6 +654,11 @@
       });
       state.syntheticInjection = payload.enabled ? payload.target : null;
       renderSyntheticControl();
+      state.gemmaTargets = []; state.monitor = null; state.context = null;
+      state.injectionGeneration += 1;
+      hideAlert();
+      renderMonitorResult({ available: false }, {});
+      refreshWaveforms();
     } catch (error) {
       console.warn(error);
     } finally {
@@ -563,11 +683,13 @@
         span.textContent = seconds ? `-${seconds.toFixed(duration <= 2 ? 1 : 0)} s` : "0 s";
       });
     };
-    setupSegments($("#monitorAxis"), (value) => { state.monitorAxis = value; state.readings.clear(); renderMonitorStatus(); fetchWaveforms(); });
+    setupSegments($("#monitorAxis"), (value) => { state.monitorAxis = value; renderMonitorStatus(); refreshWaveforms(); });
     updateTimeRuler();
-    $("#monitorWindow")?.addEventListener("change", () => { updateTimeRuler(); state.readings.clear(); renderMonitorStatus(); fetchWaveforms(); });
+    $("#monitorWindow")?.addEventListener("change", () => { updateTimeRuler(); renderMonitorStatus(); refreshWaveforms(); });
     $("#pauseMonitor")?.addEventListener("click", () => {
       state.paused = !state.paused;
+      state.waveformGeneration += 1;
+      state.waveformRequest?.abort();
       const button = $("#pauseMonitor");
       button.setAttribute("aria-pressed", String(state.paused));
       button.querySelector("span").textContent = state.paused ? "Resume" : "Pause";
@@ -698,7 +820,7 @@
     $("#spectrumVariance").textContent = `${formatSig(data.psd_variance_g2, 3)} g²`;
     $("#spectrumDominant").textContent = `${formatSig(data.effective_peak_frequency_hz ?? data.peak_frequency_hz, 4)} Hz`;
     $("#spectrumRate").textContent = `${formatSig((finite(data.sampling_rate_hz) || 0) / 1000, 4)} kHz`;
-    $("#spectrumSource").textContent = data.metadata?.data_is_current ? "Live" : "Saved";
+    $("#spectrumSource").textContent = data.metadata?.waveform_source === "live_with_lumo_overlay" ? "Live + LUMO · display capture" : (data.metadata?.data_is_current ? "Live" : "Saved");
     const rows = $("#peakRows"); rows.replaceChildren();
     (data.top_peaks || []).slice(0, 5).forEach((peak, index) => {
       const row = document.createElement("tr");
@@ -712,6 +834,7 @@
     const data = state.spectrum || {};
     return {
       source: "spectrum",
+      context_id: data.context_id,
       board: $("#spectrumBoard")?.value,
       axis: state.spectrumAxis,
       estimator: data.estimator,
@@ -737,13 +860,22 @@
   }
 
   async function loadReplays(preserveSelection = false) {
-    const selectedId = preserveSelection ? state.replay?.window_id : null;
+    let replays;
     try {
-      const payload = await api("/api/vibro/replays?limit=50"); state.replays = payload.windows || [];
-    } catch (error) { console.warn(error); state.replays = []; }
+      const payload = await api("/api/vibro/replays?limit=50"); replays = payload.windows || [];
+    } catch (error) { console.warn(error); replays = []; }
+    const selectedId = preserveSelection ? state.replays[state.replayIndex]?.window_id : null;
+    state.replays = replays;
     state.replayIndex = selectedId ? state.replays.findIndex((item) => item.window_id === selectedId) : -1;
     renderReplayList();
-    if (state.replays.length && state.replayIndex < 0) selectReplay(0);
+    if (!state.replays.length) {
+      state.replay = null;
+      renderReplay();
+    } else if (state.replayIndex < 0) {
+      await selectReplay(0);
+    } else {
+      renderReplay();
+    }
   }
 
   const replayStateLabel = (value) => value === "data_invalid" ? "Data invalid" : (value === "normal" ? "Normal" : (value === "inconclusive" ? "Inconclusive" : "Anomaly"));
@@ -753,7 +885,7 @@
   function renderReplayList() {
     const list = $("#replayList"); list.replaceChildren();
     const count = $("#replayCount"); if (count) count.textContent = state.replays.length ? `${state.replays.length} saved` : "";
-    if (!state.replays.length) { const empty = document.createElement("p"); empty.className = "empty-copy"; empty.style.padding = "12px 24px"; empty.textContent = "No saved checks yet. Anomalies, inconclusive checks, and invalid windows are saved here automatically."; list.append(empty); return; }
+    if (!state.replays.length) { const empty = document.createElement("p"); empty.className = "empty-copy"; empty.style.padding = "12px 24px"; empty.textContent = "No recorded events yet. Completed anomaly, inconclusive, and signal-quality checks appear here. Failed acquisition or Agent checks remain on the monitor and are not saved as events."; list.append(empty); return; }
     state.replays.forEach((item, index) => {
       const button = document.createElement("button"); button.type = "button"; button.className = "replay-item"; button.classList.toggle("selected", index === state.replayIndex);
       const when = document.createElement("span"); when.className = "replay-when";
@@ -772,15 +904,35 @@
 
   async function selectReplay(index) {
     if (index < 0 || index >= state.replays.length) return;
-    state.replayIndex = index; renderReplayList();
-    try { state.replay = await api(`/api/vibro/replay?window_id=${encodeURIComponent(state.replays[index].window_id)}`); }
-    catch (error) { state.replay = null; $("#replayExplanation").textContent = error.message; }
+    const windowId = state.replays[index].window_id;
+    state.replayIndex = index; state.replay = null;
+    renderReplayList(); renderReplay();
+    try {
+      const replay = await api(`/api/vibro/replay?window_id=${encodeURIComponent(windowId)}`);
+      if (state.replays[state.replayIndex]?.window_id !== windowId) return;
+      state.replay = replay;
+    } catch (error) {
+      if (state.replays[state.replayIndex]?.window_id !== windowId) return;
+      renderReplay(); $("#replayExplanation").textContent = error.message;
+      return;
+    }
     renderReplay();
   }
 
   function renderReplay() {
     $("#replayPrevious").disabled = state.replayIndex <= 0; $("#replayNext").disabled = state.replayIndex < 0 || state.replayIndex >= state.replays.length - 1;
-    if (!state.replay) return;
+    $("#askReplay").disabled = !state.replay;
+    if (!state.replay) {
+      $("#replayTime").textContent = "Select a recorded Agent check.";
+      $("#replayState").textContent = "No check selected";
+      $("#replayVerdict").className = "verdict-card replay-verdict";
+      setIcon($("#replayVerdictIcon"), "clock");
+      $("#replayAffected").textContent = "-";
+      $("#replayRibbon").replaceChildren();
+      $("#replayBoards").replaceChildren();
+      $("#replayExplanation").textContent = "-";
+      return;
+    }
     const replay = state.replay; $("#replayTime").textContent = `${formatDate(replay.created_at_utc)} · ${replay.window_id}`;
     $("#replayState").textContent = replayStateLabel(replay.state);
     const card = $("#replayVerdict"); card.className = "verdict-card replay-verdict";
@@ -1172,9 +1324,14 @@
   async function init() {
     configureView(); setupMonitor(); setupSpectrum(); setupReplay();
     await loadSensors();
+    if (state.view !== "monitor") {
+      await refreshStreamStatus();
+      setInterval(refreshStreamStatus, 2000);
+      setInterval(renderStreamStatus, 1000);
+    }
     await loadSyntheticInjection();
     await fetchMonitor();
-    if (state.view === "monitor") { await fetchWaveforms(); setInterval(fetchWaveforms, 2000); setInterval(fetchMonitor, 5000); }
+    if (state.view === "monitor") { await fetchWaveforms(); setInterval(fetchWaveforms, 2000); setInterval(updateLiveCount, 1000); setInterval(fetchMonitor, 5000); }
     if (state.view === "replay") { await loadReplays(); setInterval(() => loadReplays(true), 10000); }
     if (state.view === "ask") { setupAsk(); setInterval(fetchMonitor, 5000); }
   }

@@ -98,13 +98,25 @@ def _resolve_libc_fallocate() -> Any:
     return _LIBC_FALLOCATE or None
 
 
-def _install_clean_stop_signal_handlers() -> None:
-    """Route SIGINT/SIGTERM through KeyboardInterrupt so cleanup always runs."""
+def _install_clean_stop_signal_handlers() -> Callable[[], bool]:
+    """Request shutdown without interrupting native calls or repeated cleanup."""
+    requested = False
+
+    def request_stop(_signum: int, _frame: Any) -> None:
+        nonlocal requested
+        requested = True
+
     try:
-        signal.signal(signal.SIGINT, signal.default_int_handler)
-        signal.signal(signal.SIGTERM, signal.default_int_handler)
+        signal.signal(signal.SIGINT, request_stop)
+        signal.signal(signal.SIGTERM, request_stop)
     except (ValueError, OSError):
         pass
+    return lambda: requested
+
+
+def _native_command_succeeded(result: Any) -> bool:
+    """PnPL commands return (success, response); older backends return bool."""
+    return (result[0] if isinstance(result, tuple) and result else result) is True
 
 
 @dataclass
@@ -436,7 +448,7 @@ class BoardSession:
 
 
 def main() -> None:
-    _install_clean_stop_signal_handlers()
+    stop_requested = _install_clean_stop_signal_handlers()
     parser = argparse.ArgumentParser(
         description="Low-latency native-callback logger for STWIN.box vibrometers."
     )
@@ -618,7 +630,11 @@ def main() -> None:
         # Start boards in a tight second phase after all callbacks are registered.
         # This minimizes start skew and avoids losing early blocks.
         for session in sessions:
-            HSDLink.start_log(
+            if stop_requested():
+                break
+            # A failed command can have reached the board before its reply failed.
+            started_sessions.append(session)
+            result = HSDLink.start_log(
                 hsd_link,
                 session.device_id,
                 sub_folder=False,
@@ -626,8 +642,9 @@ def main() -> None:
                 acq_folder=str(session.folder),
                 save_files=True,
             )
+            if not _native_command_succeeded(result):
+                raise RuntimeError(f"failed to start device {session.device_id}: {result!r}")
             session.started_at_monotonic = time.monotonic()
-            started_sessions.append(session)
             HSDLink.save_json_device_file(hsd_link, session.device_id, str(session.folder))
             _write_live_acquisition_info(session.folder, f"vibroagent_{session.sensor_id}")
             print(
@@ -649,7 +666,7 @@ def main() -> None:
             if deadline is None
             else f"Logging via native callbacks for {args.duration_s:g}s."
         )
-        while deadline is None or time.monotonic() < deadline:
+        while not stop_requested() and (deadline is None or time.monotonic() < deadline):
             now = time.monotonic()
             if next_stats is not None and now >= next_stats:
                 _print_stats(sessions)
@@ -661,6 +678,10 @@ def main() -> None:
     except KeyboardInterrupt:
         print("\nStopping logging...")
     finally:
+        if stop_requested():
+            print("\nStopping logging...", flush=True)
+        stopped_device_ids: set[int] = set()
+        shutdown_errors: list[str] = []
         # Quiesce BEFORE stopping, without touching native state: re-registering or
         # unregistering a callback while data is flowing races the endpoint thread's
         # std::function invocation (observed SIGSEGV), and stopping while a slow
@@ -677,11 +698,24 @@ def main() -> None:
         # Stop native acquisition first, then unregister callbacks, then close fds.
         for session in reversed(started_sessions):
             try:
-                HSDLink.stop_log(hsd_link, session.device_id)
-            except Exception as exc:
-                print(f"Warning: failed to stop device {session.device_id}: {exc}")
+                result = HSDLink.stop_log(hsd_link, session.device_id)
+                if not _native_command_succeeded(result):
+                    raise RuntimeError(f"native stop was not acknowledged: {result!r}")
+                stopped_device_ids.add(session.device_id)
+            except (Exception, SystemExit) as exc:
+                message = f"failed to stop device {session.device_id} ({session.sensor_id}): {exc}"
+                shutdown_errors.append(message)
+                print(f"Warning: {message}", flush=True)
+
+        failed_device_ids = {
+            session.device_id for session in started_sessions
+        } - stopped_device_ids
 
         for session in sessions:
+            if session.device_id in failed_device_ids:
+                # Keep callbacks alive and quiesced until native engine teardown;
+                # unregistering while this board may still stream can crash it.
+                continue
             for stream in session.streams:
                 stream.unregister()
             for comp_name in session.noop_components:
@@ -695,7 +729,12 @@ def main() -> None:
                         f"{session.sensor_id}/{comp_name}: {exc}"
                     )
             for stream in session.streams:
-                stream.close()
+                try:
+                    stream.close()
+                except Exception as exc:
+                    message = f"failed to close {session.sensor_id}/{stream.component_name}: {exc}"
+                    shutdown_errors.append(message)
+                    print(f"Warning: {message}")
             try:
                 HSDLink.save_json_device_file(hsd_link, session.device_id, str(session.folder))
                 HSDLink.save_json_acq_info_file(hsd_link, session.device_id, str(session.folder))
@@ -703,13 +742,17 @@ def main() -> None:
                 print(f"Warning: failed to save metadata for {session.sensor_id}: {exc}")
             active_bytes = sum(stream.resident_file_bytes for stream in session.streams)
             rollovers = sum(stream.rollovers for stream in session.streams)
-            print(
-                f"Stopped {session.sensor_id} -> {session.folder} "
-                f"({session.total_bytes_written} bytes total, "
-                f"{active_bytes} bytes active, {rollovers} rollover(s))"
-            )
+            if session.device_id in stopped_device_ids:
+                print(
+                    f"Stopped {session.sensor_id} -> {session.folder} "
+                    f"({session.total_bytes_written} bytes total, "
+                    f"{active_bytes} bytes active, {rollovers} rollover(s))",
+                    flush=True,
+                )
 
         for item in restore_items:
+            if int(item["device_id"]) in failed_device_ids:
+                continue
             try:
                 _restore_disabled_sensors(
                     hsd_link,
@@ -720,9 +763,29 @@ def main() -> None:
                 print(f"Warning: failed to restore sensors for {item['sensor_id']}: {exc}")
 
         try:
-            hsd_link.close()
+            if not _native_command_succeeded(hsd_link.close()):
+                raise RuntimeError("native engine close was not acknowledged")
         except Exception as exc:
-            print(f"Warning: failed to close native HSDatalog engine: {exc}")
+            message = f"failed to close native HSDatalog engine: {exc}"
+            shutdown_errors.append(message)
+            print(f"Warning: {message}")
+        for session in sessions:
+            if session.device_id in failed_device_ids:
+                for stream in session.streams:
+                    try:
+                        stream.close()
+                    except Exception as exc:
+                        shutdown_errors.append(f"failed to close {session.sensor_id}: {exc}")
+
+        print("Shutdown result: " + json.dumps({
+            "pid": os.getpid(),
+            "started": [session.sensor_id for session in started_sessions],
+            "stopped": [session.sensor_id for session in started_sessions
+                        if session.device_id in stopped_device_ids],
+            "errors": shutdown_errors,
+        }), flush=True)
+        if shutdown_errors:
+            raise SystemExit(1)
 
 
 def _env_float(name: str, default: float, *, minimum: float | None = None) -> float:

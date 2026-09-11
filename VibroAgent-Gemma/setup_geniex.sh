@@ -11,6 +11,7 @@ OVERLAY="$RUN/geniex-v0.4.0-vibrogemma"
 PATCHES=(
   "$PROTO/patches/0001-feat-add-stateful-external-embedding-prefill.patch"
   "$PROTO/patches/0002-feat-read-state-logits.patch"
+  "$PROTO/patches/0003-fix-logit-validation-and-stop-sequences.patch"
 )
 export UV_CACHE_DIR="${VIBROGEMMA_UV_CACHE:-/tmp/vibroagent-gemma-uv-cache}"
 
@@ -22,25 +23,48 @@ if [ ! -d "$GENIEX/.git" ]; then
     git clone --branch v0.4.0 --depth 1 https://github.com/qualcomm/GenieX.git "$GENIEX"
 fi
 git -C "$GENIEX" submodule update --init --recursive third-party/llama.cpp
-for patch in "${PATCHES[@]}"; do
-    if git -C "$GENIEX" apply --check "$patch" 2>/dev/null; then
+# Later patches can modify the context added by earlier ones, so checking
+# each patch in reverse independently cannot recognize a fully patched tree.
+# Compare every valid patch prefix in a disposable index, so an existing
+# two-patch installation can receive the third without undoing earlier patches.
+applied_patch_count() (
+    check_dir="$(mktemp -d "$RUN/.patch-check.XXXXXX")" || return 1
+    trap 'rm -rf "$check_dir"' EXIT
+    export GIT_INDEX_FILE="$check_dir/index"
+    git -C "$GENIEX" read-tree HEAD || return 1
+    count=0
+    matched_count=-1
+    if git -C "$GENIEX" diff --quiet; then matched_count=0; fi
+    for patch in "${PATCHES[@]}"; do
+        git -C "$GENIEX" apply --cached "$patch" || return 1
+        count=$((count + 1))
+        if git -C "$GENIEX" diff --quiet; then matched_count="$count"; fi
+    done
+    [ "$matched_count" -ge 0 ] || return 1
+    echo "$matched_count"
+)
+if ! applied_count="$(applied_patch_count)"; then
+    echo "GenieX differs from clean v0.4.0 and every supported patch prefix; preserving local edits." >&2
+    exit 1
+fi
+if [ "$applied_count" -eq "${#PATCHES[@]}" ]; then
+    echo "== GenieX patch series already applied"
+else
+    for patch in "${PATCHES[@]:applied_count}"; do
         git -C "$GENIEX" apply "$patch"
-    elif ! git -C "$GENIEX" apply --reverse --check "$patch" 2>/dev/null; then
-        echo "GenieX is neither clean v0.4.0 nor already patched for $(basename "$patch")" >&2
-        exit 1
-    fi
-done
+    done
+fi
 
-test -x "$VENV/bin/python" || uv venv --python /usr/bin/python3.12 --system-site-packages "$VENV"
+test -x "$VENV/bin/python" || uv venv --python /usr/bin/python3.12 "$VENV"
 uv pip install --quiet --python "$VENV/bin/python" \
     'numpy==2.2.6' 'scipy>=1.12' 'onnxruntime>=1.17' 'tokenizers>=0.22' \
     'pyyaml>=6' 'jsonschema>=4' cmake ninja 'pytest>=8' \
     'geniex==0.4.0' 'geniex-llama-cpp==0.4.0'
 uv pip install --quiet --python "$VENV/bin/python" \
     --index https://download.pytorch.org/whl/cpu 'torch==2.11.0'
-uv pip install --quiet --python "$VENV/bin/python" -e "$PROTO[qwen]"
+uv pip install --quiet --python "$VENV/bin/python" -e "${PROTO}[qwen]"
 
-SITE="$($VENV/bin/python -c 'from pathlib import Path; import geniex; print(Path(geniex.__file__).parent / "lib")')"
+SITE="$("$VENV/bin/python" -c 'from pathlib import Path; import geniex; print(Path(geniex.__file__).parent / "lib")')"
 OBJECTS="$RUN/geniex-plugin-objects"
 mkdir -p "$OVERLAY" "$OBJECTS"
 cp -a "$SITE/." "$OVERLAY/"

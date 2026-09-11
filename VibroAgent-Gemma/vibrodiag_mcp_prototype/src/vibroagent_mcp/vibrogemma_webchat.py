@@ -29,6 +29,8 @@ from .vibrogemma_live import (
 _POPUP_LOCK = threading.Lock()
 _LATEST_MONITOR: dict | None = None
 _LATEST_MONITOR_AT = 0.0
+_INJECTION_GENERATION = 0
+_SPECTRUM_CONTEXTS: dict[str, dict] = {}
 _DEPLOYMENT_STATUS: dict[str, str] | None = None
 WEBCHAT_DEPLOYMENT_CONTRACT_VERSION = "vibroagent-gemma-web-live-v2"
 _STATIC_ROOT = Path(__file__).resolve().parent / "static" / "vibrogemma"
@@ -183,6 +185,12 @@ def _honest_explanation(result: dict, view: dict[str, Any]) -> str:
     return _agent_copy(result.get("main_agent_explanation"))
 
 
+def _check_failed(result: dict) -> bool:
+    metadata = result.get("model_metadata") or {}
+    monitor = metadata.get("vibrogemma_monitor") or {}
+    return metadata.get("monitor_llm_model_used") is False or bool(monitor.get("deployment_error"))
+
+
 def _apply_popup_policy(popup: dict, result: dict) -> dict:
     metadata = result.get("model_metadata") or {}
     monitor = metadata.get("vibrogemma_monitor") or {}
@@ -190,6 +198,7 @@ def _apply_popup_policy(popup: dict, result: dict) -> dict:
     if metadata.get("agent_mode") == "vibrogemma_live" and not isinstance(targets, list):
         return {
             "show_popup": False,
+            "save_replay": False,
             "severity": "quality",
             "title": "Agent check unavailable",
             "message": "The latest Agent check did not complete. Live waveforms remain available.",
@@ -209,7 +218,7 @@ def _apply_popup_policy(popup: dict, result: dict) -> dict:
     output.update(
         {
             "show_popup": active,
-            "save_replay": bool(quality or affected or view["global_anomaly"] or inconclusive),
+            "save_replay": active and not _check_failed(result),
             "affected_sensor_ids": affected,
             "significant_sensor_ids": [
                 str(target.get("sensor_id"))
@@ -235,7 +244,7 @@ def _apply_popup_policy(popup: dict, result: dict) -> dict:
         }
     )
     if quality:
-        if monitor.get("deployment_error"):
+        if _check_failed(result):
             output.update(
                 severity="quality",
                 title="Agent check unavailable",
@@ -314,12 +323,16 @@ def _gemma_context() -> dict[str, Any]:
     with _POPUP_LOCK:
         latest = copy.deepcopy(_LATEST_MONITOR)
         age_s = time.monotonic() - _LATEST_MONITOR_AT
+    return _context_from_snapshot(latest, age_s)
+
+
+def _context_from_snapshot(latest, age_s):
     stale = latest is not None and age_s > _monitor_stale_s()
     result = (latest or {}).get("result") or {}
     metadata = result.get("model_metadata") or {}
     monitor = metadata.get("vibrogemma_monitor") or {}
     targets = monitor.get("targets")
-    if stale or not metadata.get("monitor_llm_model_used") or not isinstance(targets, list):
+    if stale or not metadata.get("monitor_llm_model_used") or _check_failed(result) or not isinstance(targets, list):
         return {
             "source": "latest_gemma_check",
             "available": False,
@@ -327,11 +340,19 @@ def _gemma_context() -> dict[str, Any]:
             "age_s": round(age_s, 1),
             "deployment": _deployment_status(),
         }
+    context = _context_from_result(result)
+    context.update(source="latest_gemma_check", age_s=round(age_s, 1))
+    return context
+
+
+def _context_from_result(result: dict[str, Any]) -> dict[str, Any]:
+    """Project an eligible result after the live or replay availability checks."""
+    monitor = result["model_metadata"]["vibrogemma_monitor"]
+    targets = monitor["targets"]
     view = _monitor_view(monitor, targets)
     return {
-        "source": "latest_gemma_check",
         "available": True,
-        "age_s": round(age_s, 1),
+        "window_id": result.get("window_id") or (result.get("window") or {}).get("episode_id"),
         "network_state": view["state"],
         "global_class": view["global_class"],
         "global_target_consistent": view["global_target_consistent"],
@@ -364,6 +385,8 @@ def _replay_state(detail: dict[str, Any]) -> str:
 
 def _replay_targets(detail: dict[str, Any]) -> list[dict[str, Any]]:
     result = detail.get("pipeline_result") or {}
+    if _check_failed(result):
+        return []
     metadata = result.get("model_metadata") or {}
     targets = (metadata.get("vibrogemma_monitor") or {}).get("targets")
     return targets if isinstance(targets, list) else []
@@ -383,9 +406,8 @@ def _load_replay_detail(window_id: str) -> dict[str, Any] | None:
 
 def _gemma_replays_payload(query: dict[str, list[str]]) -> dict[str, Any]:
     limit = min(200, max(1, webchat_server._int_query(query, "limit", 50)))
-    records = webchat_server._anomaly_windows_payload({"limit": [str(limit * 4)]}).get("windows") or []
     items = []
-    for record in records:
+    for record in webchat_server._anomaly_window_records():
         detail = _load_replay_detail(str(record.get("window_id") or ""))
         if detail is None:
             continue
@@ -480,19 +502,21 @@ _CHAT_SYSTEM_PROMPT = (
     "share of energy by band), its strongest structural mode, and its transmissibility relative to the reference "
     "board; and a 'Label vocabulary' line explaining what the labels can and cannot express.\n"
     "How to answer:\n"
-    "- Answer the specific question first, in plain conversational language, the way a knowledgeable colleague "
-    "would in a chat.\n"
+    "- Respond naturally to the user's request and follow any requested tone, length, or format. When the user "
+    "does not specify a format, give a clear and sufficiently detailed conversational answer.\n"
     "- When asked to describe an anomaly, a board, a signal, or a waveform, use the measured evidence and the "
     "comparison with the reference board, quoting the relevant numbers with units. When asked what a label "
     "means, use the label vocabulary.\n"
     "- Use only the evidence sheet and the conversation so far. If the sheet does not cover the question, say so "
     "in one sentence and say what evidence would be needed.\n"
     "- Never invent measurements, thresholds, faults, causes, damage, or trends that are not in the sheet.\n"
-    "- Do not recite the whole sheet, do not mention fields the user did not ask about, and do not repeat an "
-    "earlier answer word for word.\n"
+    "- Do not dump the whole sheet or repeat an earlier answer word for word. Select the measurements that matter, "
+    "connect them across boards, and explain what they imply and what remains uncertain.\n"
     "- Do not add disclaimers. Only if the user asks whether the building is safe, damaged, or needs inspection, "
     "note that this is monitoring triage rather than a certified structural-safety assessment.\n"
-    "- Keep it to one to four short sentences, or a short bullet list when a list or comparison is asked for."
+    "- Let the question determine the answer's structure and length. Do not force headings, fixed sections, a "
+    "checklist, or the same response pattern on every turn. Be concise for simple questions and expand naturally "
+    "when the subject needs explanation."
 )
 _LOCALIZATION_TEXT = {
     "normal": "no target deviates from the reference",
@@ -551,17 +575,6 @@ def _target_lines(targets: list[dict[str, Any]]) -> list[str]:
         else:
             lines.append(f"- {name}: normal, matches the reference")
     return lines
-
-
-def _latest_monitor_result() -> dict[str, Any] | None:
-    """The full pipeline result of the latest live check, or None when there is none or it is stale."""
-    with _POPUP_LOCK:
-        latest = copy.deepcopy(_LATEST_MONITOR)
-        age_s = time.monotonic() - _LATEST_MONITOR_AT
-    if latest is None or age_s > _monitor_stale_s():
-        return None
-    result = latest.get("result")
-    return result if isinstance(result, dict) else None
 
 
 def _saved_evidence_text(detail: dict[str, Any]) -> str:
@@ -775,18 +788,31 @@ def _context_brief(context: dict[str, Any], result: dict[str, Any] | None = None
     return "\n".join(lines)
 
 
-def _chat_evidence(context: dict[str, Any]) -> tuple[dict[str, Any], str]:
-    """Look up the full pipeline result behind a chat context so the sheet can carry measured evidence."""
-    source = str(context.get("source") or "latest_gemma_check")
+def _resolve_chat_context(supplied):
+    """Bind decisions and evidence to one server-owned snapshot, never client labels."""
+    source = str(supplied.get("source") or "latest_gemma_check")
     if source == "replay":
-        detail = _load_replay_detail(str(context.get("window_id") or ""))
-        if not detail:
-            return {}, ""
-        result = detail.get("pipeline_result")
-        return (result if isinstance(result, dict) else {}), _saved_evidence_text(detail)
+        detail = _load_replay_detail(str(supplied.get("window_id") or ""))
+        if not detail or _replay_state(detail) == "unavailable":
+            return {"source": source, "available": False}, {}, ""
+        result = detail.get("pipeline_result") or {}
+        context = _context_from_result(result)
+        context.update(source="replay", age_s=0.0, window_id=detail.get("window_id"), created_at_utc=detail.get("created_at_utc"))
+        return context, result, _saved_evidence_text(detail)
     if source == "latest_gemma_check":
-        return (_latest_monitor_result() or {}), ""
-    return {}, ""
+        with _POPUP_LOCK:
+            latest = copy.deepcopy(_LATEST_MONITOR)
+            age = time.monotonic() - _LATEST_MONITOR_AT
+        context = _context_from_snapshot(latest, age)
+        selected_id = supplied.get("window_id")
+        if selected_id and selected_id != context.get("window_id"):
+            context.update(available=False, stale=True, reason="selected_window_superseded")
+        return context, (latest or {}).get("result") or {}, ""
+    if source == "spectrum":
+        with _POPUP_LOCK:
+            context = copy.deepcopy(_SPECTRUM_CONTEXTS.get(str(supplied.get("context_id") or "")))
+        return context or {"source": source, "available": False}, {}, ""
+    raise ValueError("unsupported chat context source")
 
 
 def _gemma_chat_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -796,7 +822,7 @@ def _gemma_chat_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if len(message) > 2400:
         raise ValueError("message is too long")
     supplied_context = payload.get("context") if isinstance(payload.get("context"), dict) else {}
-    context = supplied_context or _gemma_context()
+    context, result, saved_evidence = _resolve_chat_context(supplied_context)
     if context.get("available") is False:
         answer = (
             "The latest Agent check is stale, so I can't answer from live evidence until a fresh check completes. "
@@ -814,7 +840,6 @@ def _gemma_chat_payload(payload: dict[str, Any]) -> dict[str, Any]:
         if content:
             history.append({"role": item["role"], "content": content[:1800]})
     history = history[-6:]
-    result, saved_evidence = _chat_evidence(context)
     messages = [
         {"role": "system", "content": _CHAT_SYSTEM_PROMPT},
         *history,
@@ -826,8 +851,8 @@ def _gemma_chat_payload(payload: dict[str, Any]) -> dict[str, Any]:
         {
             "model": os.environ.get("MAIN_AGENT_MODEL", "vibrogemma"),
             "messages": messages,
-            "max_tokens": 320,
-            "temperature": 0.35,
+            "max_tokens": 512,
+            "temperature": 0.5,
         },
         separators=(",", ":"),
     ).encode("utf-8")
@@ -840,7 +865,7 @@ def _gemma_chat_payload(payload: dict[str, Any]) -> dict[str, Any]:
         },
         method="POST",
     )
-    with webchat_server.urlopen(request, timeout=60.0) as response:
+    with webchat_server.urlopen(request, timeout=150.0) as response:
         data = json.loads(response.read().decode("utf-8"))
     answer = str(data["choices"][0]["message"]["content"]).strip()
     if not answer:
@@ -882,15 +907,16 @@ def _synthetic_injection_status() -> dict[str, Any]:
         "ok": True,
         "enabled": enabled,
         "mode": "lumo_live_overlay",
+        "generation": _INJECTION_GENERATION,
         "target": target if enabled else None,
         "condition": tests.get(target),
         "expected_target": target if enabled else None,
     }
 
 
-def _monitor_matches_current_injection(payload: dict[str, Any]) -> bool:
-    if isinstance((payload.get("replay") or {}).get("inference"), dict):
-        return True
+def _monitor_matches_current_injection(payload: dict[str, Any], generation: int | None = None) -> bool:
+    if generation is not None:
+        return generation == _INJECTION_GENERATION
     result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
     metadata = result.get("model_metadata") if isinstance(result.get("model_metadata"), dict) else {}
     monitor = metadata.get("vibrogemma_monitor") if isinstance(metadata.get("vibrogemma_monitor"), dict) else {}
@@ -905,87 +931,83 @@ def _monitor_matches_current_injection(payload: dict[str, Any]) -> bool:
     return actual == expected
 
 
+def _lumo_display_reader(status):
+    """Read full XYZ, use the classifier's blend, then select a display axis."""
+    from .vibrogemma_live import _capture_board, _blend_lumo_board, _resample_board_window, _sensor_config
+    from .sensor_registry import SensorRegistry
+    from .sdk_vibrometer import SdkVibrometerWindow
+
+    def read(*, machine_id, axis, duration_s, **_kwargs):
+        if _kwargs.get("start_time_s") is not None:
+            raise ValueError("LUMO live overlays require a latest-window spectrum, not a historical start time")
+        registry = SensorRegistry(_sensor_config(None))
+        if machine_id not in SLOTS or machine_id not in registry.sensors:
+            raise ValueError("LUMO display requires a configured six-board sensor")
+        reader = webchat_server.read_sdk_vibrometer_window_via_board_process
+        captured = _capture_board(machine_id, registry.sensors[machine_id], reader)
+        _, rates, *_ = _lumo_training_replay(status["target"])
+        rate = float(rates["baseline"])
+        live = _resample_board_window(captured.values, source_rate_hz=captured.sampling_rate_hz, target_rate_hz=rate)
+        gain = _lumo_overlay_gain()
+        templates, overlay = _lumo_overlay_templates(status["target"], round(rate, 6), live.shape[1], gain)
+        xyz = _blend_lumo_board(live, templates[machine_id], gain)
+        indices = {"x": 0, "0": 0, "y": 1, "1": 1, "z": 2, "2": 2}
+        signal = np.linalg.norm(xyz, axis=0) if axis in {"norm", "magnitude", "vector_norm"} else xyz[indices[axis]]
+        count = min(signal.size, max(1, int(round(duration_s * rate))))
+        signal = signal[-count:]
+        if status != _synthetic_injection_status():
+            raise ValueError("Injection changed during this display capture; request a fresh window")
+        ended = captured.approximate_end_utc.isoformat() if captured.approximate_end_utc else None
+        return SdkVibrometerWindow(
+            signal=signal, sampling_rate_hz=rate, timestamps_s=None,
+            metadata={**captured.metadata, **overlay, "synthetic": True, "test_only": True,
+                      "waveform_source": "live_with_lumo_overlay", "window_end_utc": ended,
+                      "display_episode_id": f"display:{status['generation']}:{machine_id}:{time.time_ns()}",
+                      "episode_scope": "fresh_display_capture_not_classifier_window",
+                      "overlay_axis_present": axis not in {"z", "2"}})
+    return read
+
+
 def _lumo_waveform_payload(query: dict[str, list[str]]) -> dict[str, Any] | None:
     status = _synthetic_injection_status()
     if not status["enabled"]:
         return None
-    machine_id = webchat_server._clean(webchat_server._first(query, "machine_id")) or "baseline"
-    axis = (webchat_server._first(query, "axis") or "norm").strip().lower()
-    axis_indices = {"x": 0, "0": 0, "y": 1, "1": 1, "z": 2, "2": 2}
-    if machine_id not in SLOTS or axis not in {"norm", "magnitude", "vector_norm", *axis_indices}:
-        return {
-            "ok": False,
-            "status": "error",
-            "error": "bad_request",
-            "message": "LUMO waveform requires a six-board sensor id and a valid axis",
-        }
-    payload = webchat_server._live_vibrometer_payload(query)
-    if not payload.get("ok"):
-        return payload
-    try:
-        values = np.asarray(payload["samples_g"], dtype=np.float64)
-        stride = max(1, int(payload.get("downsample_stride") or 1))
-        effective_rate = float(payload["sampling_rate_hz"]) / stride
-        templates, overlay = _lumo_overlay_templates(
-            str(status["target"]),
-            round(effective_rate, 6),
-            int(values.size),
-            _lumo_overlay_gain(),
-        )
-        template = templates[machine_id][:, -values.size:]
-        injected = (
-            np.linalg.norm(template, axis=0)
-            if axis in {"norm", "magnitude", "vector_norm"}
-            else template[axis_indices[axis]]
-        )
-        injected = injected - np.mean(injected)
-        if axis not in {"z", "2"}:
-            live_residual = values - np.mean(values)
-            live_rms = float(np.sqrt(np.mean(live_residual * live_residual)))
-            template_rms = float(
-                np.sqrt(np.mean((injected / _lumo_overlay_gain()) ** 2))
-            )
-            live_scale = template_rms / live_rms if live_rms > 1e-12 else 0.0
-            values = (
-                live_residual * live_scale + injected
-            ) / (1.0 + _lumo_overlay_gain())
-    except Exception as exc:
-        return {
-            "ok": False,
-            "status": "error",
-            "error": "overlay_failed",
-            "message": webchat_server.format_exception_for_response(exc),
-        }
-    payload["samples_g"] = [float(value) for value in values]
-    payload["stats"] = {
-        "min_g": float(values.min()),
-        "max_g": float(values.max()),
-        "mean_g": float(values.mean()),
-        "rms_g": float(np.sqrt(np.mean(values * values))),
-    }
-    payload["metadata"] = {
-        **(payload.get("metadata") or {}),
-        "synthetic": True,
-        "test_only": True,
-        "waveform_source": "live_with_lumo_overlay",
-        **overlay,
-        "overlay_axis_present": axis not in {"z", "2"},
-    }
-    payload.setdefault("diagnostics", {})["overlay"] = True
-    return payload
+    return webchat_server._live_vibrometer_payload(query, reader=_lumo_display_reader(status))
+
+
+def _spectrum_payload(query):
+    status = _synthetic_injection_status()
+    result = webchat_server._psd_fft_payload(
+        query, reader=_lumo_display_reader(status) if status["enabled"] else None)
+    if result.get("ok"):
+        import uuid
+        context_id = uuid.uuid4().hex
+        context = {"source": "spectrum", "available": True, "context_id": context_id,
+                   "board": result.get("machine_id"), "axis": result.get("axis"),
+                   "estimator": result.get("estimator"), "rms_g": result.get("psd_rms_g"),
+                   "variance_g2": result.get("psd_variance_g2"),
+                   "dominant_frequency_hz": result.get("effective_peak_frequency_hz", result.get("peak_frequency_hz")),
+                   "sampling_rate_hz": result.get("sampling_rate_hz"), "top_peaks": result.get("top_peaks", [])[:5]}
+        with _POPUP_LOCK:
+            _SPECTRUM_CONTEXTS[context_id] = context
+            while len(_SPECTRUM_CONTEXTS) > 32:
+                del _SPECTRUM_CONTEXTS[next(iter(_SPECTRUM_CONTEXTS))]
+        result["context_id"] = context_id
+    return result
 
 
 def _set_synthetic_injection(enabled: bool, target: str = "target_3") -> dict[str, Any]:
-    global _LATEST_MONITOR, _LATEST_MONITOR_AT
+    global _LATEST_MONITOR, _LATEST_MONITOR_AT, _INJECTION_GENERATION
     if offline_replay_from_environment():
         raise ValueError("offline replay injections are scheduled by the manifest")
     if enabled and target not in {"target_3", "target_5"}:
         raise ValueError("target must be target_3 or target_5")
     if enabled:
         _lumo_training_replay(target)
-    os.environ["VIBRO_SYNTHETIC_TARGET5_ENABLED"] = "0"
-    os.environ["VIBRO_LUMO_TRAINING_INJECTION"] = target if enabled else "0"
     with _POPUP_LOCK:
+        os.environ["VIBRO_SYNTHETIC_TARGET5_ENABLED"] = "0"
+        os.environ["VIBRO_LUMO_TRAINING_INJECTION"] = target if enabled else "0"
+        _INJECTION_GENERATION += 1
         _LATEST_MONITOR = None
         _LATEST_MONITOR_AT = 0.0
     return _synthetic_injection_status()
@@ -1060,7 +1082,7 @@ class VibroGemmaHandler(webchat_server.WebchatHandler):
             self._send_json(_synthetic_injection_status())
             return
         if parsed.path == "/api/vibro/spectrum":
-            self._send_json(webchat_server._psd_fft_payload(query))
+            self._send_json(_spectrum_payload(query))
             return
         if parsed.path == "/api/vibro/replays":
             self._send_json(_gemma_replays_payload(query))
@@ -1126,11 +1148,12 @@ def _monitor_loop(original_monitor) -> None:
         payload = None
         with _POPUP_LOCK:
             query = copy.deepcopy(_MONITOR_QUERY)
+            generation = _INJECTION_GENERATION
         query["skip_cache"] = ["1"]
         try:
             payload = original_monitor(query)
-            if not payload.get("paused_for_chat") and _monitor_matches_current_injection(payload):
-                with _POPUP_LOCK:
+            with _POPUP_LOCK:
+                if not payload.get("paused_for_chat") and _monitor_matches_current_injection(payload, generation):
                     _LATEST_MONITOR = copy.deepcopy(payload)
                     _LATEST_MONITOR_AT = time.monotonic() - (
                         0.0 if isinstance(payload.get("replay"), dict) else _capture_age_s(payload)
@@ -1138,6 +1161,8 @@ def _monitor_loop(original_monitor) -> None:
         except Exception as exc:
             print(f"VibroAgent monitor cycle failed: {exc}", flush=True)
             with _POPUP_LOCK:
+                if generation != _INJECTION_GENERATION:
+                    continue
                 _LATEST_MONITOR = {
                     "ok": False,
                     "status": "unavailable",

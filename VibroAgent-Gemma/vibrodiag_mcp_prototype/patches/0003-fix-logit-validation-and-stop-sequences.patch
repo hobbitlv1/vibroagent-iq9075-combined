@@ -1,0 +1,373 @@
+diff --git a/bindings/python/geniex/modeling.py b/bindings/python/geniex/modeling.py
+--- a/bindings/python/geniex/modeling.py
++++ b/bindings/python/geniex/modeling.py
+@@ -464,17 +464,15 @@
+ 
+     def state_logits(self, token_ids, *, sequence_id: int = 0) -> list[float]:
+         """Read selected logits from the latest decode without changing state."""
+-        ids = [operator.index(token_id) for token_id in token_ids]
+-        if not ids:
+-            raise ValueError('token_ids must not be empty')
++        id_array, count = _marshal_input_ids(token_ids)
+         sequence_id = operator.index(sequence_id)
+-        IdArray = c_int32 * len(ids)
+-        id_array = IdArray(*ids)
++        if sequence_id < 0 or sequence_id > 0x7FFFFFFF:
++            raise ValueError('sequence_id must be in the non-negative int32 range')
+         inp = geniex_LlmStateLogitsInput(
+             struct_size=sizeof(geniex_LlmStateLogitsInput),
+             sequence_id=sequence_id,
+             token_ids=cast(id_array, POINTER(c_int32)),
+-            token_ids_count=len(ids),
++            token_ids_count=count,
+         )
+         out = geniex_LlmStateLogitsOutput(struct_size=sizeof(geniex_LlmStateLogitsOutput))
+         _check(get_llm_state_logits_function()(self._handle, byref(inp), byref(out)))
+@@ -502,15 +500,13 @@
+         owns any special tokens; none are added. Intended for on-target accuracy
+         metrics (perplexity, MMLU, MMMU).
+         """
+-        if not input_ids:
+-            raise ValueError('input_ids must be non-empty')
++        ids, n = _marshal_input_ids(input_ids)
++        top_n = operator.index(top_n)
+         if top_n < 0:
+             raise ValueError('top_n must be >= 0')
++        if top_n > 0x7FFFFFFF:
++            raise ValueError('top_n is outside the non-negative int32 range')
+         lib = load_library()
+-
+-        n = len(input_ids)
+-        IdArray = c_int32 * n
+-        ids = IdArray(*[int(t) for t in input_ids])
+         inp = geniex_LlmForwardLogitsInput(
+             input_ids=cast(ids, POINTER(c_int32)),
+             input_ids_count=n,
+diff --git a/bindings/python/tests/unit/test_stateful_decode.py b/bindings/python/tests/unit/test_stateful_decode.py
+--- a/bindings/python/tests/unit/test_stateful_decode.py
++++ b/bindings/python/tests/unit/test_stateful_decode.py
+@@ -63,3 +63,47 @@
+     with pytest.raises(ValueError):
+         model.decode(input_embd=rows)
+     model._handle = None
++
++
++@pytest.mark.parametrize("method", ["state_logits", "forward_logits"])
++@pytest.mark.parametrize("ids", [[], [-1], [2**31], [236771 + 2**32], [1.5], ["1"]])
++def test_logit_ids_are_rejected_before_ffi(monkeypatch, method, ids):
++    def unexpected_call():
++        pytest.fail("invalid IDs reached the native API")
++
++    monkeypatch.setattr(modeling, "load_library", unexpected_call)
++    monkeypatch.setattr(modeling, "get_llm_state_logits_function", unexpected_call)
++    model = GenieXLLM(c_void_p(123))
++    try:
++        with pytest.raises((ValueError, TypeError)):
++            getattr(model, method)(ids)
++    finally:
++        model._handle = None
++
++
++@pytest.mark.parametrize("method", ["state_logits", "generate_from_state"])
++@pytest.mark.parametrize("sequence_id", [-1, 2**31, 2**32, 1.5])
++def test_sequence_id_rejected_before_ffi(monkeypatch, method, sequence_id):
++    def unexpected_call():
++        pytest.fail("invalid sequence reached the native API")
++
++    monkeypatch.setattr(modeling, "load_library", unexpected_call)
++    monkeypatch.setattr(modeling, "get_llm_state_logits_function", unexpected_call)
++    model = GenieXLLM(c_void_p(123))
++    try:
++        args = ([1],) if method == "state_logits" else ()
++        with pytest.raises((ValueError, TypeError)):
++            getattr(model, method)(*args, sequence_id=sequence_id)
++    finally:
++        model._handle = None
++
++
++@pytest.mark.parametrize("top_n", [-1, 2**31, 2**32, 1.5])
++def test_forward_top_n_rejected_before_ffi(monkeypatch, top_n):
++    monkeypatch.setattr(modeling, "load_library", lambda: pytest.fail("invalid top_n reached FFI"))
++    model = GenieXLLM(c_void_p(123))
++    try:
++        with pytest.raises((ValueError, TypeError)):
++            model.forward_logits([1], top_n=top_n)
++    finally:
++        model._handle = None
+diff --git a/sdk/plugins/llama_cpp/src/llm.cpp b/sdk/plugins/llama_cpp/src/llm.cpp
+--- a/sdk/plugins/llama_cpp/src/llm.cpp
++++ b/sdk/plugins/llama_cpp/src/llm.cpp
+@@ -19,6 +19,7 @@
+ #include "logging.h"
+ #include "params.h"
+ #include "profiler.h"
++#include "stop_output.h"
+ 
+ namespace geniex {
+ 
+@@ -258,6 +259,7 @@
+         return GENIEX_ERROR_COMMON_INVALID_INPUT;  // error: neither input_ids nor prompt_utf8 provided
+ 
+     geniex_GenerationConfig cfg = input->config ? *input->config : geniex_GenerationConfig{};
++    if (cfg.stop_count < 0 || (cfg.stop_count > 0 && !cfg.stop)) return GENIEX_ERROR_COMMON_INVALID_INPUT;
+     cfg.max_tokens              = cfg.max_tokens > 0 ? cfg.max_tokens : 128;
+ 
+     // Initialzie resources
+@@ -416,7 +418,7 @@
+ 
+     bool                     first_token_generated = false;
+     std::vector<llama_token> generated_tokens;
+-    std::stringstream        full_text;
++    StopOutput               text_output(cfg, input->on_token, input->user_data);
+ 
+     // Emit one sampled token: records TTFT, applies EOS / stop-sequence / user
+     // callback checks, and appends to the output. Returns false when generation
+@@ -433,29 +435,8 @@
+             return false;
+         }
+ 
+-        char token_buf[64];
+-        int  n = llama_token_to_piece(vocab, id, token_buf, sizeof(token_buf) - 1, 0, this->allow_special_tokens);
+-        if (n < 0) {
+-            res = GENIEX_ERROR_LLM_GENERATION_FAILED;
+-            return false;
+-        }
+-        token_buf[n] = '\0';
+-
+-        const bool stop_matched = std::any_of(
+-            cfg.stop, cfg.stop + cfg.stop_count, [&](const char* s) { return s && strcmp(token_buf, s) == 0; });
+-        if (stop_matched) {
+-            profiler.set_stop_reason(common::StopReason::GENIEX_STOP_REASON_STOP_SEQUENCE);
+-            return false;
+-        }
+-
++        if (!text_output.append(common_token_to_piece(vocab, id, this->allow_special_tokens))) return false;
+         generated_tokens.push_back(id);
+-
+-        if (input->on_token && !input->on_token(token_buf, input->user_data)) {
+-            GENIEX_LOG_WARN("User callback requested stop during token generation");
+-            profiler.set_stop_reason(common::StopReason::GENIEX_STOP_REASON_USER);
+-            return false;
+-        }
+-        full_text << token_buf;
+         return true;
+     };
+ 
+@@ -475,8 +456,13 @@
+         }
+     }
+ 
+-    // update output and profiler data
+-    if (res == GENIEX_ERROR_LLM_TOKENIZATION_CONTEXT_LENGTH) {
++    // Flush an incomplete stop prefix at EOS/length, but never a matched stop.
++    text_output.finish();
++    if (text_output.cancelled) {
++        profiler.set_stop_reason(common::StopReason::GENIEX_STOP_REASON_USER);
++    } else if (text_output.stopped) {
++        profiler.set_stop_reason(common::StopReason::GENIEX_STOP_REASON_STOP_SEQUENCE);
++    } else if (res == GENIEX_ERROR_LLM_TOKENIZATION_CONTEXT_LENGTH) {
+         GENIEX_LOG_WARN("LLM generate: context window ({}) exhausted; truncating", n_ctx);
+         profiler.set_stop_reason(common::StopReason::GENIEX_STOP_REASON_LENGTH);
+     } else if ((int)generated_tokens.size() >= cfg.max_tokens) {
+@@ -485,7 +471,7 @@
+     profiler.decode_end();
+     profiler.update_generated_tokens(generated_tokens.size());
+     profiler.to_profile_data(output->profile_data);
+-    output->full_text = strdup(full_text.str().c_str());
++    output->full_text = strdup(text_output.text.c_str());
+ 
+     // update past record
+     this->n_past_global = prompt_len + generated_tokens.size();
+@@ -690,7 +676,7 @@
+     int32_t sample_index = logits_it->second;
+     bool first_token_generated = false;
+     std::vector<llama_token> generated_tokens;
+-    std::stringstream full_text;
++    StopOutput text_output(cfg, input->on_token, input->user_data);
+ 
+     while (res == GENIEX_SUCCESS && static_cast<int32_t>(generated_tokens.size()) < cfg.max_tokens) {
+         const llama_token id = common_sampler_sample(this->sampler, this->ctx, sample_index);
+@@ -704,27 +690,8 @@
+             break;
+         }
+ 
+-        char token_buf[64];
+-        int n = llama_token_to_piece(vocab, id, token_buf, sizeof(token_buf) - 1, 0, this->allow_special_tokens);
+-        if (n < 0) {
+-            res = GENIEX_ERROR_LLM_GENERATION_FAILED;
+-            break;
+-        }
+-        token_buf[n] = '\0';
+-        const bool stop_matched = cfg.stop_count > 0 && std::any_of(
+-            cfg.stop, cfg.stop + cfg.stop_count,
+-            [&](const char* s) { return s && std::strcmp(token_buf, s) == 0; });
+-        if (stop_matched) {
+-            profiler.set_stop_reason(::common::StopReason::GENIEX_STOP_REASON_STOP_SEQUENCE);
+-            break;
+-        }
+-
++        if (!text_output.append(common_token_to_piece(vocab, id, this->allow_special_tokens))) break;
+         generated_tokens.push_back(id);
+-        if (input->on_token && !input->on_token(token_buf, input->user_data)) {
+-            profiler.set_stop_reason(::common::StopReason::GENIEX_STOP_REASON_USER);
+-            break;
+-        }
+-        full_text << token_buf;
+ 
+         llama_token token = id;
+         llama_pos position = next_position;
+@@ -754,14 +721,19 @@
+         if (input->sequence_id == 0) this->n_past = static_cast<int>(next_position);
+     }
+ 
+-    if (res == GENIEX_ERROR_LLM_TOKENIZATION_CONTEXT_LENGTH ||
++    text_output.finish();
++    if (text_output.cancelled) {
++        profiler.set_stop_reason(::common::StopReason::GENIEX_STOP_REASON_USER);
++    } else if (text_output.stopped) {
++        profiler.set_stop_reason(::common::StopReason::GENIEX_STOP_REASON_STOP_SEQUENCE);
++    } else if (res == GENIEX_ERROR_LLM_TOKENIZATION_CONTEXT_LENGTH ||
+         static_cast<int32_t>(generated_tokens.size()) >= cfg.max_tokens) {
+         profiler.set_stop_reason(::common::StopReason::GENIEX_STOP_REASON_LENGTH);
+     }
+     profiler.decode_end();
+     profiler.update_generated_tokens(static_cast<uint32_t>(generated_tokens.size()));
+     profiler.to_profile_data(output->profile_data);
+-    output->full_text = strdup(full_text.str().c_str());
++    output->full_text = strdup(text_output.text.c_str());
+     return output->full_text ? res : GENIEX_ERROR_COMMON_MEMORY_ALLOCATION;
+ }
+ 
+diff --git a/sdk/plugins/llama_cpp/include/stop_output.h b/sdk/plugins/llama_cpp/include/stop_output.h
+new file mode 100644
+--- /dev/null
++++ b/sdk/plugins/llama_cpp/include/stop_output.h
+@@ -0,0 +1,64 @@
++// SPDX-License-Identifier: BSD-3-Clause
++#pragma once
++
++#include <algorithm>
++#include <string>
++
++#include "common.h"
++#include "geniex.h"
++
++namespace geniex {
++
++// Share stop handling between ordinary, speculative and stateful generation.
++// Keep only possible stop prefixes pending so callbacks never see a stop string.
++class StopOutput {
++    const geniex_GenerationConfig& config;
++    geniex_token_callback callback;
++    void* user_data;
++    std::string pending;
++
++    bool emit(size_t count) {
++        const std::string ready = pending.substr(0, count);
++        pending.erase(0, count);
++        if (ready.empty()) return true;
++        if (callback && !callback(ready.c_str(), user_data)) {
++            cancelled = true;
++            return false;
++        }
++        text += ready;
++        return true;
++    }
++
++public:
++    std::string text;
++    bool stopped = false;
++    bool cancelled = false;
++
++    StopOutput(const geniex_GenerationConfig& cfg, geniex_token_callback cb, void* data)
++        : config(cfg), callback(cb), user_data(data) {}
++
++    bool append(const std::string& piece) {
++        pending += piece;
++        size_t match = std::string::npos;
++        size_t ready = pending.size();
++        for (int32_t i = 0; i < config.stop_count; ++i) {
++            const char* stop = config.stop[i];
++            if (!stop || !*stop) continue;
++            match = std::min(match, pending.find(stop));
++            ready = std::min(ready, string_find_partial_stop(pending, stop));
++        }
++        if (match != std::string::npos) {
++            stopped = true;
++            emit(match);
++            pending.clear();
++            return false;
++        }
++        return emit(ready);
++    }
++
++    void finish() {
++        if (!stopped && !cancelled) emit(pending.size());
++    }
++};
++
++}  // namespace geniex
+diff --git a/sdk/plugins/llama_cpp/tests/test_stop_output.cpp b/sdk/plugins/llama_cpp/tests/test_stop_output.cpp
+new file mode 100644
+--- /dev/null
++++ b/sdk/plugins/llama_cpp/tests/test_stop_output.cpp
+@@ -0,0 +1,59 @@
++#include <cassert>
++#include <string>
++#include "stop_output.h"
++
++static bool collect(const char* piece, void* data) {
++    *static_cast<std::string*>(data) += piece;
++    return true;
++}
++
++int main() {
++    const char* stops[] = {"alpha beta", "END", nullptr, ""};
++    geniex_GenerationConfig cfg{};
++    cfg.stop = stops;
++    cfg.stop_count = 4;
++    std::string streamed;
++    geniex::StopOutput split(cfg, collect, &streamed);
++    assert(split.append("before al"));
++    assert(streamed == "before ");
++    assert(split.append("pha "));
++    assert(streamed == "before ");
++    assert(!split.append("beta after"));
++    split.finish();
++    assert(split.stopped && split.text == "before " && streamed == split.text);
++
++    geniex::StopOutput inside(cfg, nullptr, nullptr);
++    assert(!inside.append("ok END not visible"));
++    assert(inside.text == "ok ");
++
++    geniex::StopOutput partial(cfg, nullptr, nullptr);
++    assert(partial.append("ok al"));
++    partial.finish();
++    assert(!partial.stopped && partial.text == "ok al");
++
++    geniex::StopOutput mismatch(cfg, nullptr, nullptr);
++    assert(mismatch.append("al"));
++    assert(mismatch.append("pine"));
++    mismatch.finish();
++    assert(mismatch.text == "alpine");
++
++    geniex::StopOutput cancel(cfg, [](const char*, void*) { return false; }, nullptr);
++    assert(!cancel.append("visible"));
++    cancel.finish();
++    assert(cancel.cancelled && cancel.text.empty());
++
++    const char* overlaps[] = {"abcde", "bcd"};
++    cfg.stop = overlaps;
++    cfg.stop_count = 2;
++    geniex::StopOutput overlap(cfg, nullptr, nullptr);
++    assert(overlap.append("ab"));
++    assert(!overlap.append("cde"));
++    assert(overlap.text.empty());
++
++    cfg.stop = nullptr;
++    cfg.stop_count = 0;
++    geniex::StopOutput none(cfg, nullptr, nullptr);
++    assert(none.append(std::string(4096, 'x')));
++    none.finish();
++    assert(none.text == std::string(4096, 'x'));
++}

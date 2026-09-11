@@ -68,6 +68,29 @@ wait_for_port() { # port, timeout_s
   return 1
 }
 
+webchat_probe_url() {
+  local host="$WEB_HOST"
+  case "$host" in
+    0.0.0.0|::) host="127.0.0.1" ;;
+    \[*\]) ;;  # Already bracketed IPv6 literal.
+    *:*) host="[$host]" ;;
+  esac
+  printf 'http://%s:%s' "$host" "$WEB_PORT"
+}
+
+logger_is_alive() {
+  local pid="$1"
+  [[ "$pid" =~ ^[0-9]+$ ]] && [ "$pid" -gt 1 ] || return 1
+  "$VENV" - "$pid" "$REPO" "$PROTO/scripts" <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[3])
+from safe_pipeline_stop import process_role, read_process
+proc = read_process(int(sys.argv[1]))
+sys.exit(0 if proc is not None and process_role(proc, Path(sys.argv[2]).resolve()) == "logger" else 1)
+PY
+}
+
 board_count() {
   local n=0 pth
   for pth in /sys/bus/usb/devices/*; do
@@ -159,6 +182,7 @@ start_webchat() {
 }
 
 start_logger() {
+  safe_stop_services logger --check-start || return $?
   if [ -n "$(logger_pid)" ]; then warn "Logger already running (pid $(logger_pid)) — skipping"; return 0; fi
   if [ "$VIBRO_MODE" = "offline" ]; then
     say "OFFLINE mode (set at setup): immutable acquisition replay — no logger starts."
@@ -173,7 +197,6 @@ start_logger() {
         return 1
       fi
     done
-    rm -f "$RUN_DIR/logger.pid"
     ok "  Replay source ready: $REPLAY_SOURCE_ROOT"
     say "  Graphs read fixed windows directly; codec-v1 + codes_v3 run only at manifest timestamps."
     return 0
@@ -181,7 +204,7 @@ start_logger() {
   local n; n="$(board_count)"
   if ! baseline_present || [ "$n" -lt 2 ]; then
     err "  Skipping logger: need baseline + >=1 target, but found $n board(s) and baseline_present=$(baseline_present && echo yes || echo no)."
-    err "  Reconnect boards, then: ./vibroagent.sh start   (model+webchat already up will be skipped)"
+    err "  Reconnect boards, then: ./vibroagent.sh start   (NPU+webchat already up will be skipped)"
     return 1
   fi
   say "Checking native libhs_datalog_v2 before logger start ..."
@@ -217,109 +240,63 @@ start_logger() {
     sleep 1; i=$((i+1))
   done
   started="$(grep -cE 'Started .* on device' "$RUN_DIR/logger.log" 2>/dev/null)"
-  if [ "${started:-0}" -ge 1 ]; then ok "  Logger up — $started board(s) acquiring (pid $(cat "$RUN_DIR/logger.pid"))"
+  local pid; pid="$(cat "$RUN_DIR/logger.pid" 2>/dev/null)"
+  if [ "${started:-0}" -ge 1 ] && logger_is_alive "$pid"; then ok "  Logger up — $started board(s) acquiring (pid $pid)"
   else err "  Logger failed to start — see $RUN_DIR/logger.log"; return 1; fi
   # prewarm per-board reader workers so the first 'all boards' poll is fast
-  curl -s -m 90 "http://$WEB_LOCAL_HOST:$WEB_PORT/api/live-sensors?process_reader=1&prewarm=1" -o /dev/null \
-    && say "  Reader workers prewarmed."
+  local sensors_path="/api/live-sensors"
+  [ "${STACK:-codes}" = "gemma" ] && sensors_path="/api/vibro/sensors"
+  if curl --noproxy '*' --fail --silent --show-error --max-time 90 \
+      "$(webchat_probe_url)$sensors_path?process_reader=1&prewarm=1" -o /dev/null; then
+    say "  Reader workers prewarmed."
+  else
+    warn "  Reader prewarm unavailable; acquisition remains running and readers initialize on demand."
+  fi
+  if ! logger_is_alive "$pid"; then
+    err "  Logger exited during reader prewarm — see $RUN_DIR/logger.log"
+    return 1
+  fi
+  return 0
 }
 
 do_start() {
   say "== VibroAgent: launching the codes_v3 production stack =="
-  start_geniex
-  start_webchat
-  start_logger
+  start_geniex || return $?
+  start_webchat || return $?
+  start_logger || return $?
   say "----------------------------------------"
   do_status
 }
 
 # ---------------------------------------------------------------------------- stop
-stop_logger() {
-  if [ "$VIBRO_MODE" = "offline" ]; then
-    rm -f "$RUN_DIR/logger.pid"
-    say "No offline logger process exists; recordings remain untouched."
-    return 0
-  fi
-  # Graceful only. The logger MUST run stop_log on every board over USB before it
-  # exits; killing it mid-stream (SIGTERM/SIGKILL) leaves boards in a bad state and
-  # drops them off the bus (needs a physical replug). So: SIGINT, wait generously,
-  # nudge once more, and treat SIGTERM/SIGKILL strictly as a last resort.
-  local p; p="$(logger_pid)"
-  [ -z "$p" ] && [ -f "$RUN_DIR/logger.pid" ] && p="$(cat "$RUN_DIR/logger.pid")"
-  if [ -z "${p:-}" ] || ! ps -o pid= -p "$p" >/dev/null 2>&1; then
-    say "Logger not running."; rm -f "$RUN_DIR/logger.pid"; return 0
-  fi
-  local nstarted; nstarted="$(grep -cE 'Started .* on device' "$RUN_DIR/logger.log" 2>/dev/null)"
-  say "Stopping logger (SIGINT -> clean stop_log on ${nstarted:-?} board(s)) pid $p ..."
-  kill -INT "$p" 2>/dev/null
-  # Wait by PROGRESS, not a blind timer. With the logger started unbuffered, each
-  # board's "Stopped <role>" line appears as it is released, so keep waiting while the
-  # count is still rising and only conclude the logger is wedged in a native call
-  # after a real stall. A normally-progressing stop is always allowed to finish;
-  # only a true hang is force-killed.
-  local i=0 nudged=0 prev=-1 stall=0 nstopped=0 forced=0
-  while [ "$i" -lt 120 ]; do
-    ps -o pid= -p "$p" >/dev/null 2>&1 || { ok "  Logger exited cleanly after ${i}s."; break; }
-    nstopped="$(grep -cE 'Stopped (baseline|target_)' "$RUN_DIR/logger.log" 2>/dev/null)"
-    if [ "$nstopped" -gt "$prev" ]; then prev="$nstopped"; stall=0; else stall=$((stall+1)); fi
-    if [ "$stall" -eq 12 ] && [ "$nudged" -eq 0 ]; then warn "  no progress for 12s; resending SIGINT"; kill -INT "$p" 2>/dev/null; nudged=1; fi
-    if [ "$stall" -ge 25 ]; then warn "  no stop_log progress for 25s — logger appears wedged in a native HSD call."; break; fi
-    sleep 1; i=$((i+1))
-  done
-  if ps -o pid= -p "$p" >/dev/null 2>&1; then
-    err "  Logger not exiting (stopped ${nstopped}/${nstarted:-?} boards). LAST resort SIGTERM."
-    err "  A board mid-stream may need a replug; this wedge is almost always a marginal USB link."
-    forced=1
-    kill "$p" 2>/dev/null; sleep 3
-    ps -o pid= -p "$p" >/dev/null 2>&1 && kill -9 "$p" 2>/dev/null
-  fi
-  say "  stop_log confirmations: ${nstopped:-0}/${nstarted:-?} board(s)."
-  sleep 2  # let USB settle before any re-acquire
-  local n; n="$(board_count)"
-  if [ "$n" -lt 6 ]; then
-    warn "  Only $n/6 boards enumerated after stop — one may have dropped; replug if a board is missing on next start."
-  elif [ "$forced" -eq 1 ] || { [ "${nstarted:-0}" -gt 0 ] && [ "${nstopped:-0}" -lt "${nstarted:-0}" ]; }; then
-    warn "  All $n boards still enumerated, but logger shutdown was not clean (${nstopped:-0}/${nstarted:-?} stop_log confirmations)."
-    warn "  If the next start cannot acquire a board, replug the affected board(s)."
-  else
-    ok "  All $n boards still enumerated — clean."
-  fi
-  rm -f "$RUN_DIR/logger.pid"
+safe_stop_services() {
+  local service="$1"; shift
+  # Shutdown uses only stdlib/Linux pidfds, never the optional application venv.
+  /usr/bin/python3 -I "$PROTO/scripts/safe_pipeline_stop.py" \
+    --repo "$REPO" --service "$service" \
+    --timeout "${VIBRO_SAFE_STOP_TIMEOUT_S:-120}" "$@"
 }
 
-stop_by_port() { # name, port  (webchat/model only — these do NOT hold the USB boards)
-  local name="$1" port="$2" p; p="$(port_pid "$port")"
-  if [ -n "$p" ]; then
-    say "Stopping $name (pid $p, :$port) ..."; kill "$p" 2>/dev/null
-    local i=0; while [ "$i" -lt 6 ]; do ps -o pid= -p "$p" >/dev/null 2>&1 || break; sleep 1; i=$((i+1)); done
-    ps -o pid= -p "$p" >/dev/null 2>&1 && { warn "  still alive after ${i}s, SIGKILL"; kill -9 "$p" 2>/dev/null; }
-    ok "  $name stopped."
-  else say "$name not running."; fi
-  rm -f "$RUN_DIR/${name}.pid"
-}
+stop_logger() { safe_stop_services logger; }
 
-release_dsp() {
-  # kill any orphaned GenieX process still holding /dev/fastrpc-cdsp
-  local pid
-  for pid in $(ls /proc 2>/dev/null | grep -E '^[0-9]+$'); do
-    if ls -l "/proc/$pid/fd" 2>/dev/null | grep -q fastrpc-cdsp; then
-      warn "  GenieX process $pid still holds the DSP — terminating"
-      kill "$pid" 2>/dev/null; sleep 2
-      ps -o pid= -p "$pid" >/dev/null 2>&1 && kill -9 "$pid" 2>/dev/null
-    fi
-  done
-}
+stop_by_port() { safe_stop_services "$1"; }
+
 
 do_stop() {
-  say "== VibroAgent: stopping all services =="
-  stop_logger
-  stop_by_port webchat "$WEB_PORT"
-  stop_by_port geniex "$GENIEX_PORT"
-  release_dsp
-  ok "All stopped."
+  say "== VibroAgent: safe shutdown (no forced board termination) =="
+  safe_stop_services all "$@"
 }
 
 # ---------------------------------------------------------------------------- status
+do_restart() {
+  do_stop || return $?
+  if [ "${MODE:-${VIBRO_MODE:-live}}" != offline ]; then
+    say "Board shutdown confirmed; allowing USB to settle ..."
+    sleep 6
+  fi
+  do_start
+}
+
 do_status() {
   if port_listening "$GENIEX_PORT"; then ok "geniex codes LLM : UP   :$GENIEX_PORT (pid $(port_pid "$GENIEX_PORT"))"
   else err "geniex codes LLM : DOWN :$GENIEX_PORT"; fi
@@ -336,12 +313,19 @@ do_status() {
 }
 
 # ---------------------------------------------------------------------------- main
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  if [[ "${1:-}" != "--control-locked" ]]; then
+    exec flock --nonblock --conflict-exit-code 75 --close "$RUN_DIR/control.lock" \
+      "$REPO/vibroagent.sh" --control-locked "$@"
+  fi
+  shift
 case "${1:-start}" in
   start)   do_start ;;
-  stop)    do_stop ;;
-  restart) do_stop; say "Letting USB settle before restart ..."; sleep 6; do_start ;;
-  stop-model) stop_by_port geniex "$GENIEX_PORT"; release_dsp; ok "Model server stopped, DSP released." ;;
-  restart-webchat) stop_by_port webchat "$WEB_PORT"; start_webchat ;;
+  stop|safe-stop) do_stop "${@:2}" ;;
+  restart) do_restart ;;
+  stop-model) stop_by_port geniex "$GENIEX_PORT" ;;
+  restart-webchat) stop_by_port webchat "$WEB_PORT" && start_webchat ;;
   status)  do_status ;;
   *) err "Usage: $0 [start|stop|restart|status|stop-model|restart-webchat]"; exit 2 ;;
 esac
+fi

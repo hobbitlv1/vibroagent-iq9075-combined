@@ -258,7 +258,15 @@ tail -f .run/webchat.log
 tail -f .run/logger.log
 ```
 
-Use `./vibroagent.sh stop` for the live fleet. The launcher sends `SIGINT` to the logger and waits for `stop_log` confirmation from every board. A forced logger termination can leave a board in a state that requires a physical USB replug.
+Use `./vibroagent.sh stop` (or `safe-stop`) for this checkout's live fleet. The launcher sends one `SIGINT` to the logger and requires native `stop_log` acknowledgements before stopping the web application and model. A timeout leaves the logger alive and blocks restart; it never escalates to a forced kill or USB reset. The stop helper uses the system Python, so it remains available even when the application virtualenv is missing.
+
+Both live and offline logger startup validate retained shutdown evidence before probing hardware or replacing logs. A pending stop or failed native acknowledgement blocks `start` as well as `restart`, even if `logger.pid` is missing. The saved stop request and shutdown receipt remain authoritative; deleting a PID file is not a recovery procedure. A complete matching receipt permits the next startup without sending another signal.
+
+To stop both independently scoped stacks in this combined checkout, use `bash linux_setup/vibroagent-safe-stop.sh`. The desktop **Stop VibroAgent Safely** shortcut uses this wrapper. It acquires both control locks before stopping either stack and aborts on an incomplete stop. Preview the exact process targets without stopping anything:
+
+```bash
+bash linux_setup/vibroagent-safe-stop.sh --dry-run
+```
 
 ### 2.2 Open the interface
 
@@ -760,7 +768,7 @@ The launcher prints the LAN URL for the web application. The model adapter stays
 ./vibroagent.sh stop
 ```
 
-The stop path terminates the monitor and model, asks the logger to stop, and lets the acquisition processes issue `stop_log` to their boards. Do not use `kill -9` as the ordinary shutdown path.
+The stop path first asks the logger to stop and requires native acknowledgements from every started board, then stops the monitor and model. An incomplete board stop blocks restart. Do not use `kill -9` or disconnect USB/power before shutdown is confirmed.
 
 #### 3.2 Board-free web replay
 
@@ -1080,14 +1088,21 @@ For reproducible power data, use a calibrated inline DC meter between the supply
 
 ### 17. Verification
 
+Run the isolated installer regression suite (no package downloads or system changes):
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+See [tests/README.md](tests/README.md) for coverage, static checks, and target-board verification.
+
 Check scripts and every installer mapping without installing:
 
 ```bash
-bash -n install.sh \
-  VibroAgent-Gemma/setup.sh \
-  VibroAgent-Gemma/setup_models.sh \
-  VibroAgent-Gemma/setup_geniex.sh \
-  VibroAgent-Gemma/vibroagent.sh
+for script in install.sh setup*.sh VibroAgent-Gemma/setup*.sh \
+  vibroagent.sh VibroAgent-Gemma/vibroagent.sh; do
+  bash -n "$script" || exit
+done
 
 for option in codec-live codec-offline gemma-live gemma-offline gemma-demo; do
   ./install.sh --"$option" --dry-run --no-splash
