@@ -722,6 +722,27 @@ class _DisabledModelClient:
         )
 
 
+DEFAULT_EXPORT_ROOT = Path(__file__).resolve().parents[2] / "validation_exports"
+
+
+def _resolve_export_output_dir(output_dir: str | os.PathLike[str] | None) -> Path:
+    """Resolve a model-callable export target inside the export root.
+
+    The export tool is reachable from the chat model, so its ``output_dir`` can never be
+    trusted to point anywhere on the filesystem. Relative paths are taken relative to the
+    export root (``VIBRO_EXPORT_ROOT``, default ``<project>/validation_exports``); absolute
+    paths must already lie inside it.
+    """
+    root = Path(os.environ.get("VIBRO_EXPORT_ROOT") or DEFAULT_EXPORT_ROOT).expanduser().resolve()
+    requested = Path(str(output_dir).strip() or ".").expanduser() if output_dir is not None else Path(".")
+    target = (requested if requested.is_absolute() else root / requested).resolve()
+    try:
+        target.relative_to(root)
+    except ValueError:
+        raise ValueError(f"output_dir must be inside the export root {root}. Got: {target}") from None
+    return target
+
+
 def export_building_validation_dataset_service(
     config_path: str = DEFAULT_BUILDING_SENSOR_CONFIG,
     baseline_sensor_id: str = "baseline",
@@ -729,10 +750,21 @@ def export_building_validation_dataset_service(
     start_time_s: float | None = None,
     duration_s: float = 10.0,
     axis: str | None = None,
-    output_dir: str = "./validation_exports",
+    output_dir: str = ".",
     require_current: bool = True,
 ) -> dict[str, Any]:
-    """Run the building checker and export MATLAB validation artifacts."""
+    """Run the building checker and export MATLAB validation artifacts under the export root."""
+    try:
+        resolved_output_dir = _resolve_export_output_dir(output_dir)
+    except ValueError as exc:
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "analysis_domain": ANALYSIS_DOMAIN,
+            "status": "error",
+            "error": "export_dir_not_allowed",
+            "message": str(exc),
+            "requested_output_dir": output_dir,
+        }
     agent = AutonomousLlmSensorAgent(
         config_path=str(_resolve_building_sensor_config(config_path)),
         baseline_sensor_id=baseline_sensor_id,
@@ -748,7 +780,7 @@ def export_building_validation_dataset_service(
         export = export_validation_dataset(
             pipeline_result=result,
             windows=agent.last_windows,
-            output_dir=output_dir,
+            output_dir=resolved_output_dir,
         )
     except OSError as exc:
         return {

@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import copy
+import hmac
 import json
 import math
 import os
@@ -21,11 +22,12 @@ from bisect import bisect_right
 from collections import deque
 from datetime import datetime, timezone
 from http import HTTPStatus
+from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 from .errors import format_exception_for_response
@@ -112,16 +114,22 @@ ANOMALOUS_SENSOR_LABELS = {
 }
 class WebchatHandler(BaseHTTPRequestHandler):
     server_version = "VibroAgentWebchat/0.1"
+    # Socket timeout for reading the request and writing the response. A client that trickles
+    # headers or never sends its announced body cannot hold a handler thread indefinitely.
+    try:
+        timeout = max(1.0, float(os.environ.get("VIBRO_WEB_SOCKET_TIMEOUT_S") or 30.0))
+    except ValueError:
+        timeout = 30.0
 
     def do_OPTIONS(self) -> None:
-        if not self._request_origin_allowed():
-            self._send_json({"ok": False, "error": "origin_not_allowed"}, status=HTTPStatus.FORBIDDEN)
+        # CORS preflights carry no cookies, so they are gated on origin only; the real request is
+        # gated on origin and token.
+        if not self._gate(require_token=False):
             return
         self._send_bytes(b"", content_type="text/plain")
 
     def do_GET(self) -> None:
-        if not self._request_origin_allowed():
-            self._send_json({"ok": False, "error": "origin_not_allowed"}, status=HTTPStatus.FORBIDDEN)
+        if not self._gate():
             return
         parsed = urlparse(self.path)
         if parsed.path == "/":
@@ -165,6 +173,7 @@ class WebchatHandler(BaseHTTPRequestHandler):
                     "base_url": runtime_status["base_url"],
                     "model": runtime_status["model"],
                     "has_api_key": bool(os.environ.get("QWEN_API_KEY")),
+                    "model_overrides_allowed": _request_model_overrides_allowed(),
                     "npu": runtime_status,
                 }
             )
@@ -200,15 +209,16 @@ class WebchatHandler(BaseHTTPRequestHandler):
 
         if parsed.path == "/api/models":
             query = parse_qs(parsed.query)
+            overrides_allowed = _request_model_overrides_allowed()
             try:
                 base_url = _request_model_base_url(
-                    _first(query, "base_url"),
+                    _first(query, "base_url") if overrides_allowed else None,
                     default=os.environ.get("QWEN_BASE_URL", DEFAULT_BASE_URL),
                 )
             except ValueError as exc:
                 self._send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
                 return
-            api_key = _first(query, "api_key") or os.environ.get("QWEN_API_KEY", "EMPTY")
+            api_key = (_first(query, "api_key") if overrides_allowed else None) or os.environ.get("QWEN_API_KEY", "EMPTY")
             try:
                 client = _load_openai_client(base_url=base_url, api_key=api_key)
                 models = client.models.list()
@@ -223,8 +233,7 @@ class WebchatHandler(BaseHTTPRequestHandler):
         self._send_json({"error": "not found"}, status=HTTPStatus.NOT_FOUND)
 
     def do_POST(self) -> None:
-        if not self._request_origin_allowed():
-            self._send_json({"ok": False, "error": "origin_not_allowed"}, status=HTTPStatus.FORBIDDEN)
+        if not self._gate():
             return
         parsed = urlparse(self.path)
         if parsed.path == "/api/npu-chat":
@@ -310,8 +319,8 @@ class WebchatHandler(BaseHTTPRequestHandler):
                 result = asyncio.run(
                     chat_with_mcp(
                         message,
-                        base_url=_request_model_base_url(_clean(payload.get("base_url")), default=None),
-                        api_key=_clean(payload.get("api_key")),
+                        base_url=_request_model_base_url(_request_model_override(payload, "base_url"), default=None),
+                        api_key=_request_model_override(payload, "api_key"),
                         model=_clean(payload.get("model")),
                         timeout_s=timeout_s,
                         max_tokens=max_tokens,
@@ -367,14 +376,27 @@ class WebchatHandler(BaseHTTPRequestHandler):
         self._send_json({"error": "not found"}, status=HTTPStatus.NOT_FOUND)
 
     def log_message(self, format: str, *args: Any) -> None:
-        print(f"{self.address_string()} - {format % args}")
+        print(f"{self.address_string()} - {_redact_web_token(format % args)}")
 
     def _read_json(self) -> dict[str, Any]:
-        length = int(self.headers.get("Content-Length", "0"))
-        if length > 1_000_000:
+        if (self.headers.get("Transfer-Encoding") or "").strip():
+            raise ValueError("Transfer-Encoding is not supported; send a Content-Length body")
+        raw_length = (self.headers.get("Content-Length") or "0").strip()
+        try:
+            length = int(raw_length)
+        except ValueError:
+            raise ValueError(f"invalid Content-Length: {raw_length!r}") from None
+        if length < 0:
+            raise ValueError(f"invalid Content-Length: {raw_length!r}")
+        if length > MAX_REQUEST_BODY_BYTES:
             raise ValueError("request body is too large")
         raw = self.rfile.read(length)
-        return json.loads(raw.decode("utf-8") or "{}")
+        if len(raw) != length:
+            raise ValueError("request body was truncated")
+        data = json.loads(raw.decode("utf-8") or "{}")
+        if not isinstance(data, dict):
+            raise ValueError("request body must be a JSON object")
+        return data
 
     def _send_json(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
         self._send_bytes(
@@ -389,6 +411,7 @@ class WebchatHandler(BaseHTTPRequestHandler):
         *,
         status: HTTPStatus = HTTPStatus.OK,
         content_type: str,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
@@ -397,10 +420,16 @@ class WebchatHandler(BaseHTTPRequestHandler):
         if cors_origin:
             self.send_header("Access-Control-Allow-Origin", cors_origin)
             self.send_header("Vary", "Origin")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", f"Content-Type, Authorization, {WEB_TOKEN_HEADER}")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Cache-Control", "no-store, max-age=0")
         self.send_header("Pragma", "no-cache")
+        # The UI is never embedded; refusing frames keeps an operator's signed-in session from being
+        # clickjacked into state-changing clicks.
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        for name, value in (extra_headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(body)
 
@@ -417,6 +446,215 @@ class WebchatHandler(BaseHTTPRequestHandler):
         if origin and self._request_origin_allowed():
             return origin
         return None
+
+    def _gate(self, *, require_token: bool = True) -> bool:
+        """Admission check for every request: browser origin first, then the shared web token.
+
+        Returns True when the handler may serve the request. On refusal the error response (or the
+        sign-in redirect) has already been sent and the caller must return without writing anything.
+        """
+        if not self._request_origin_allowed():
+            self._send_json({"ok": False, "error": "origin_not_allowed"}, status=HTTPStatus.FORBIDDEN)
+            return False
+        if not require_token or not _web_auth_required():
+            return True
+        parsed = urlparse(self.path)
+        if parsed.path in PUBLIC_WEB_PATHS:
+            return True
+        query = parse_qs(parsed.query)
+        query_token = _first(query, "token")
+        presented = _valid_presented_web_token(
+            authorization=self.headers.get("Authorization"),
+            token_header=self.headers.get(WEB_TOKEN_HEADER),
+            cookie_header=self.headers.get("Cookie"),
+            query_token=query_token,
+        )
+        if presented is None:
+            self._send_unauthorized(parsed.path)
+            return False
+        if query_token is not None and not parsed.path.startswith("/api/"):
+            # Sign-in link from the launcher: remember the token in a cookie and drop it from the
+            # address bar so it does not linger in history, bookmarks, or shared screenshots.
+            query.pop("token", None)
+            location = parsed.path + (f"?{urlencode(query, doseq=True)}" if query else "")
+            self._send_bytes(
+                b"",
+                status=HTTPStatus.SEE_OTHER,
+                content_type="text/plain",
+                extra_headers={"Location": location, "Set-Cookie": _web_token_cookie(presented)},
+            )
+            return False
+        return True
+
+    def _send_unauthorized(self, path: str) -> None:
+        headers = {"WWW-Authenticate": 'Bearer realm="vibroagent"'}
+        wants_html = not path.startswith("/api/") and "text/html" in (self.headers.get("Accept") or "")
+        if wants_html:
+            self._send_bytes(
+                _UNAUTHORIZED_HTML.encode("utf-8"),
+                status=HTTPStatus.UNAUTHORIZED,
+                content_type="text/html; charset=utf-8",
+                extra_headers=headers,
+            )
+            return
+        self._send_bytes(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": "unauthorized",
+                    "message": (
+                        "This VibroAgent web service requires its access token. Open the URL printed by "
+                        "`vibroagent.sh status`, or send the token as `Authorization: Bearer <token>`."
+                    ),
+                },
+                indent=2,
+            ).encode("utf-8"),
+            status=HTTPStatus.UNAUTHORIZED,
+            content_type="application/json; charset=utf-8",
+            extra_headers=headers,
+        )
+
+
+# ------------------------------------------------------------------------------------------------
+# Shared-token access control. The launcher generates one random token per installation
+# (.run/web_token), passes it as VIBRO_WEB_TOKEN, and prints a sign-in URL carrying it once. Every
+# page and API route except the liveness probe requires it, via the cookie set by that sign-in URL,
+# an `Authorization: Bearer` header, or the X-Vibro-Token header. Unset VIBRO_WEB_TOKEN disables the
+# check; the launcher only does that when VIBRO_WEB_AUTH=0 is requested for local-only use.
+WEB_TOKEN_ENV = "VIBRO_WEB_TOKEN"
+WEB_TOKEN_HEADER = "X-Vibro-Token"
+WEB_TOKEN_COOKIE = "vibro_web_token"
+WEB_TOKEN_COOKIE_MAX_AGE_S = 30 * 24 * 3600
+PUBLIC_WEB_PATHS = frozenset({"/health", "/favicon.ico"})
+_UNAUTHORIZED_HTML = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>VibroAgent - access token required</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{font-family:system-ui,sans-serif;margin:3rem auto;max-width:36rem;padding:0 1rem;color:#1d1d1f}
+code{background:#f1f1f3;padding:.1rem .3rem;border-radius:.2rem}</style></head>
+<body><h1>Access token required</h1>
+<p>This VibroAgent web service only answers requests that carry its access token.</p>
+<p>On the IQ-9075, run <code>./vibroagent.sh status</code> (or <code>./VibroAgent-Gemma/vibroagent.sh status</code>)
+and open the <strong>Web URL</strong> it prints. That link signs this browser in.</p>
+</body></html>
+"""
+
+
+def _web_token() -> str | None:
+    raw = (os.environ.get(WEB_TOKEN_ENV) or "").strip()
+    return raw or None
+
+
+def _web_auth_required() -> bool:
+    return _web_token() is not None
+
+
+def _web_token_matches(candidate: str | None) -> bool:
+    expected = _web_token()
+    if not expected or not candidate:
+        return False
+    return hmac.compare_digest(candidate.strip().encode("utf-8"), expected.encode("utf-8"))
+
+
+def _cookie_value(cookie_header: str | None, name: str) -> str | None:
+    if not cookie_header:
+        return None
+    jar: SimpleCookie = SimpleCookie()
+    try:
+        jar.load(cookie_header)
+    except CookieError:
+        return None
+    morsel = jar.get(name)
+    return morsel.value if morsel is not None else None
+
+
+def _valid_presented_web_token(
+    *,
+    authorization: str | None,
+    token_header: str | None,
+    cookie_header: str | None,
+    query_token: str | None,
+) -> str | None:
+    """Return the presented token when it matches VIBRO_WEB_TOKEN, else None."""
+    candidates: list[str | None] = []
+    if authorization and authorization.strip().lower().startswith("bearer "):
+        candidates.append(authorization.strip()[7:])
+    candidates.append(token_header)
+    candidates.append(_cookie_value(cookie_header, WEB_TOKEN_COOKIE))
+    candidates.append(query_token)
+    for candidate in candidates:
+        if _web_token_matches(candidate):
+            return str(candidate).strip()
+    return None
+
+
+def _web_token_cookie(token: str) -> str:
+    # No Secure flag: the service is plain HTTP on the LAN. SameSite=Strict keeps the cookie off
+    # cross-site requests, which the origin check also rejects.
+    return f"{WEB_TOKEN_COOKIE}={token}; Path=/; Max-Age={WEB_TOKEN_COOKIE_MAX_AGE_S}; HttpOnly; SameSite=Strict"
+
+
+_TOKEN_QUERY_RE = re.compile(r"(token=)[^&\s\"']*")
+
+
+def _redact_web_token(text: str) -> str:
+    return _TOKEN_QUERY_RE.sub(r"\1***", text)
+
+
+MAX_REQUEST_BODY_BYTES = 1_000_000
+DEFAULT_WEB_MAX_ACTIVE_REQUESTS = 32
+
+
+class BoundedThreadingHTTPServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer with a cap on simultaneously handled connections.
+
+    Every accepted connection gets its own thread; without a cap, idle or slow clients could
+    pile up threads without bound. Connections beyond the cap receive an immediate 503 and are
+    closed. The cap is VIBRO_WEB_MAX_ACTIVE_REQUESTS (default 32).
+    """
+
+    daemon_threads = True
+
+    def __init__(self, server_address, handler_class, *, max_active_requests: int | None = None) -> None:
+        super().__init__(server_address, handler_class)
+        self.max_active_requests = int(
+            max_active_requests
+            if max_active_requests is not None
+            else _env_int_value("VIBRO_WEB_MAX_ACTIVE_REQUESTS", DEFAULT_WEB_MAX_ACTIVE_REQUESTS, minimum=1)
+        )
+        self._active_requests = 0
+        self._active_lock = threading.Lock()
+
+    def process_request(self, request, client_address) -> None:
+        with self._active_lock:
+            admitted = self._active_requests < self.max_active_requests
+            if admitted:
+                self._active_requests += 1
+        if not admitted:
+            body = b'{"ok": false, "error": "too_many_connections"}'
+            try:
+                request.sendall(
+                    b"HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json\r\n"
+                    + f"Content-Length: {len(body)}\r\n".encode("ascii")
+                    + b"Retry-After: 1\r\nConnection: close\r\n\r\n"
+                    + body
+                )
+            except OSError:
+                pass
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except Exception:
+            with self._active_lock:
+                self._active_requests -= 1
+            raise
+
+    def process_request_thread(self, request, client_address) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            with self._active_lock:
+                self._active_requests -= 1
 
 
 def _codes_model_status() -> dict[str, Any]:
@@ -519,6 +757,23 @@ def _validate_request_model_base_url(value: str) -> str:
     return value.rstrip("/")
 
 
+def _request_model_overrides_allowed() -> bool:
+    """Whether a request may redirect model traffic (base_url) or supply its own api_key.
+
+    Off by default: the launcher configures the model endpoint, and honoring request-supplied
+    values would let any signed-in client make this host call other local services with a chosen
+    Authorization header and read back the answer. VIBRO_ALLOW_REQUEST_MODEL_OVERRIDES=1 re-enables
+    it for development against a hand-started model server.
+    """
+    return _env_bool("VIBRO_ALLOW_REQUEST_MODEL_OVERRIDES", False)
+
+
+def _request_model_override(payload: dict[str, Any], key: str) -> str | None:
+    if not _request_model_overrides_allowed():
+        return None
+    return _clean(payload.get(key))
+
+
 def _is_loopback_hostname(hostname: str) -> bool:
     host = hostname.strip().strip("[]").lower()
     if host == "localhost":
@@ -558,6 +813,56 @@ def _validate_live_sensor_config_path(path: Path) -> Path:
             continue
     allowed = ", ".join(str(root) for root in _allowed_sensor_config_roots())
     raise ValueError(f"config_path must be inside an allowed sensor config directory: {allowed}. Got: {resolved}")
+
+
+_REGISTRY_FOLDER_CACHE: dict[str, tuple[int, dict[str, str]]] = {}
+_REGISTRY_FOLDER_CACHE_LOCK = threading.Lock()
+
+
+def _registered_acquisition_folders(config_path: Path) -> dict[str, str]:
+    """Map each registry board's resolved acquisition folder to its sensor id (mtime-cached)."""
+    key = str(config_path)
+    try:
+        mtime_ns = config_path.stat().st_mtime_ns
+    except OSError:
+        return {}
+    with _REGISTRY_FOLDER_CACHE_LOCK:
+        cached = _REGISTRY_FOLDER_CACHE.get(key)
+        if cached is not None and cached[0] == mtime_ns:
+            return dict(cached[1])
+    folders: dict[str, str] = {}
+    try:
+        registry = SensorRegistry(config_path)
+        for sensor in registry.sensors.values():
+            if sensor.acquisition_folder:
+                folders[str(Path(sensor.acquisition_folder).expanduser().resolve(strict=False))] = sensor.sensor_id
+    except Exception:
+        return {}
+    with _REGISTRY_FOLDER_CACHE_LOCK:
+        _REGISTRY_FOLDER_CACHE[key] = (mtime_ns, dict(folders))
+    return folders
+
+
+def _pin_request_acquisition_folder(requested: str | None, *, config_path_value: str | None) -> str | None:
+    """Accept a request-supplied acquisition folder only if it is a registered board folder.
+
+    Browsers echo back the folder they were shown for a board; anything else (even inside the
+    allowed HSD root) is refused, so a request cannot steer reads or the metadata repair that a
+    read performs at folders the registry does not own. ``VIBRO_HSD_ACQUISITION_DIR``, when set by
+    the launcher, is the one additional explicit source.
+    """
+    if requested is None:
+        return None
+    requested_resolved = str(Path(requested).expanduser().resolve(strict=False))
+    config_path = _resolve_live_sensor_config_path(config_path_value)
+    if requested_resolved in _registered_acquisition_folders(config_path):
+        return requested
+    environment_folder = _clean(os.environ.get("VIBRO_HSD_ACQUISITION_DIR"))
+    if environment_folder and str(Path(environment_folder).expanduser().resolve(strict=False)) == requested_resolved:
+        return requested
+    raise ValueError(
+        "acquisition_folder is not a registered board folder; select a board by machine_id or sensor_id instead"
+    )
 
 
 def _env_int_value(name: str, default: int, *, minimum: int | None = None) -> int:
@@ -649,10 +954,10 @@ def _first_choice_payload(response_payload: dict[str, Any]) -> dict[str, Any]:
 def _direct_npu_chat_payload(payload: dict[str, Any], server: Any) -> dict[str, Any]:
     del server
     base_url = _request_model_base_url(
-        _clean(payload.get("base_url")),
+        _request_model_override(payload, "base_url"),
         default=os.environ.get("QWEN_BASE_URL", DEFAULT_BASE_URL),
     )
-    api_key = _clean(payload.get("api_key")) or os.environ.get("QWEN_API_KEY", "EMPTY")
+    api_key = _request_model_override(payload, "api_key") or os.environ.get("QWEN_API_KEY", "EMPTY")
     model = _clean(payload.get("model")) or os.environ.get("QWEN_MODEL", DEFAULT_MODEL)
 
     max_prompt_chars = _payload_int(
@@ -923,6 +1228,17 @@ def _live_vibrometer_payload(query: dict[str, list[str]], *, reader=None) -> dic
     sensor_name = _clean(_first(query, "sensor_name"))
     machine_id = _clean(_first(query, "machine_id")) or "stwinbox_iis3dwb"
     acquisition_folder = _clean(_first(query, "acquisition_folder"))
+    try:
+        acquisition_folder = _pin_request_acquisition_folder(
+            acquisition_folder, config_path_value=_first(query, "config_path")
+        )
+    except ValueError as exc:
+        return {
+            "ok": False,
+            "status": "error",
+            "error": "acquisition_folder_not_registered",
+            "message": str(exc),
+        }
     duration_s = min(10.0, max(0.1, _float_query(query, "duration_s", 1.0)))
     max_points = min(5000, max(64, _int_query(query, "max_points", 1800)))
     require_current = _bool_query(query, "require_current", True)
@@ -1185,6 +1501,7 @@ def _resolve_psd_source(query: dict[str, list[str]]) -> dict[str, Any]:
         }
 
     if requested_folder:
+        _pin_request_acquisition_folder(requested_folder, config_path_value=_first(query, "config_path"))
         return {
             "sensor_id": requested_machine_id,
             "machine_id": requested_machine_id or "stwinbox_iis3dwb",
@@ -1958,6 +2275,7 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
             require_current = False
             replay_snapshot = replay_controller.snapshot()
             if _chat_is_inflight():
+                _monitor_yielded_to_chat()
                 paused = _agent_monitor_paused_payload(request_started_s)
                 paused["replay"] = replay_snapshot
                 return paused
@@ -2011,12 +2329,15 @@ def _agent_monitor_payload(query: dict[str, list[str]]) -> dict[str, Any]:
     # the single serialized NPU and starve the chat. Serve the most recent cached result if any,
     # else a benign "paused" payload that the client renders as a no-op.
     if use_llm and _chat_is_inflight():
+        _monitor_yielded_to_chat()
         cached = _cached_agent_monitor_payload(cache_key, request_started_s=request_started_s)
         if cached is not None:
             return cached
         if replay_controller and replay_claim:
             replay_controller.release_claim(replay_claim)
         return _agent_monitor_paused_payload(request_started_s)
+    if use_llm:
+        _monitor_took_turn()
 
     try:
         result = run_building_vibration_agent_pipeline_service(
@@ -2177,18 +2498,68 @@ _ANOMALY_WINDOW_REGISTRY_LOCK = threading.Lock()
 # queue invisibly behind the first chat's entire multi-step run and time out minutes later.
 _CHAT_INFLIGHT_LOCK = threading.Lock()
 _CHAT_INFLIGHT_COUNT = 0
+# Chat-vs-monitor fairness. A chat pauses the LLM monitor; without a bound, a client that loops
+# chat requests could keep the monitor paused indefinitely and silence alarms. Once the monitor has
+# yielded to chat for longer than VIBRO_CHAT_MONITOR_YIELD_S (default 30 s, 0 disables), new chats
+# are refused with "monitor_turn" until the monitor has run again.
+DEFAULT_CHAT_MONITOR_YIELD_S = 30.0
+_MONITOR_YIELDED_SINCE_S: float | None = None
+_CHAT_LAST_REFUSAL = "chat_busy"
+
+
+def _chat_monitor_yield_s() -> float:
+    return _env_float_value("VIBRO_CHAT_MONITOR_YIELD_S", DEFAULT_CHAT_MONITOR_YIELD_S, minimum=0.0)
+
+
+def _monitor_yielded_to_chat() -> None:
+    """Record that an LLM monitor check was skipped because a chat holds the NPU."""
+    global _MONITOR_YIELDED_SINCE_S
+    with _CHAT_INFLIGHT_LOCK:
+        if _MONITOR_YIELDED_SINCE_S is None:
+            _MONITOR_YIELDED_SINCE_S = time.monotonic()
+
+
+def _monitor_took_turn() -> None:
+    """Record that an LLM monitor check is proceeding; chat admission is open again."""
+    global _MONITOR_YIELDED_SINCE_S
+    with _CHAT_INFLIGHT_LOCK:
+        _MONITOR_YIELDED_SINCE_S = None
+
+
+def _monitor_turn_overdue_locked() -> bool:
+    yield_s = _chat_monitor_yield_s()
+    if yield_s <= 0 or _MONITOR_YIELDED_SINCE_S is None:
+        return False
+    return (time.monotonic() - _MONITOR_YIELDED_SINCE_S) > yield_s
 
 
 def _chat_inflight_try_begin() -> bool:
-    global _CHAT_INFLIGHT_COUNT
+    global _CHAT_INFLIGHT_COUNT, _CHAT_LAST_REFUSAL
     with _CHAT_INFLIGHT_LOCK:
         if _CHAT_INFLIGHT_COUNT > 0:
+            _CHAT_LAST_REFUSAL = "chat_busy"
+            return False
+        if _monitor_turn_overdue_locked():
+            _CHAT_LAST_REFUSAL = "monitor_turn"
             return False
         _CHAT_INFLIGHT_COUNT += 1
         return True
 
 
 def _chat_busy_response() -> dict[str, Any]:
+    with _CHAT_INFLIGHT_LOCK:
+        reason = _CHAT_LAST_REFUSAL
+    if reason == "monitor_turn":
+        return {
+            "ok": False,
+            "error": "monitor_turn",
+            "message": (
+                "The live monitor has been waiting for the NPU since the previous chat. "
+                "It runs its check first — retry in a few seconds."
+            ),
+            "fallback_generated": False,
+            "model_explanation_only": True,
+        }
     return {
         "ok": False,
         "error": "chat_busy",
@@ -3300,7 +3671,7 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=7860, help="Bind port")
     args = parser.parse_args()
 
-    httpd = ThreadingHTTPServer((args.host, args.port), WebchatHandler)
+    httpd = BoundedThreadingHTTPServer((args.host, args.port), WebchatHandler)
     url = f"http://{args.host}:{args.port}"
     print(f"VibroAgent webchat running at {url}")
     print("Press Ctrl+C to stop.")
@@ -5516,6 +5887,12 @@ _HTML = r"""<!doctype html>
       const data = await res.json();
       els.baseUrl.value = data.base_url || "http://127.0.0.1:18181/v1";
       els.model.value = data.model || "qwen3_4b_codes_v3";
+      const overridesAllowed = data.model_overrides_allowed !== false;
+      [els.baseUrl, els.apiKey].forEach((el) => {
+        if (!el) return;
+        el.disabled = !overridesAllowed;
+        el.title = overridesAllowed ? "" : "Fixed by the launcher. Start with VIBRO_ALLOW_REQUEST_MODEL_OVERRIDES=1 to edit.";
+      });
       updateConnectionSummary();
       if (data.npu && data.npu.enabled) {
         if (data.npu.serving) {

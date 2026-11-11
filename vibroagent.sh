@@ -32,10 +32,39 @@ CODES_N_CTX="${CODES_N_CTX:-6144}"
 WEB_PORT="${WEB_PORT:-7860}"
 # Bind the webchat to the LAN interface only (default-route source IP): reachable from the
 # LAN/router but NOT on tailscale0 or loopback. Set WEB_HOST=127.0.0.1 for local-only, or
-# WEB_HOST=0.0.0.0 for every interface including Tailscale. The webchat has no auth.
+# WEB_HOST=0.0.0.0 for every interface including Tailscale.
 LAN_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[0-9.]+' | head -1)"
 WEB_HOST="${WEB_HOST:-${LAN_IP:-127.0.0.1}}"
 if [ "$WEB_HOST" = "0.0.0.0" ]; then WEB_LOCAL_HOST=127.0.0.1; else WEB_LOCAL_HOST="$WEB_HOST"; fi
+# Web access token. Every page and /api route except /health requires it; the webchat enforces it
+# whenever VIBRO_WEB_TOKEN is set. One random token is generated per installation into
+# .run/web_token (mode 0600) and reused across restarts; `status` prints the sign-in URL that
+# carries it. VIBRO_WEB_AUTH=0 disables the check (only sensible with WEB_HOST=127.0.0.1).
+WEB_TOKEN_FILE="$RUN_DIR/web_token"
+web_token() {
+  [ "${VIBRO_WEB_AUTH:-1}" = "0" ] && return 0
+  if [ -n "${VIBRO_WEB_TOKEN:-}" ]; then printf '%s' "$VIBRO_WEB_TOKEN"; return 0; fi
+  if [ ! -s "$WEB_TOKEN_FILE" ]; then
+    mkdir -p "$RUN_DIR" || return 1
+    ( umask 077; od -An -tx1 -N24 /dev/urandom | tr -d ' \n' > "$WEB_TOKEN_FILE" ) || return 1
+  fi
+  chmod 600 "$WEB_TOKEN_FILE" 2>/dev/null || true
+  tr -d ' \n' < "$WEB_TOKEN_FILE"
+}
+web_auth_header() { # for curl: prints the Authorization header argument, or nothing when auth is off
+  local t; t="$(web_token)" || return 0
+  [ -n "$t" ] && printf 'Authorization: Bearer %s' "$t"
+}
+web_signin_url() { # the URL to open in a browser; the token in it is exchanged for a cookie on first load
+  local host="$WEB_HOST" t
+  case "$host" in
+    0.0.0.0|::) host="${LAN_IP:-127.0.0.1}" ;;
+    \[*\]) ;;
+    *:*) host="[$host]" ;;
+  esac
+  t="$(web_token)" || t=""
+  printf 'http://%s:%s/%s' "$host" "$WEB_PORT" "${t:+?token=$t}"
+}
 BASELINE_SERIAL="003F003D3530500820323641"
 LOGGER_PY="$EX/vibroagent_two_vibrometer_logger.py"
 NATIVE_PROBE_PY="$EX/vibroagent_hsd_native_probe.py"
@@ -146,6 +175,8 @@ start_webchat() {
   if port_listening "$WEB_PORT"; then warn "Webchat already on :$WEB_PORT (pid $(port_pid "$WEB_PORT")) — skipping"; return 0; fi
   say "Starting webchat on :$WEB_PORT ..."
   ( cd "$PROTO" || exit 1
+    token="$(web_token)" || { err "  Could not create $WEB_TOKEN_FILE"; exit 1; }
+    if [ -n "$token" ]; then export VIBRO_WEB_TOKEN="$token"; else unset VIBRO_WEB_TOKEN; fi
     export QWEN_BASE_URL="${QWEN_BASE_URL:-http://127.0.0.1:$GENIEX_PORT/v1}"
     export VIBRO_CODES_WORKER_PYTHON="${VIBRO_CODES_WORKER_PYTHON:-$HOME/codec-cpu-venv/bin/python}"
     export QWEN_API_KEY="EMPTY" QWEN_MODEL="${QWEN_MODEL:-qwen3_4b_codes_v3}"
@@ -177,7 +208,9 @@ start_webchat() {
       --host "$WEB_HOST" --port "$WEB_PORT" \
       > "$RUN_DIR/webchat.log" 2>&1 &
     echo $! > "$RUN_DIR/webchat.pid" )
-  if wait_for_port "$WEB_PORT" 30; then ok "  Webchat up — http://$WEB_HOST:$WEB_PORT  (graph: /graph)"
+  if wait_for_port "$WEB_PORT" 30; then
+    ok "  Webchat up — $(web_signin_url)  (graph: /graph)"
+    [ -n "$(web_token)" ] && say "  Open that URL once per browser; it signs the browser in. 'status' prints it again."
   else err "  Webchat did not open :$WEB_PORT — see $RUN_DIR/webchat.log"; fi
 }
 
@@ -247,6 +280,7 @@ start_logger() {
   local sensors_path="/api/live-sensors"
   [ "${STACK:-codes}" = "gemma" ] && sensors_path="/api/vibro/sensors"
   if curl --noproxy '*' --fail --silent --show-error --max-time 90 \
+      -H "$(web_auth_header)" \
       "$(webchat_probe_url)$sensors_path?process_reader=1&prewarm=1" -o /dev/null; then
     say "  Reader workers prewarmed."
   else
@@ -301,6 +335,7 @@ do_status() {
   if port_listening "$GENIEX_PORT"; then ok "geniex codes LLM : UP   :$GENIEX_PORT (pid $(port_pid "$GENIEX_PORT"))"
   else err "geniex codes LLM : DOWN :$GENIEX_PORT"; fi
   port_listening "$WEB_PORT"  && ok  "Webchat          : UP   :$WEB_PORT (pid $(port_pid "$WEB_PORT"))" || err "Webchat          : DOWN :$WEB_PORT"
+  say "Web URL          : $(web_signin_url)"
   if [ "$VIBRO_MODE" = "offline" ]; then
     if [ -f "$REPLAY_MANIFEST" ]; then ok "Replay source     : READY (immutable)"; else err "Replay source     : MISSING"; fi
     say "Replay root       : $REPLAY_SOURCE_ROOT"

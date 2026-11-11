@@ -77,7 +77,37 @@ def test_matlab_export_writes_required_files_and_columns(tmp_path, monkeypatch):
     assert {"baseline", "target"} <= {row["sensor_id"] for row in rows}
 
 
-def test_export_service_returns_matlab_paths(tmp_path):
+def test_export_service_refuses_output_outside_export_root(tmp_path, monkeypatch):
+    from vibroagent_mcp.service import _resolve_export_output_dir
+
+    root = tmp_path / "export_root"
+    monkeypatch.setenv("VIBRO_EXPORT_ROOT", str(root))
+    # Relative requests land under the root; "." is the root itself.
+    assert _resolve_export_output_dir(".") == root.resolve()
+    assert _resolve_export_output_dir("run_7") == (root / "run_7").resolve()
+    assert _resolve_export_output_dir(str(root / "abs")) == (root / "abs").resolve()
+    # Escapes by traversal or by absolute path are refused.
+    for escape in ("../elsewhere", str(tmp_path / "elsewhere"), "/etc", "~/.ssh"):
+        try:
+            _resolve_export_output_dir(escape)
+        except ValueError as exc:
+            assert "export root" in str(exc)
+        else:  # pragma: no cover - defensive
+            raise AssertionError(f"{escape!r} was accepted")
+
+    # The service refuses before running the pipeline and returns a structured error.
+    result = export_building_validation_dataset_service(
+        config_path=str(_write_config(tmp_path)),
+        output_dir=str(tmp_path / "outside"),
+        require_current=False,
+    )
+    assert result["status"] == "error"
+    assert result["error"] == "export_dir_not_allowed"
+    assert not (tmp_path / "outside").exists()
+
+
+def test_export_service_returns_matlab_paths(tmp_path, monkeypatch):
+    monkeypatch.setenv("VIBRO_EXPORT_ROOT", str(tmp_path))
     config = _write_config(tmp_path)
     result = export_building_validation_dataset_service(
         config_path=str(config),
@@ -95,7 +125,8 @@ def test_export_service_returns_matlab_paths(tmp_path):
     assert Path(result["matlab_export"]["validation_windows_csv"]).exists()
 
 
-def test_export_service_returns_structured_error_for_unwritable_output(tmp_path):
+def test_export_service_returns_structured_error_for_unwritable_output(tmp_path, monkeypatch):
+    monkeypatch.setenv("VIBRO_EXPORT_ROOT", str(tmp_path))
     config = _write_config(tmp_path)
     output_file = tmp_path / "not_a_directory"
     output_file.write_text("already a file", encoding="utf-8")

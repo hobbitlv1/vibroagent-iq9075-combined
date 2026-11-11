@@ -233,10 +233,14 @@ def export_building_validation_dataset(
     start_time_s: float | None = None,
     duration_s: float = 10.0,
     axis: str | None = None,
-    output_dir: str = "./validation_exports",
+    output_dir: str = ".",
     require_current: bool = True,
 ) -> dict[str, Any]:
-    """Run the building pipeline and write MATLAB validation CSV/JSONL artifacts."""
+    """Run the building pipeline and write MATLAB validation CSV/JSONL artifacts.
+
+    ``output_dir`` is a subdirectory of the fixed export root (``VIBRO_EXPORT_ROOT``);
+    paths outside it are refused.
+    """
     return _run_tool_safely(
         export_building_validation_dataset_service,
         config_path=config_path,

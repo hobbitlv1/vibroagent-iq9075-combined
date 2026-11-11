@@ -286,7 +286,7 @@ http://<iq-9075-lan-ip>:7860
 
 The graph page is available at `/graph`. Set `WEB_HOST=127.0.0.1` before launch for local-only access, or `WEB_HOST=0.0.0.0` to bind every interface.
 
-The web application has no authentication. Keep it on a trusted network and do not expose port `7860` directly to the internet.
+Every page and `/api` route except `/health` requires a per-installation access token. The launcher generates it once into `.run/web_token` (mode 0600), passes it to the web process as `VIBRO_WEB_TOKEN`, and prints a sign-in URL of the form `http://<ip>:7860/?token=...`. Opening that URL once stores the token in a browser cookie and redirects to the plain page; `./vibroagent.sh status` prints it again. Scripts send `Authorization: Bearer <token>` or `X-Vibro-Token: <token>`. Set `VIBRO_WEB_AUTH=0` to disable the check for local-only use. The token travels over plain HTTP, so keep the service on a trusted network and do not expose port `7860` directly to the internet; put it behind a TLS reverse proxy if it must leave the LAN.
 
 ### 2.3 Recorded-data mode
 
@@ -577,6 +577,13 @@ The baseline serial is also checked by `vibroagent.sh` before acquisition begins
 | `VIBRO_CODES_AXES` | Unset | Optional comma-separated single-axis passes, such as `x,y,z` |
 | `WEB_HOST` | Default-route IPv4 address | Web bind address |
 | `WEB_PORT` | `7860` | Web application port |
+| `VIBRO_WEB_TOKEN` | Generated into `.run/web_token` | Shared access token required by every page and `/api` route except `/health` |
+| `VIBRO_WEB_AUTH` | `1` | Set `0` to start the web application without the token check (local-only use) |
+| `VIBRO_CHAT_MONITOR_YIELD_S` | `30` | After the LLM monitor has yielded to chat this long, new chats are refused until the monitor runs again (`0` disables) |
+| `VIBRO_WEB_SOCKET_TIMEOUT_S` | `30` | Per-connection socket timeout of the web application |
+| `VIBRO_WEB_MAX_ACTIVE_REQUESTS` | `32` | Simultaneous web connections; further connections receive HTTP 503 |
+| `VIBRO_ALLOW_REQUEST_MODEL_OVERRIDES` | `0` | Set `1` to let chat requests supply their own model `base_url` and `api_key` (development only) |
+| `VIBRO_EXPORT_ROOT` | `vibrodiag_mcp_prototype/validation_exports` | Only directory tree the model-callable validation export may write into |
 | `EXPECTED_BOARDS` | `6` | Native probe fleet size |
 | `VIBRO_BOARD_READER_PROCESSES` | Enabled by live UI requests | Override per-board process readers |
 | `VIBRO_BOARD_READER_TIMEOUT_S` | `30` | Normal read timeout |
@@ -697,7 +704,7 @@ These measurements describe the IQ-9075 production configuration and should not 
 - Codec training used public vibration corpora. The monitored building and the recordings in this repository were not codec training data.
 - The recorded five-minute demonstration includes staged events in target channels so alert behavior can be exercised. The reference channel remains unchanged.
 - Model weights and the extended recordings are downloaded during setup and require access to one configured asset source.
-- The LAN-facing web application has no authentication.
+- The LAN-facing web application is protected by a shared access token over plain HTTP, not by per-user accounts or TLS.
 - A failed sensor read, stale stream, codec failure, invalid model response, or model timeout is reported as a failure rather than hidden behind a normal verdict.
 
 ## VibroAgent-Gemma
@@ -1173,7 +1180,7 @@ Preserve four layers during diagnosis: board identity/raw data, deterministic qu
 - Test labeled source-zone examples for every target and report per-target metrics.
 - Measure false/missed alerts under representative conditions.
 - Measure current latency, RAM, thermals, and power on the exact release.
-- Put the unauthenticated LAN UI behind a trusted network or authenticated TLS reverse proxy.
+- Keep the token-protected LAN UI on a trusted network or behind a TLS reverse proxy.
 - Require structural-engineering review before any action based on output.
 
 ### 20. Gemma repository map

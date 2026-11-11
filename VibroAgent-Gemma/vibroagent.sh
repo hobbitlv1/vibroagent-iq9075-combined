@@ -79,9 +79,38 @@ NPU_PORT="${NPU_PORT:-8910}"
 WEB_PORT="${WEB_PORT:-7860}"
 # Bind the webchat to the LAN interface only (default-route source IP): reachable from the
 # LAN/router but NOT on tailscale0 or loopback. Set WEB_HOST=127.0.0.1 for local-only, or
-# WEB_HOST=0.0.0.0 for every interface including Tailscale. The webchat has no auth.
+# WEB_HOST=0.0.0.0 for every interface including Tailscale.
 LAN_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[0-9.]+' | head -1)"
 WEB_HOST="${WEB_HOST:-${LAN_IP:-127.0.0.1}}"
+# Web access token. Every page and /api route except /health requires it; the webchat enforces it
+# whenever VIBRO_WEB_TOKEN is set. One random token is generated per installation into
+# .run/web_token (mode 0600) and reused across restarts; `status` prints the sign-in URL that
+# carries it. VIBRO_WEB_AUTH=0 disables the check (only sensible with WEB_HOST=127.0.0.1).
+WEB_TOKEN_FILE="$RUN_DIR/web_token"
+web_token() {
+  [ "${VIBRO_WEB_AUTH:-1}" = "0" ] && return 0
+  if [ -n "${VIBRO_WEB_TOKEN:-}" ]; then printf '%s' "$VIBRO_WEB_TOKEN"; return 0; fi
+  if [ ! -s "$WEB_TOKEN_FILE" ]; then
+    mkdir -p "$RUN_DIR" || return 1
+    ( umask 077; od -An -tx1 -N24 /dev/urandom | tr -d ' \n' > "$WEB_TOKEN_FILE" ) || return 1
+  fi
+  chmod 600 "$WEB_TOKEN_FILE" 2>/dev/null || true
+  tr -d ' \n' < "$WEB_TOKEN_FILE"
+}
+web_auth_header() { # for curl: prints the Authorization header argument, or nothing when auth is off
+  local t; t="$(web_token)" || return 0
+  [ -n "$t" ] && printf 'Authorization: Bearer %s' "$t"
+}
+web_signin_url() { # the URL to open in a browser; the token in it is exchanged for a cookie on first load
+  local host="$WEB_HOST" t
+  case "$host" in
+    0.0.0.0|::) host="${LAN_IP:-127.0.0.1}" ;;
+    \[*\]) ;;
+    *:*) host="[$host]" ;;
+  esac
+  t="$(web_token)" || t=""
+  printf 'http://%s:%s/%s' "$host" "$WEB_PORT" "${t:+?token=$t}"
+}
 QAIRT_SDK_ROOT="${QAIRT_SDK_ROOT:-$REPO/v2.46.0.260424/qairt/2.46.0.260424}"
 GENIE_CONFIG="${GENIE_CONFIG:-$REPO/models/merged_4k_6000s/merged_6000_ctx4096_calib1-genie-w4a16-qualcomm_qcs9075/genie_config.json}"
 BASELINE_SERIAL="003F003D3530500820323641"
@@ -302,6 +331,8 @@ start_webchat() {
   fi
   say "Starting webchat on :$WEB_PORT ..."
   ( cd "$PROTO" || exit 1
+    token="$(web_token)" || { err "  Could not create $WEB_TOKEN_FILE"; exit 1; }
+    if [ -n "$token" ]; then export VIBRO_WEB_TOKEN="$token"; else unset VIBRO_WEB_TOKEN; fi
     local_model="$MODEL_ID"
     if [ "$STACK" = "gemma" ]; then
       # Do not inherit generic routing from a prior codes/legacy shell.  The
@@ -377,7 +408,8 @@ start_webchat() {
     echo $! > "$RUN_DIR/webchat.pid" )
   if wait_for_port "$WEB_PORT" 30; then
     if [ "$STACK" != "gemma" ] || check_gemma_webchat_health >/dev/null 2>&1; then
-      ok "  Webchat up — http://$WEB_HOST:$WEB_PORT  (graph: /graph, deployment-verified)"
+      ok "  Webchat up — $(web_signin_url)  (graph: /graph, deployment-verified)"
+      [ -n "$(web_token)" ] && say "  Open that URL once per browser; it signs the browser in. 'status' prints it again."
     else
       err "  Webchat opened :$WEB_PORT but failed the deployment contract"
       check_gemma_webchat_health 2>&1 | sed 's/^/  /' || true
@@ -452,6 +484,7 @@ start_logger() {
   local sensors_path="/api/live-sensors"
   [ "${STACK:-codes}" = "gemma" ] && sensors_path="/api/vibro/sensors"
   if curl --noproxy '*' --fail --silent --show-error --max-time 90 \
+      -H "$(web_auth_header)" \
       "$(webchat_probe_url)$sensors_path?process_reader=1&prewarm=1" -o /dev/null; then
     say "  Reader workers prewarmed."
   else
@@ -545,6 +578,7 @@ do_status() {
   else
     err "Webchat          : DOWN :$WEB_PORT"
   fi
+  say "Web URL          : $(web_signin_url)"
   if [ "$MODE" = offline ]; then
     say "Data source      : OFFLINE immutable replay"
     say "USB logger       : NOT USED"

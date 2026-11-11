@@ -198,6 +198,7 @@ def test_graph_reads_the_virtual_position_as_a_fixed_immutable_window(monkeypatc
 
     monkeypatch.setattr(webchat_server, "offline_replay_from_environment", lambda: FakeReplay())
     monkeypatch.setattr(webchat_server, "read_sdk_vibrometer_window", fake_read)
+    monkeypatch.setenv("VIBRO_HSD_ACQUISITION_DIR", "/recordings/live_target_1")
 
     payload = webchat_server._live_vibrometer_payload(
         {

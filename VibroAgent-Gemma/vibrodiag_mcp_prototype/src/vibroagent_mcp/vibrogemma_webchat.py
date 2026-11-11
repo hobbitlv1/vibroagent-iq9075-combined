@@ -1017,8 +1017,7 @@ class VibroGemmaHandler(webchat_server.WebchatHandler):
     server_version = "VibroAgentWeb/1.0"
 
     def do_GET(self) -> None:
-        if not self._request_origin_allowed():
-            self._send_json({"ok": False, "error": "origin_not_allowed"}, status=HTTPStatus.FORBIDDEN)
+        if not self._gate():
             return
         parsed = urlparse(self.path)
         if parsed.path in {"/", "/graph", "/spectrum", "/replay", "/ask", "/chat"}:
@@ -1094,14 +1093,17 @@ class VibroGemmaHandler(webchat_server.WebchatHandler):
         self._send_json({"ok": False, "error": "not_found"}, status=HTTPStatus.NOT_FOUND)
 
     def do_POST(self) -> None:
-        if not self._request_origin_allowed():
-            self._send_json({"ok": False, "error": "origin_not_allowed"}, status=HTTPStatus.FORBIDDEN)
+        if not self._gate():
             return
         path = urlparse(self.path).path
         if path == "/api/vibro/synthetic-injection":
-            body = self._read_json()
-            enabled = body.get("enabled") if isinstance(body, dict) else None
-            target = str(body.get("target") or "target_3") if isinstance(body, dict) else "target_3"
+            try:
+                body = self._read_json()
+            except ValueError as exc:
+                self._send_json({"ok": False, "error": "bad_request", "message": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+                return
+            enabled = body.get("enabled")
+            target = str(body.get("target") or "target_3")
             if not isinstance(enabled, bool):
                 self._send_json(
                     {"ok": False, "error": "enabled_must_be_boolean"},
@@ -1122,8 +1124,11 @@ class VibroGemmaHandler(webchat_server.WebchatHandler):
             self._send_json({"ok": False, "error": "not_found"}, status=HTTPStatus.NOT_FOUND)
             return
         if not webchat_server._chat_inflight_try_begin():
+            refusal = webchat_server._chat_busy_response()
+            if refusal.get("error") != "monitor_turn":
+                refusal = {"ok": False, "error": "gemma_busy", "message": "Agent is busy with another request."}
             self._send_json(
-                {"ok": False, "error": "gemma_busy", "message": "Agent is busy with another request."},
+                {"ok": False, "error": refusal["error"], "message": _agent_copy(refusal["message"])},
                 status=HTTPStatus.CONFLICT,
             )
             return

@@ -102,6 +102,7 @@ def test_registry_and_graph_use_offline_root_and_virtual_position(
 
     monkeypatch.setattr(webchat_server, "offline_replay_from_environment", lambda: FakeReplay())
     monkeypatch.setattr(webchat_server, "read_sdk_vibrometer_window", reader)
+    monkeypatch.setenv("VIBRO_HSD_ACQUISITION_DIR", str(folder))
     payload = webchat_server._live_vibrometer_payload(
         {"duration_s": ["10"], "acquisition_folder": [str(folder)]}
     )
