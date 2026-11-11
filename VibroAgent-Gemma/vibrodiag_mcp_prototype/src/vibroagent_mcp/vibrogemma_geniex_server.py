@@ -9,6 +9,7 @@ import json
 import math
 import os
 import re
+import signal
 import sys
 import tempfile
 import threading
@@ -947,6 +948,26 @@ class VibroGemmaRuntime:
         age_s = time.monotonic() - self.inference_started_mono
         return (age_s, self.inference_label) if age_s >= limit_s else None
 
+    def close(self, wait_s: float = 20.0) -> bool:
+        """Destroy the model so the runtime unmaps its device buffers; False if a request still held it.
+
+        On the IQ-9075 the NPU driver keeps every buffer that user space did not unmap, even after
+        the process is gone. A server killed with its model loaded leaves the whole model mapped
+        (about 2.5 GiB) and the next NPU load fails in fastrpc_mmap, with "failed to map buffer" in
+        the kernel log, until reboot. After a clean close only about 8 MiB per process stays behind,
+        so the NPU survives many restarts in one boot instead of one.
+        """
+        if self.model is None:
+            return True
+        if not self.lock.acquire(timeout=max(0.0, wait_s)):
+            return False
+        try:
+            model, self.model = self.model, None
+            model.close()
+        finally:
+            self.lock.release()
+        return True
+
     def _chat(self, request: dict[str, Any]) -> dict[str, Any]:
         raw_messages = request.get("messages")
         if not isinstance(raw_messages, list) or not raw_messages or len(raw_messages) > 32:
@@ -1560,36 +1581,53 @@ def main() -> int:
         n_ctx=args.n_ctx,
         n_batch=args.n_batch,
     )
-    runtime.load()
-    server = ThreadingHTTPServer((args.host, args.port), Handler)
-    server.runtime = runtime  # type: ignore[attr-defined]
-    watchdog_s = float(os.environ.get("VIBROGEMMA_GENERATION_WATCHDOG_S", "30"))
-    if watchdog_s > 0:
-        def watchdog() -> None:
-            while True:
-                time.sleep(2.0)
-                stuck = runtime.stuck_inference(watchdog_s)
-                if stuck is None:
-                    continue
-                age_s, label = stuck
-                print(f"VIBROGEMMA WATCHDOG: {label} stuck for {age_s:.0f}s; restarting", flush=True)
-                os.execv(
-                    sys.executable,
-                    [sys.executable, "-u", "-m", "vibroagent_mcp.vibrogemma_geniex_server", *sys.argv[1:]],
-                )
+    stop_wait_s = float(os.environ.get("VIBROGEMMA_STOP_WAIT_S", "20"))
 
-        threading.Thread(target=watchdog, name="vibrogemma-watchdog", daemon=True).start()
-    print(
-        f"Serving VibroAgent-Gemma/GenieX {REQUIRED_GENIEX_VERSION} at http://{args.host}:{args.port}/v1 "
-        f"with {runtime.n_threads} CPU threads",
-        flush=True,
-    )
+    def request_stop(signum, frame) -> None:  # noqa: ARG001
+        raise KeyboardInterrupt
+
+    # A stop arrives as SIGTERM. Leave through the same path as Ctrl-C so the model is destroyed and
+    # the runtime gives its device session back, instead of dying with the session still open
+    # (see VibroGemmaRuntime.close).
+    signal.signal(signal.SIGTERM, request_stop)
+    server = None
     try:
+        runtime.load()
+        server = ThreadingHTTPServer((args.host, args.port), Handler)
+        server.runtime = runtime  # type: ignore[attr-defined]
+        watchdog_s = float(os.environ.get("VIBROGEMMA_GENERATION_WATCHDOG_S", "30"))
+        if watchdog_s > 0:
+            def watchdog() -> None:
+                while True:
+                    time.sleep(2.0)
+                    stuck = runtime.stuck_inference(watchdog_s)
+                    if stuck is None:
+                        continue
+                    age_s, label = stuck
+                    print(f"VIBROGEMMA WATCHDOG: {label} stuck for {age_s:.0f}s; restarting", flush=True)
+                    os.execv(
+                        sys.executable,
+                        [sys.executable, "-u", "-m", "vibroagent_mcp.vibrogemma_geniex_server", *sys.argv[1:]],
+                    )
+
+            threading.Thread(target=watchdog, name="vibrogemma-watchdog", daemon=True).start()
+        print(
+            f"Serving VibroAgent-Gemma/GenieX {REQUIRED_GENIEX_VERSION} at http://{args.host}:{args.port}/v1 "
+            f"with {runtime.n_threads} CPU threads",
+            flush=True,
+        )
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
-        server.server_close()
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        if server is not None:
+            server.server_close()
+        if not runtime.close(stop_wait_s):
+            print("VibroAgent-Gemma: a request still holds the model; exiting without releasing it", flush=True)
+            os._exit(0)
+        if server is not None:
+            print("VibroAgent-Gemma: model released, stopping", flush=True)
     return 0
 
 

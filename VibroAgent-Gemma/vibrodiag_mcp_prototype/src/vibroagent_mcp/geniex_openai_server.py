@@ -58,6 +58,7 @@ import inspect
 import json
 import os
 import shutil
+import signal
 import sys
 import tempfile
 import threading
@@ -93,6 +94,9 @@ DEFAULT_RELOAD_WATCHDOG_S = 90.0
 # After this many consecutive reload failures the runtime trips a breaker and
 # fails requests fast instead of retrying an expensive broken load every time.
 DEFAULT_RELOAD_FAILURE_LIMIT = 3
+# How long a stopping server waits for the request in flight before it gives up on releasing the
+# model. The launcher's stop waits 25 s for the process, so the default stays inside that.
+DEFAULT_STOP_WAIT_S = 20.0
 # Board-measured 2026-07-23: every VLM (re)load leaks ~4.9 GB of native memory
 # that geniex_vlm_destroy() does NOT reclaim, so an unbounded reload-per-request
 # path OOM-kills the box after ~10 loads. This HARD cap trips the breaker first
@@ -726,6 +730,28 @@ class _GenieXRuntime:
         finally:
             self.last_reload_ms = round((time.monotonic() - self._reload_started_mono) * 1000.0, 1)
             self._reload_started_mono = None
+
+    def close(self, wait_s: float = DEFAULT_STOP_WAIT_S) -> bool:
+        """Destroy the model so the runtime unmaps its device buffers; False if a request still held it.
+
+        On the IQ-9075 the NPU driver keeps every buffer that user space did not unmap, even after
+        the process is gone. A server killed with its model loaded leaves the whole model mapped
+        (about 2.5 GiB) and the next NPU load fails in fastrpc_mmap, with "failed to map buffer" in
+        the kernel log, until reboot. After a clean close only about 8 MiB per process stays behind,
+        so the NPU survives many restarts in one boot instead of one.
+        """
+        if self._model is None:
+            return True
+        if not self._lock.acquire(timeout=max(0.0, wait_s)):
+            return False
+        try:
+            model, self._model = self._model, None
+            close = getattr(model, "close", None)
+            if callable(close):
+                close()
+        finally:
+            self._lock.release()
+        return True
 
     def handle_state(self) -> str:
         if self.runtime_unavailable or self._model is None:
@@ -1452,6 +1478,36 @@ def main(argv: list[str] | None = None) -> int:
     runtime.reload_budget = args.reload_budget
     runtime.min_mem_available_bytes = args.min_mem_available_mib * 1024 * 1024
     runtime.require_image = args.vision_require_image
+    return _run_until_stopped(args, runtime, image_tmpdir)
+
+
+def _run_until_stopped(args: argparse.Namespace, runtime: _GenieXRuntime, image_tmpdir: str) -> int:
+    """Load and serve, and destroy the model on every way out, including a stop signal."""
+    stop_wait_s = float(_env_str("GENIEX_STOP_WAIT_S", str(DEFAULT_STOP_WAIT_S)))
+
+    def request_stop(signum, frame) -> None:  # noqa: ARG001
+        raise KeyboardInterrupt
+
+    # A launcher stop arrives as SIGTERM. Leave through the Ctrl-C path so the model is destroyed and
+    # the runtime gives its NPU session back (see _GenieXRuntime.close) instead of dying with it open.
+    signal.signal(signal.SIGTERM, request_stop)
+    try:
+        return _load_and_serve(args, runtime, image_tmpdir)
+    except KeyboardInterrupt:
+        print("Stopping GenieX adapter", flush=True)
+        return 0
+    finally:
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        loaded = runtime._model is not None  # noqa: SLF001
+        if not runtime.close(stop_wait_s):
+            print("GenieX adapter: a request still holds the model; exiting without releasing it", flush=True)
+            sys.stdout.flush()
+            os._exit(0)
+        if loaded:
+            print("GenieX adapter: model released", flush=True)
+
+
+def _load_and_serve(args: argparse.Namespace, runtime: _GenieXRuntime, image_tmpdir: str) -> int:
     print(f"Loading GenieX model {args.model} (device_map={args.device_map}, n_ctx={args.n_ctx}) ...")
     runtime.load()
 

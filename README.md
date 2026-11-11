@@ -1077,6 +1077,8 @@ The launchers provide reviewed defaults. Common operator overrides are:
 | `GENIEX_DEVICE_MAP` | Device placement; reviewed default HTP0 map |
 | `VIBROGEMMA_INFERENCE_CPUS` | Cores the Gemma model server is pinned to; default `6-7` |
 | `VIBROGEMMA_N_THREADS` | Gemma model-server CPU threads; default one per pinned core. Changing it shifts decision logits (section 11) |
+| `VIBROGEMMA_STOP_WAIT_S` | How long a stopping Gemma model server waits for a request in flight before it exits; default 20 |
+| `GENIEX_STOP_WAIT_S` | The same wait for the codec stack's GenieX model server; default 20 |
 | `VIBRO_CURRENT_FILE_MAX_AGE_S` | Maximum accepted live-file age |
 | `VIBRO_LIVE_DEVICE_MANIFEST` | Logical-slot-to-device mapping |
 | `VIBRO_REQUIRE_DEVICE_IDENTITY` | Enforce physical device identity |
@@ -1174,6 +1176,7 @@ tail -f .run/geniex.log .run/webchat.log .run/logger.log
 | `pyarrow` missing | Environment installation incomplete | Re-run setup rather than patching system imports |
 | Boards stay Waiting | No native data, stale files, or group/udev change inactive | Power-cycle, log in again after group change, inspect `.run/logger.log` |
 | Agent unavailable | Hash, HTP map, shared library, or GenieX probe failure | Inspect `.run/geniex.log`; verify Q8 hash and both probes |
+| NPU load fails with `fastrpc_mmap failed` or `Model loading failed` | On the IQ-9075 the NPU driver keeps buffers mapped after a process ends. A model server that was killed (SIGKILL, crash, an older build) leaves its whole model mapped; a cleanly stopped one, and every other GenieX start, leaves about 8 MiB | `journalctl -k -b \| grep "failed to map buffer"`; reboot the board. Stop the model servers with `./vibroagent.sh stop` or Ctrl-C so they release the model first. That allows many restarts per boot, not an unlimited number |
 | HTTP 400 requires vibration payload | Text-only client called the endpoint | Use Ask Agent or the episode-backed path; rejection is expected |
 | All targets Not localized | No accepted target set or global/target disagreement | Inspect stored structured record; do not substitute amplitude localization |
 | Always normal | Checkpoint result, wrong/missing encoder payload, mismatched assets, or out-of-distribution input | Verify hashes, `[1,84,1536]` shape, probes, mode, and a fixed fixture |

@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from scripts.check_geniex_parity import DEFAULT_REFERENCE_FILE, WINDOWS, compare_window
+from scripts.check_geniex_parity import DEFAULT_REFERENCE_FILE, WINDOWS, compare_window, reference_entry
 
 
 def _window(logits, sha="a" * 64):
@@ -67,3 +67,30 @@ def test_same_thread_count_gives_the_same_logits_on_both_geniex_releases():
         old = references["geniex-0.4.0-cpu-8-threads"]["windows"][window]
         new = references["geniex-0.10.0-cpu-8-threads"]["windows"][window]
         assert compare_window(old, new)["identical"], window
+
+
+def test_recording_takes_the_runtime_description_from_the_server():
+    health = {"geniex_version": "0.10.0", "device_map": "llama_cpp:HTP0", "n_threads": 6, "status": "ok"}
+    windows = {target: {**_window([[1.0, 2.0]] * 6), "seconds": 14.2, "model_sha256": "c" * 64} for target in WINDOWS}
+
+    entry = reference_entry(health, windows, "first NPU run")
+
+    assert (entry["geniex_version"], entry["device_map"], entry["n_threads"]) == ("0.10.0", "llama_cpp:HTP0", 6)
+    assert entry["note"] == "first NPU run"
+    assert set(entry["windows"]) == set(WINDOWS)
+    assert set(entry["windows"]["target_3"]) == {"embedding_sha256", "choice_logits"}
+
+
+def test_recording_refuses_a_server_that_does_not_report_its_thread_count():
+    health = {"geniex_version": "0.10.0", "device_map": "llama_cpp:cpu"}
+    windows = {target: _window([[1.0, 2.0]] * 6) for target in WINDOWS}
+
+    with pytest.raises(ValueError, match="n_threads"):
+        reference_entry(health, windows, "")
+
+
+def test_recording_needs_both_windows():
+    health = {"geniex_version": "0.10.0", "device_map": "llama_cpp:cpu", "n_threads": 4}
+
+    with pytest.raises(ValueError, match="both bundled windows"):
+        reference_entry(health, {"target_3": _window([[1.0, 2.0]] * 6)}, "")
