@@ -114,7 +114,7 @@ No model or encoder artifact is served until its manifest-bound SHA-256 checks p
 1. Live mode writes one IIS3DWB stream per physical board through the patched STDATALOG-PYSDK native callback path. Offline mode starts no logger and maps the same six logical slots to immutable recordings.
 2. The monitor reads a synchronized 10-second XYZ episode: the latest complete live episode, or the exact scheduled offline window. Stale, missing, flat, clipped, or collapsed routing remains a deterministic data-quality failure.
 3. The frozen ONNX encoder projects the six boards into `84 × 1536` continuous embeddings: 14 rows for the reference and 14 for each of five targets.
-4. The GenieX 0.4.0 patch inserts those rows at the model's reserved vibration positions. They are attended as native continuous context; acceleration arrays are not converted into prompt text.
+4. The GenieX 0.10.0 patch inserts those rows at the model's reserved vibration positions. They are attended as native continuous context; acceleration arrays are not converted into prompt text.
 5. The Q8 Gemma checkpoint runs on `llama_cpp:HTP0` with a 4,096-token context. KV state is rebuilt for each classification episode.
 6. The structured decoder reads binary logits for one global state and one joint five-target set. Its supported decision labels are `normal`, `unknown_anomaly`, and the deterministic quality class `data_invalid`; operational severities are `none` and `advisory`.
 7. The web application validates the complete response before showing live board states, popups, spectrum, replay, or chat context.
@@ -123,7 +123,9 @@ The five target records are independent: a global anomaly does not imply that al
 
 ## GenieX patch
 
-The complete, reviewable patch series is under `vibrodiag_mcp_prototype/patches/`; [its README](vibrodiag_mcp_prototype/patches/README.md) explains every changed API. `setup_geniex.sh` applies the patches to an exact GenieX `v0.4.0` checkout and builds the patched plugin plus compatibility bridge.
+The complete, reviewable patch series is under `vibrodiag_mcp_prototype/patches/`; [its README](vibrodiag_mcp_prototype/patches/README.md) explains every changed API. `setup_geniex.sh` applies the patches to an exact GenieX `v0.10.0` checkout and builds the patched plugin plus compatibility bridge.
+
+The model server runs one CPU thread per core it is pinned to (`VIBROGEMMA_INFERENCE_CPUS`); `VIBROGEMMA_N_THREADS` overrides that. Decision logits depend on the thread count, so the patch README records reference logits and the command that compares a running server against them.
 
 ## Verification
 

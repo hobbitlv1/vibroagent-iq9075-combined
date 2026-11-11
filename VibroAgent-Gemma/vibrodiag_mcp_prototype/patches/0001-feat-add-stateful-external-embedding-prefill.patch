@@ -1,26 +1,5 @@
-From b73e7d494381a4333ee6f56f05c7a15a507e2ce4 Mon Sep 17 00:00:00 2001
-From: Codex <codex@local>
-Date: Thu, 20 Aug 2026 03:00:43 +0000
-Subject: [PATCH] feat: add stateful external-embedding prefill
-
----
- bindings/python/geniex/_ffi/_api.py           |  49 ++-
- bindings/python/geniex/_ffi/_types.py         |  36 +++
- bindings/python/geniex/generation/output.py   |   7 +
- bindings/python/geniex/modeling.py            | 146 ++++++++-
- .../python/tests/unit/test_stateful_decode.py |  65 ++++
- sdk/compat/llm_stateful_bridge.cpp            |  44 +++
- sdk/include/geniex.h                          |  41 +++
- sdk/include/plugin/ILlm.h                     |   9 +
- sdk/plugins/llama_cpp/include/llm.h           |  15 +
- sdk/plugins/llama_cpp/src/llm.cpp             | 287 ++++++++++++++++++
- sdk/src/llm.cpp                               |  56 ++++
- 11 files changed, 750 insertions(+), 5 deletions(-)
- create mode 100644 bindings/python/tests/unit/test_stateful_decode.py
- create mode 100644 sdk/compat/llm_stateful_bridge.cpp
-
 diff --git a/bindings/python/geniex/_ffi/_api.py b/bindings/python/geniex/_ffi/_api.py
-index ceb6b94..e5f02a5 100644
+index b936a78..7a43bdf 100644
 --- a/bindings/python/geniex/_ffi/_api.py
 +++ b/bindings/python/geniex/_ffi/_api.py
 @@ -6,7 +6,7 @@
@@ -29,10 +8,10 @@ index ceb6b94..e5f02a5 100644
  import os
 -from ctypes import CFUNCTYPE, POINTER, byref, c_char_p, c_int32, c_void_p
 +from ctypes import CDLL, CFUNCTYPE, POINTER, byref, c_char_p, c_int32, c_void_p
-
+ 
  from ._lib import load_library
  from ._types import (
-@@ -21,10 +21,13 @@ from ._types import (
+@@ -23,9 +23,12 @@ from ._types import (
      geniex_KvCacheSaveOutput,
      geniex_LlmApplyChatTemplateInput,
      geniex_LlmApplyChatTemplateOutput,
@@ -41,23 +20,22 @@ index ceb6b94..e5f02a5 100644
 +    geniex_LlmDecodeOutput,
      geniex_LlmForwardLogitsInput,
      geniex_LlmForwardLogitsOutput,
-     geniex_LlmGenerateInput,
 +    geniex_LlmGenerateFromStateInput,
+     geniex_LlmGenerateInput,
      geniex_LlmGenerateOutput,
      geniex_LlmModelInfo,
-     geniex_ModelListDetailedOutput,
-@@ -65,6 +68,7 @@ _logger.addHandler(logging.NullHandler())
-
+@@ -78,6 +81,7 @@ _logger.addHandler(logging.NullHandler())
+ 
  # Strong reference — ctypes callbacks must outlive the C side.
  _log_cb_ref: 'geniex_log_callback | None' = None
 +_stateful_provider = None
-
-
+ 
+ 
  def _sdk_log_bridge(level: int, msg_bytes):
-@@ -138,6 +142,46 @@ def _check(code: int) -> None:
+@@ -163,6 +167,46 @@ def _check(code: int) -> None:
          raise GenieXError(code, msg)
-
-
+ 
+ 
 +def _bind_stateful(provider):
 +    provider.geniex_llm_decode.argtypes = [
 +        c_void_p, POINTER(geniex_LlmBatch), POINTER(geniex_LlmDecodeOutput)
@@ -100,19 +78,19 @@ index ceb6b94..e5f02a5 100644
 +
  def _bind_all() -> None:
      lib = load_library()
-
-@@ -184,6 +228,9 @@ def _bind_all() -> None:
+ 
+@@ -218,6 +262,9 @@ def _bind_all() -> None:
      lib.geniex_llm_generate.argtypes = [c_void_p, POINTER(geniex_LlmGenerateInput), POINTER(geniex_LlmGenerateOutput)]
      lib.geniex_llm_generate.restype = c_int32
-
+ 
 +    if hasattr(lib, 'geniex_llm_decode'):
 +        _bind_stateful(lib)
 +
      lib.geniex_llm_get_model_info.argtypes = [c_void_p, POINTER(geniex_LlmModelInfo)]
      lib.geniex_llm_get_model_info.restype = c_int32
-
+ 
 diff --git a/bindings/python/geniex/_ffi/_types.py b/bindings/python/geniex/_ffi/_types.py
-index 32f9259..5876b5e 100644
+index aedb073..5dc579c 100644
 --- a/bindings/python/geniex/_ffi/_types.py
 +++ b/bindings/python/geniex/_ffi/_types.py
 @@ -11,6 +11,7 @@ from ctypes import (
@@ -123,10 +101,10 @@ index 32f9259..5876b5e 100644
      c_int32,
      c_int64,
      c_uint32,
-@@ -162,6 +163,41 @@ class geniex_LlmGenerateOutput(Structure):
+@@ -208,6 +209,41 @@ class geniex_LlmGenerateOutput(Structure):
      ]
-
-
+ 
+ 
 +class geniex_LlmBatch(Structure):
 +    _fields_ = [
 +        ('struct_size', c_uint32),
@@ -166,10 +144,10 @@ index 32f9259..5876b5e 100644
      _fields_ = [
          ('vocab_size', c_int32),
 diff --git a/bindings/python/geniex/generation/output.py b/bindings/python/geniex/generation/output.py
-index cf1141e..e0f608a 100644
+index 5a34a2b..9904a71 100644
 --- a/bindings/python/geniex/generation/output.py
 +++ b/bindings/python/geniex/generation/output.py
-@@ -87,3 +87,10 @@ class GenerateOutput:
+@@ -90,3 +90,10 @@ class GenerateOutput:
              thinking = m.group(1).strip()
              text = _THINK_RE.sub('', full_text).strip()
          return cls(text=text, thinking=thinking, profile=profile)
@@ -181,21 +159,32 @@ index cf1141e..e0f608a 100644
 +    next_position: int
 +    profile: ProfileData = field(default_factory=ProfileData)
 diff --git a/bindings/python/geniex/modeling.py b/bindings/python/geniex/modeling.py
-index 6451355..3c2e45d 100644
+index 7e50ae8..b6bbbdb 100644
 --- a/bindings/python/geniex/modeling.py
 +++ b/bindings/python/geniex/modeling.py
-@@ -3,10 +3,19 @@
-
+@@ -3,10 +3,31 @@
+ 
  from __future__ import annotations
-
+ 
 +import math
 +import operator
  import os
--from ctypes import POINTER, byref, c_char_p, c_int32, c_void_p, cast, pointer, string_at
--
+-from ctypes import POINTER, byref, c_char_p, c_float, c_int32, c_void_p, cast, create_string_buffer, pointer, string_at
++from ctypes import (
++    POINTER,
++    byref,
++    c_char_p,
++    c_float,
++    c_int32,
++    c_void_p,
++    cast,
++    create_string_buffer,
++    pointer,
++    sizeof,
++    string_at,
++)
+ 
 -from ._ffi._api import GENIEX_ERROR_LLM_TOKENIZATION_CONTEXT_LENGTH, _check, _str_list_to_c, load_library
-+from ctypes import POINTER, byref, c_char_p, c_float, c_int32, c_void_p, cast, pointer, sizeof, string_at
-+
 +from ._ffi._api import (
 +    GENIEX_ERROR_LLM_TOKENIZATION_CONTEXT_LENGTH,
 +    _check,
@@ -205,9 +194,9 @@ index 6451355..3c2e45d 100644
 +    load_library,
 +)
  from ._ffi._types import (
+     geniex_ChatTemplateGrammar,
      geniex_GenerationConfig,
-     geniex_KvCacheLoadInput,
-@@ -15,10 +24,13 @@ from ._ffi._types import (
+@@ -17,9 +38,12 @@ from ._ffi._types import (
      geniex_KvCacheSaveOutput,
      geniex_LlmApplyChatTemplateInput,
      geniex_LlmApplyChatTemplateOutput,
@@ -216,24 +205,23 @@ index 6451355..3c2e45d 100644
 +    geniex_LlmDecodeOutput,
      geniex_LlmForwardLogitsInput,
      geniex_LlmForwardLogitsOutput,
-     geniex_LlmGenerateInput,
 +    geniex_LlmGenerateFromStateInput,
+     geniex_LlmGenerateInput,
      geniex_LlmGenerateOutput,
-     geniex_SamplerConfig,
-     geniex_token_callback,
-@@ -30,7 +42,7 @@ from ._ffi._types import (
-     geniex_VlmGenerateInput,
+     geniex_LlmModelInfo,
+@@ -35,7 +59,7 @@ from ._ffi._types import (
      geniex_VlmGenerateOutput,
  )
+ from .chat_template import ChatTemplateGrammar, ChatTemplateOutput, GrammarTrigger
 -from .generation.output import GenerateOutput, ProfileData
 +from .generation.output import DecodeOutput, GenerateOutput, ProfileData
  from .generation.streamer import TextIteratorStreamer
  from .tokenizer import ModelTokenizer
-
-@@ -46,6 +58,57 @@ def _decode_utf8(p) -> str:
+ 
+@@ -51,6 +75,57 @@ def _decode_utf8(p) -> str:
      return string_at(p).decode('utf-8', errors='replace') if p else ''
-
-
+ 
+ 
 +def _marshal_input_embd(input_embd) -> tuple[object, int, int]:
 +    try:
 +        rows = list(input_embd)
@@ -285,13 +273,13 @@ index 6451355..3c2e45d 100644
 +    return (c_int32 * len(values))(*values), len(values)
 +
 +
- def _build_sampler(
-     temperature: float,
-     top_p: float,
-@@ -286,6 +349,81 @@ class GenieXLLM:
+ def _tool_fields(msg: dict, keepalive: list) -> dict:
+     """Extract the OpenAI tool-calling fields of one message as chat-message
+     struct kwargs. Chat templates render a ``tool`` message only from the
+@@ -450,6 +525,81 @@ class GenieXLLM:
          streamer.start(_run)
          return streamer
-
+ 
 +    def decode(self, *, input_ids=None, input_embd=None) -> DecodeOutput:
 +        """Append one token or raw-embedding batch to the retained KV state."""
 +        if (input_ids is None) == (input_embd is None):
@@ -372,7 +360,7 @@ index 6451355..3c2e45d 100644
          lib = load_library()
 diff --git a/bindings/python/tests/unit/test_stateful_decode.py b/bindings/python/tests/unit/test_stateful_decode.py
 new file mode 100644
-index 0000000..2d530d5
+index 0000000..dcec3e8
 --- /dev/null
 +++ b/bindings/python/tests/unit/test_stateful_decode.py
 @@ -0,0 +1,65 @@
@@ -392,7 +380,7 @@ index 0000000..2d530d5
 +
 +def test_stateful_embedding_decode_and_generation(monkeypatch):
 +    assert sizeof(geniex_LlmBatch) == 64
-+    assert sizeof(geniex_LlmDecodeOutput) == 96
++    assert sizeof(geniex_LlmDecodeOutput) == 104
 +    assert sizeof(geniex_LlmGenerateFromStateInput) == 40
 +    payload = create_string_buffer(b" continued")
 +    seen = {}
@@ -492,13 +480,13 @@ index 0000000..8a55ee6
 +    }
 +}
 diff --git a/sdk/include/geniex.h b/sdk/include/geniex.h
-index 5d67ef4..eb64b95 100644
+index 28beb99..4dd23d5 100644
 --- a/sdk/include/geniex.h
 +++ b/sdk/include/geniex.h
-@@ -575,6 +575,47 @@ typedef struct {
+@@ -741,6 +741,47 @@ typedef struct {
  GENIEX_API int32_t geniex_llm_generate(
      geniex_LLM* handle, const geniex_LlmGenerateInput* input, geniex_LlmGenerateOutput* output);
-
+ 
 +/* ====================  Stateful Batch Decode  ============================ */
 +
 +/** A llama.cpp-style token or raw-embedding batch. Exactly one of token and
@@ -541,17 +529,19 @@ index 5d67ef4..eb64b95 100644
 +    const geniex_LlmGenerateFromStateInput* input, geniex_LlmGenerateOutput* output);
 +
  /* ====================  Model Metadata  =================================== */
-
+ 
  /** Static, plugin-reported metadata about the loaded LLM. All fields are
 diff --git a/sdk/include/plugin/ILlm.h b/sdk/include/plugin/ILlm.h
-index 6a8c758..514b714 100644
+index 9be4048..d2c3988 100644
 --- a/sdk/include/plugin/ILlm.h
 +++ b/sdk/include/plugin/ILlm.h
-@@ -45,6 +45,15 @@ class ILlm {
-     virtual int32_t forward_logits(const geniex_LlmForwardLogitsInput*, geniex_LlmForwardLogitsOutput*) {
+@@ -49,6 +49,17 @@ class ILlm {
+     virtual int32_t decide(const geniex_DecideInput*, geniex_DecideOutput*) {
          return GENIEX_ERROR_COMMON_PARAM_NOT_SUPPORTED;
      }
 +
++    // Stateful append-only decode. Declared after every upstream virtual so a prebuilt core,
++    // which only knows the slots above, keeps working with a plugin that implements these.
 +    virtual int32_t decode(const geniex_LlmBatch*, geniex_LlmDecodeOutput*) {
 +        return GENIEX_ERROR_COMMON_PARAM_NOT_SUPPORTED;
 +    }
@@ -561,23 +551,23 @@ index 6a8c758..514b714 100644
 +        return GENIEX_ERROR_COMMON_PARAM_NOT_SUPPORTED;
 +    }
  };
-
+ 
  }  // namespace geniex
 diff --git a/sdk/plugins/llama_cpp/include/llm.h b/sdk/plugins/llama_cpp/include/llm.h
-index a957b8e..8fa731c 100644
+index db78fc9..6ec7b20 100644
 --- a/sdk/plugins/llama_cpp/include/llm.h
 +++ b/sdk/plugins/llama_cpp/include/llm.h
 @@ -5,6 +5,7 @@
-
+ 
  #include <functional>
  #include <optional>
 +#include <unordered_map>
  #include <vector>
-
- #include "htp_session.h"
-@@ -19,6 +20,11 @@
+ 
+ #include "decision.h"
+@@ -20,6 +21,11 @@
  namespace geniex {
-
+ 
  class LlamaLlm : public ILlm {
 +    struct SamplerHistoryEntry {
 +        llama_token token;
@@ -587,21 +577,22 @@ index a957b8e..8fa731c 100644
      llama_model*               model   = nullptr;
      llama_context*             ctx     = nullptr;
      common_sampler*            sampler = nullptr;
-@@ -36,6 +42,10 @@ class LlamaLlm : public ILlm {
+@@ -37,6 +43,11 @@ class LlamaLlm : public ILlm {
      int                      n_past        = 0;   // for context shifting
      std::vector<llama_token> past_prompt_tokens;  // for prefix match
-
+ 
++    // Stateful decode: set while the KV cache holds caller-appended token/embedding batches.
 +    bool stateful_mode = false;
 +    std::unordered_map<llama_seq_id, std::vector<SamplerHistoryEntry>> sampler_history;
 +    std::unordered_map<llama_seq_id, int32_t>                          logits_index;
 +
-     bool allow_special_tokens = false;  // Control special token output
-
      // Tracks whether this instance pinned an HTP session; releases on last handoff.
-@@ -60,6 +70,11 @@ class LlamaLlm : public ILlm {
-
-     virtual int32_t forward_logits(const geniex_LlmForwardLogitsInput*, geniex_LlmForwardLogitsOutput*) override;
-
+     htp::SessionGuard htp_guard_;
+ 
+@@ -61,6 +72,11 @@ class LlamaLlm : public ILlm {
+ 
+     virtual int32_t decide(const geniex_DecideInput*, geniex_DecideOutput*) override;
+ 
 +    virtual int32_t decode(const geniex_LlmBatch*, geniex_LlmDecodeOutput*) override;
 +
 +    virtual int32_t generate_from_state(
@@ -609,24 +600,20 @@ index a957b8e..8fa731c 100644
 +
     private:
      void set_sampler(const geniex_SamplerConfig* cfg);
-
+ 
 diff --git a/sdk/plugins/llama_cpp/src/llm.cpp b/sdk/plugins/llama_cpp/src/llm.cpp
-index 9e3b7b0..42ab2e8 100644
+index a468f29..d324705 100644
 --- a/sdk/plugins/llama_cpp/src/llm.cpp
 +++ b/sdk/plugins/llama_cpp/src/llm.cpp
-@@ -4,9 +4,11 @@
- #include "llm.h"
-
- #include <algorithm>
-+#include <cmath>
+@@ -8,6 +8,7 @@
  #include <cstdlib>
  #include <cstring>
  #include <fstream>
 +#include <limits>
- #include <nlohmann/json.hpp>
  #include <sstream>
  #include <vector>
-@@ -145,6 +147,11 @@ int32_t LlamaLlm::reset() {
+ 
+@@ -141,6 +142,11 @@ int32_t LlamaLlm::reset() {
      this->n_past_global = 0;
      this->n_past        = 0;
      this->past_prompt_tokens.clear();
@@ -635,23 +622,23 @@ index 9e3b7b0..42ab2e8 100644
 +    this->logits_index.clear();
 +
 +    if (this->sampler) common_sampler_reset(this->sampler);
-
+ 
      llama_memory_clear(llama_get_memory(this->ctx), /*clear data=*/true);
-
-@@ -172,6 +179,9 @@ int32_t LlamaLlm::load_kv_cache(const geniex_KvCacheLoadInput* input, geniex_KvC
+ 
+@@ -168,6 +174,9 @@ int32_t LlamaLlm::load_kv_cache(const geniex_KvCacheLoadInput* input, geniex_KvC
      this->n_past        = n_past;
      this->n_past_global = 0;
      this->past_prompt_tokens.clear();
 +    this->stateful_mode = true;
 +    this->sampler_history.clear();
 +    this->logits_index.clear();
-
+ 
      return ret ? GENIEX_SUCCESS : GENIEX_ERROR_COMMON_UNKNOWN;
  }
-@@ -224,6 +234,13 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
+@@ -241,6 +250,13 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
      // Validate input
      if (!input) return GENIEX_ERROR_COMMON_INVALID_INPUT;
-
+ 
 +    // The one-shot API owns its prompt/KV lifecycle; never append it to a
 +    // low-level mixed token/embedding sequence.
 +    if (this->stateful_mode) {
@@ -659,13 +646,13 @@ index 9e3b7b0..42ab2e8 100644
 +        if (reset_result != GENIEX_SUCCESS) return reset_result;
 +    }
 +
+     bool has_input_embd  = input->input_embd != nullptr && input->input_embd_count > 0;
      bool has_input_ids   = input->input_ids != nullptr && input->input_ids_count > 0;
      bool has_prompt_utf8 = input->prompt_utf8 != nullptr;
-
-@@ -462,6 +479,276 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
+@@ -570,6 +586,276 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
      return res;
  }
-
+ 
 +int32_t LlamaLlm::decode(const geniex_LlmBatch* input, geniex_LlmDecodeOutput* output) {
 +    if (!input || input->struct_size < sizeof(geniex_LlmBatch) || !output ||
 +        output->struct_size < sizeof(geniex_LlmDecodeOutput)) {
@@ -876,7 +863,7 @@ index 9e3b7b0..42ab2e8 100644
 +        }
 +
 +        char token_buf[64];
-+        int n = llama_token_to_piece(vocab, id, token_buf, sizeof(token_buf) - 1, 0, this->allow_special_tokens);
++        int n = llama_token_to_piece(vocab, id, token_buf, sizeof(token_buf) - 1, 0, /*special=*/true);
 +        if (n < 0) {
 +            res = GENIEX_ERROR_LLM_GENERATION_FAILED;
 +            break;
@@ -940,13 +927,13 @@ index 9e3b7b0..42ab2e8 100644
      if (!this->model) return GENIEX_ERROR_COMMON_NOT_INITIALIZED;
      const llama_vocab* vocab = llama_model_get_vocab(this->model);
 diff --git a/sdk/src/llm.cpp b/sdk/src/llm.cpp
-index ae4e002..b90d6d0 100644
+index e25b192..252c266 100644
 --- a/sdk/src/llm.cpp
 +++ b/sdk/src/llm.cpp
-@@ -159,6 +159,62 @@ int32_t geniex_llm_generate(geniex_LLM* h, const geniex_LlmGenerateInput* input,
+@@ -163,6 +163,62 @@ int32_t geniex_llm_generate(geniex_LLM* h, const geniex_LlmGenerateInput* input,
      }
  }
-
+ 
 +int32_t geniex_llm_decode(
 +    geniex_LLM* h, const geniex_LlmBatch* batch, geniex_LlmDecodeOutput* output) {
 +    if (!batch || batch->struct_size < sizeof(geniex_LlmBatch) || !output ||
@@ -1005,6 +992,4 @@ index ae4e002..b90d6d0 100644
 +
  int32_t geniex_llm_get_model_info(geniex_LLM* h, geniex_LlmModelInfo* output) {
      GENIEX_LOG_TRACE("llm get_model_info");
-
---
-2.43.0
+ 

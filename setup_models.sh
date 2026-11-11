@@ -100,14 +100,17 @@ fi
 # ---- source 2: Hugging Face weights repo ------------------------------------
 
 if ! command -v uv >/dev/null 2>&1; then
-    echo "== installing uv (https://astral.sh/uv)"
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    echo "== installing uv (pinned release, checksum-verified)"
+    "$REPO/setup_uv.sh"
     export PATH="$HOME/.local/bin:$PATH"
 fi
 
 echo "== downloading $GGUF_NAME from $MODELS_REPO (2.4 GB)"
 mkdir -p "$REPO/models"
-HF_TOKEN="${HF_TOKEN:-}" uv tool run --from 'huggingface_hub[cli]' \
+# The download tool runs at the versions pinned in constraints/hf-cli.txt.
+HF_TOKEN="${HF_TOKEN:-}" uv tool run \
+    --constraints "${VIBRO_HF_CLI_CONSTRAINTS:-$REPO/constraints/hf-cli.txt}" \
+    --from huggingface_hub \
     hf download "$MODELS_REPO" "$GGUF_NAME" --local-dir "$WORK"
 
 echo "== verifying sha256"

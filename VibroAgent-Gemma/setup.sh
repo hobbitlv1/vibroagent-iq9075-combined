@@ -17,8 +17,8 @@ done
 MODE="${MODE:-live}"
 
 if ! command -v uv >/dev/null 2>&1; then
-    echo "== installing uv"
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    echo "== installing uv (pinned release, checksum-verified)"
+    "$COMBINED_ROOT/setup_uv.sh"
     export PATH="$HOME/.local/bin:$PATH"
 fi
 
@@ -40,8 +40,10 @@ if [ "$MODE" != demo ]; then
     VENV="$ROOT/vibrodiag_mcp_prototype/.run/vibrogemma-venv"
     SDK_DEPS="$(sed -n '/install_requires=\[/,/\]/p' "$COMBINED_ROOT/stdatalog_core/setup.py" \
         | grep -oE '"[^"]+"' | tr -d '"' | grep -v '^stdatalog_')"
+    # Held to the pinned dependency closure (constraints/gemma.txt), like setup_geniex.sh.
     # shellcheck disable=SC2086
-    uv pip install --quiet --python "$VENV/bin/python" $SDK_DEPS
+    uv pip install --quiet --python "$VENV/bin/python" \
+        --constraint "${VIBROGEMMA_CONSTRAINTS:-$ROOT/constraints/gemma.txt}" $SDK_DEPS
     SITE_PKGS="$("$VENV/bin/python" -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
     printf '%s\n' \
         "$COMBINED_ROOT/stdatalog_core" \

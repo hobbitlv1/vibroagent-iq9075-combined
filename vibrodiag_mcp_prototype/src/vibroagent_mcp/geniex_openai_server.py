@@ -67,6 +67,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import urlparse
 
+from .request_guard import local_service_refusal
+
 DEFAULT_MODEL = "models/qwen3_4b_codes_v3_Q4_0_embq8.gguf"
 # Use an explicit llama.cpp selector so a local GGUF cannot resolve to an
 # incompatible backend.
@@ -1180,6 +1182,11 @@ class GenieXOpenAIHandler(BaseHTTPRequestHandler):
     server_version = "VibroAgentGenieXOpenAI/0.1"
 
     def do_GET(self) -> None:  # noqa: N802 - stdlib handler API
+        # Refuse rebinding hosts and browser-originated requests before any model work.
+        refusal = local_service_refusal(self.headers)
+        if refusal is not None:
+            self._send_json(HTTPStatus.FORBIDDEN, {"error": {"message": refusal, "type": "forbidden"}})
+            return
         path = urlparse(self.path).path.rstrip("/")
         runtime: _GenieXRuntime = self.server.geniex_runtime  # type: ignore[attr-defined]
         if path in ("/health", "/v1/health"):
@@ -1211,6 +1218,11 @@ class GenieXOpenAIHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.NOT_FOUND, {"error": {"message": "not found", "type": "not_found"}})
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib handler API
+        # Refuse rebinding hosts and browser-originated requests before any model work.
+        refusal = local_service_refusal(self.headers)
+        if refusal is not None:
+            self._send_json(HTTPStatus.FORBIDDEN, {"error": {"message": refusal, "type": "forbidden"}})
+            return
         path = urlparse(self.path).path.rstrip("/")
         if path != "/v1/chat/completions":
             self._send_json(HTTPStatus.NOT_FOUND, {"error": {"message": "not found", "type": "not_found"}})

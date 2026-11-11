@@ -32,6 +32,7 @@ from urllib.request import Request, urlopen
 
 from .errors import format_exception_for_response
 from .model_client import ModelClient
+from .request_guard import host_header_allowed
 from .offline_replay import (
     OfflineReplayConfigurationError,
     offline_replay_from_environment,
@@ -448,11 +449,26 @@ class WebchatHandler(BaseHTTPRequestHandler):
         return None
 
     def _gate(self, *, require_token: bool = True) -> bool:
-        """Admission check for every request: browser origin first, then the shared web token.
+        """Admission check for every request: Host, browser origin, then the shared web token.
 
         Returns True when the handler may serve the request. On refusal the error response (or the
         sign-in redirect) has already been sent and the caller must return without writing anything.
         """
+        # DNS rebinding: the origin check below compares Origin with the request's own Host, so a
+        # hostname an attacker re-pointed at this machine would pass it. Only IP literals and the
+        # names this machine actually answers to are accepted.
+        if not host_header_allowed(self.headers.get("Host")):
+            self._send_json(
+                {
+                    "ok": False,
+                    "error": "host_not_allowed",
+                    "message": (
+                        "Open this service by IP address, or add the hostname to VIBRO_ALLOWED_WEB_HOSTS."
+                    ),
+                },
+                status=HTTPStatus.MISDIRECTED_REQUEST,
+            )
+            return False
         if not self._request_origin_allowed():
             self._send_json({"ok": False, "error": "origin_not_allowed"}, status=HTTPStatus.FORBIDDEN)
             return False
@@ -815,21 +831,12 @@ def _validate_live_sensor_config_path(path: Path) -> Path:
     raise ValueError(f"config_path must be inside an allowed sensor config directory: {allowed}. Got: {resolved}")
 
 
-_REGISTRY_FOLDER_CACHE: dict[str, tuple[int, dict[str, str]]] = {}
-_REGISTRY_FOLDER_CACHE_LOCK = threading.Lock()
-
-
 def _registered_acquisition_folders(config_path: Path) -> dict[str, str]:
-    """Map each registry board's resolved acquisition folder to its sensor id (mtime-cached)."""
-    key = str(config_path)
-    try:
-        mtime_ns = config_path.stat().st_mtime_ns
-    except OSError:
-        return {}
-    with _REGISTRY_FOLDER_CACHE_LOCK:
-        cached = _REGISTRY_FOLDER_CACHE.get(key)
-        if cached is not None and cached[0] == mtime_ns:
-            return dict(cached[1])
+    """Map each registry board's resolved acquisition folder to its sensor id.
+
+    Read on every call: the registry is a small file, and what it resolves to also depends on
+    the environment (``VIBRO_ACQUISITION_ROOT`` re-roots every board folder for offline replay).
+    """
     folders: dict[str, str] = {}
     try:
         registry = SensorRegistry(config_path)
@@ -838,8 +845,6 @@ def _registered_acquisition_folders(config_path: Path) -> dict[str, str]:
                 folders[str(Path(sensor.acquisition_folder).expanduser().resolve(strict=False))] = sensor.sensor_id
     except Exception:
         return {}
-    with _REGISTRY_FOLDER_CACHE_LOCK:
-        _REGISTRY_FOLDER_CACHE[key] = (mtime_ns, dict(folders))
     return folders
 
 

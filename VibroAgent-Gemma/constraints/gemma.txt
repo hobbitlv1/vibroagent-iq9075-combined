@@ -1,0 +1,359 @@
+annotated-doc==0.0.6
+    # via typer
+annotated-types==0.8.0
+    # via pydantic
+anyio==4.16.0
+    # via
+    #   httpx
+    #   httpx2
+    #   mcp
+    #   openai
+    #   sse-starlette
+    #   starlette
+attrs==26.1.0
+    # via
+    #   jsonschema
+    #   referencing
+blinker==1.9.0
+    # via flask
+certifi==2026.10.23
+    # via
+    #   httpcore
+    #   httpx
+    #   requests
+cffi==2.1.1 ; platform_python_implementation != 'PyPy'
+    # via cryptography
+charset-normalizer==3.5.2
+    # via requests
+click==8.3.0
+    # via
+    #   -r VibroAgent-Gemma/constraints/gemma.in
+    #   dask
+    #   flask
+    #   uvicorn
+cloudpickle==3.1.2
+    # via dask
+cmake==4.4.4
+    # via -r VibroAgent-Gemma/constraints/gemma.in
+colorama==0.4.6
+    # via
+    #   -r VibroAgent-Gemma/constraints/gemma.in
+    #   click
+    #   pytest
+    #   tqdm
+    #   typer
+comm==0.2.3
+    # via dash
+cryptography==50.0.2
+    # via pyjwt
+cuda-bindings==13.5.0 ; sys_platform == 'linux'
+    # via torch
+cuda-pathfinder==1.8.6 ; sys_platform == 'linux'
+    # via cuda-bindings
+cuda-toolkit==13.0.2 ; sys_platform == 'linux'
+    # via torch
+dash==4.5.0
+    # via plotly-resampler
+dask==2025.11.0
+    # via -r VibroAgent-Gemma/constraints/gemma.in
+filelock==4.2.10
+    # via
+    #   huggingface-hub
+    #   torch
+flask==3.1.3
+    # via dash
+flatbuffers==25.12.19
+    # via onnxruntime
+fsspec==2026.9.0
+    # via
+    #   dask
+    #   huggingface-hub
+    #   torch
+geniex==0.10.0
+    # via -r VibroAgent-Gemma/constraints/gemma.in
+geniex-llama-cpp==0.10.0
+    # via -r VibroAgent-Gemma/constraints/gemma.in
+h11==0.16.0
+    # via
+    #   httpcore
+    #   httpcore2
+    #   uvicorn
+h5py==3.15.0
+    # via -r VibroAgent-Gemma/constraints/gemma.in
+hf-xet==1.8.0 ; platform_machine == 'AMD64' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64'
+    # via huggingface-hub
+httpcore==1.0.9
+    # via httpx
+httpcore2==2.16.0 ; sys_platform != 'emscripten'
+    # via httpx2
+httpx==0.28.1
+    # via
+    #   huggingface-hub
+    #   mcp
+httpx-sse==0.4.3
+    # via mcp
+httpx2==2.16.0
+    # via openai
+httpx2-jsfetch==1.0 ; sys_platform == 'emscripten'
+    # via httpx2
+huggingface-hub==1.16.1
+    # via tokenizers
+idna==3.20
+    # via
+    #   anyio
+    #   httpx
+    #   httpx2
+    #   requests
+importlib-metadata==10.2.0
+    # via dash
+iniconfig==2.3.1
+    # via pytest
+itsdangerous==2.2.0
+    # via flask
+janus==2.0.0
+    # via dash
+jinja2==3.1.6
+    # via
+    #   flask
+    #   torch
+jiter==0.19.0
+    # via openai
+jsonschema==4.26.0
+    # via
+    #   -r VibroAgent-Gemma/constraints/gemma.in
+    #   mcp
+jsonschema-specifications==2025.9.1
+    # via jsonschema
+lazy-importer==0.1.0 ; python_full_version < '3.15'
+    # via importlib-metadata
+locket==1.0.0
+    # via partd
+markdown-it-py==4.3.0
+    # via rich
+markupsafe==3.0.4
+    # via
+    #   flask
+    #   jinja2
+    #   werkzeug
+mcp==1.30.0
+    # via -r VibroAgent-Gemma/constraints/gemma.in
+mdurl==0.1.2
+    # via markdown-it-py
+mpmath==1.3.0
+    # via sympy
+narwhals==2.28.0
+    # via plotly
+nest-asyncio==1.6.0
+    # via dash
+networkx==3.7
+    # via torch
+ninja==1.13.2
+    # via -r VibroAgent-Gemma/constraints/gemma.in
+nvidia-cublas==13.1.0.3 ; sys_platform == 'linux'
+    # via
+    #   cuda-toolkit
+    #   nvidia-cudnn-cu13
+    #   nvidia-cusolver
+nvidia-cuda-cupti==13.0.85 ; sys_platform == 'linux'
+    # via cuda-toolkit
+nvidia-cuda-nvrtc==13.0.88 ; sys_platform == 'linux'
+    # via cuda-toolkit
+nvidia-cuda-runtime==13.0.96 ; sys_platform == 'linux'
+    # via cuda-toolkit
+nvidia-cudnn-cu13==9.19.0.56 ; sys_platform == 'linux'
+    # via torch
+nvidia-cufft==12.0.0.61 ; sys_platform == 'linux'
+    # via cuda-toolkit
+nvidia-cufile==1.15.1.6 ; sys_platform == 'linux'
+    # via cuda-toolkit
+nvidia-curand==10.4.0.35 ; sys_platform == 'linux'
+    # via cuda-toolkit
+nvidia-cusolver==12.0.4.66 ; sys_platform == 'linux'
+    # via cuda-toolkit
+nvidia-cusparse==12.6.3.3 ; sys_platform == 'linux'
+    # via
+    #   cuda-toolkit
+    #   nvidia-cusolver
+nvidia-cusparselt-cu13==0.8.0 ; sys_platform == 'linux'
+    # via torch
+nvidia-nccl-cu13==2.28.9 ; sys_platform == 'linux'
+    # via torch
+nvidia-nvjitlink==13.0.88 ; sys_platform == 'linux'
+    # via
+    #   cuda-toolkit
+    #   nvidia-cufft
+    #   nvidia-cusolver
+    #   nvidia-cusparse
+nvidia-nvshmem-cu13==3.4.5 ; sys_platform == 'linux'
+    # via torch
+nvidia-nvtx==13.0.85 ; sys_platform == 'linux'
+    # via cuda-toolkit
+onnxruntime==1.31.1
+    # via -r VibroAgent-Gemma/constraints/gemma.in
+openai==3.49.0
+    # via -r VibroAgent-Gemma/constraints/gemma.in
+orjson==3.13.0
+    # via plotly-resampler
+packaging==26.3
+    # via
+    #   dask
+    #   huggingface-hub
+    #   onnxruntime
+    #   plotly
+    #   pytest
+pandas==2.3.3
+    # via
+    #   -r VibroAgent-Gemma/constraints/gemma.in
+    #   plotly-resampler
+partd==1.4.2
+    # via dask
+plotly==6.9.0
+    # via
+    #   dash
+    #   plotly-resampler
+plotly-resampler==0.11.0
+    # via -r VibroAgent-Gemma/constraints/gemma.in
+pluggy==1.7.0
+    # via pytest
+protobuf==7.36.2
+    # via onnxruntime
+pyarrow==22.0.0
+    # via -r VibroAgent-Gemma/constraints/gemma.in
+pycparser==3.12 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
+    # via cffi
+pydantic==2.14.3
+    # via
+    #   -r VibroAgent-Gemma/constraints/gemma.in
+    #   dash
+    #   mcp
+    #   openai
+    #   pydantic-settings
+    #   typer
+pydantic-core==2.50.4
+    # via pydantic
+pydantic-settings==2.16.2
+    # via mcp
+pygments==2.21.0
+    # via
+    #   pytest
+    #   rich
+pyjwt==2.15.1
+    # via mcp
+pyserial==3.5
+    # via -r VibroAgent-Gemma/constraints/gemma.in
+pytest==9.2.0
+    # via -r VibroAgent-Gemma/constraints/gemma.in
+python-dateutil==4.0.0
+    # via pandas
+python-dotenv==1.2.4
+    # via
+    #   mcp
+    #   pydantic-settings
+python-multipart==0.0.33
+    # via mcp
+python-statemachine==2.5.0
+    # via -r VibroAgent-Gemma/constraints/gemma.in
+pytz==2026.6
+    # via pandas
+pywin32==312 ; sys_platform == 'win32'
+    # via mcp
+pyyaml==6.0.3
+    # via
+    #   -r VibroAgent-Gemma/constraints/gemma.in
+    #   dask
+    #   huggingface-hub
+referencing==0.37.0
+    # via
+    #   jsonschema
+    #   jsonschema-specifications
+requests==2.34.2
+    # via dash
+retrying==1.4.2
+    # via dash
+rich==15.0.0
+    # via typer
+rpds-py==2026.9.1
+    # via
+    #   jsonschema
+    #   referencing
+scipy==1.18.1
+    # via -r VibroAgent-Gemma/constraints/gemma.in
+setuptools==80.10.2
+    # via
+    #   -r VibroAgent-Gemma/constraints/gemma.in
+    #   dash
+    #   torch
+shellingham==1.5.4
+    # via typer
+sniffio==1.3.1
+    # via openai
+sse-starlette==3.7.0
+    # via mcp
+starlette==1.10.0
+    # via
+    #   mcp
+    #   sse-starlette
+sympy==1.14.0
+    # via torch
+tokenizers==0.23.3
+    # via -r VibroAgent-Gemma/constraints/gemma.in
+toolz==1.2.0
+    # via
+    #   dask
+    #   partd
+torch==2.11.0
+    # via -r VibroAgent-Gemma/constraints/gemma.in
+tqdm==4.70.1
+    # via
+    #   geniex
+    #   geniex-llama-cpp
+    #   huggingface-hub
+triton==3.6.0 ; sys_platform == 'linux'
+    # via torch
+truststore==0.10.5 ; sys_platform != 'emscripten'
+    # via
+    #   httpcore2
+    #   httpx2
+tsdownsample==0.1.5.1
+    # via plotly-resampler
+typer==0.29.1
+    # via
+    #   huggingface-hub
+    #   mcp
+typing-extensions==4.16.0
+    # via
+    #   anyio
+    #   dash
+    #   httpx2
+    #   huggingface-hub
+    #   mcp
+    #   openai
+    #   pydantic
+    #   pydantic-core
+    #   pydantic-settings
+    #   referencing
+    #   starlette
+    #   torch
+    #   typing-inspection
+typing-inspection==0.4.5
+    # via
+    #   mcp
+    #   pydantic
+    #   pydantic-settings
+tzdata==2026.6
+    # via
+    #   pandas
+    #   python-dateutil
+urllib3==2.8.0
+    # via requests
+uvicorn==0.54.0 ; sys_platform != 'emscripten'
+    # via mcp
+werkzeug==3.1.9
+    # via
+    #   dash
+    #   flask
+zipp==4.1.2
+    # via importlib-metadata
+
+# The following packages were excluded from the output:
+# numpy

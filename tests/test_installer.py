@@ -151,7 +151,14 @@ printf 'install_requires=[\n"numpy",\n"stdatalog_pnpl",\n]\n' > "$FIXTURE_ROOT/s
 ''', repo=True)
         for name in ["setup_models.sh", "setup_recordings.sh", "VibroAgent-Gemma/setup_models.sh"]:
             self.stub(name, 'echo "$(basename "$0")" >> "$TRACE"\n', repo=True)
-        self.stub("git", 'echo git >> "$TRACE"\n')
+        # Checkout double: every git call succeeds and HEAD reports the commit this fixture
+        # declares as the pinned GenieX release.
+        self.env["VIBROGEMMA_GENIEX_COMMIT"] = "1" * 40
+        self.stub("git", '''echo git >> "$TRACE"
+for arg in "$@"; do
+  if [ "$arg" = rev-parse ]; then echo 1111111111111111111111111111111111111111; fi
+done
+''')
         self.stub("g++", '''echo compile >> "$TRACE"
 while [ "$#" -gt 0 ]; do
  if [ "$1" = -o ]; then shift; mkdir -p "$(dirname "$1")"; touch "$1"; fi
@@ -432,20 +439,46 @@ class SetupTests(InstallerFixture):
         for path in files:
             self.assertEqual(path.read_text().splitlines(), expected)
 
-    def test_uv_is_bootstrapped_when_missing(self):
+    UV_INSTALLER_DOUBLE = ('mkdir -p "$HOME/.local/bin"\n'
+                           'cp "$SAVED_UV" "$HOME/.local/bin/uv"\n'
+                           'chmod +x "$HOME/.local/bin/uv"\n')
+
+    def remove_uv_and_serve_installer_double(self):
+        """Hide uv and make curl deliver the installer double to the path given after -o.
+
+        Returns the SHA-256 of that double, which setup_uv.sh must be told to expect.
+        """
         saved = self.base / "saved-uv"
         (self.bin / "uv").rename(saved)
         self.env["SAVED_UV"] = str(saved)
-        self.stub("curl", '''cat <<'BOOTSTRAP'
-mkdir -p "$HOME/.local/bin"
-cp "$SAVED_UV" "$HOME/.local/bin/uv"
-chmod +x "$HOME/.local/bin/uv"
-BOOTSTRAP
+        self.stub("curl", '''out=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = -o ]; then out="$2"; shift; fi
+  shift
+done
+cat > "$out" <<'BOOTSTRAP'
+''' + self.UV_INSTALLER_DOUBLE + '''BOOTSTRAP
 ''')
+        return hashlib.sha256(self.UV_INSTALLER_DOUBLE.encode()).hexdigest()
+
+    def test_uv_is_bootstrapped_when_missing(self):
+        self.env["VIBRO_UV_INSTALLER_SHA256"] = self.remove_uv_and_serve_installer_double()
         result = self.run_script("setup.sh", "--offline")
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertTrue((self.home / ".local/bin/uv").is_file())
         self.assertTrue((self.repo / "vibroagent-venv/bin/python").is_file())
+
+    def test_uv_installer_with_unexpected_checksum_is_never_run(self):
+        self.remove_uv_and_serve_installer_double()
+        # Once against the checksum pinned in setup_uv.sh, once against an explicit wrong one.
+        for override in ({}, {"VIBRO_UV_INSTALLER_SHA256": "0" * 64}):
+            with self.subTest(override=override):
+                result = self.run_script("setup.sh", "--offline", env=override)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn("checksum mismatch", result.stdout)
+                self.assertFalse((self.home / ".local/bin/uv").exists())
+                self.assertFalse((self.repo / ".vibro_mode").exists())
+                self.assertEqual(self.calls(), [])
 
     def test_bootstrap_failure_does_not_publish_mode(self):
         (self.bin / "uv").unlink()
@@ -469,6 +502,47 @@ BOOTSTRAP
         venv_calls = [json.loads(call) for call in self.calls() if call.startswith('["uv", "venv"')]
         self.assertEqual(len(venv_calls), 1)
         self.assertNotIn("--system-site-packages", venv_calls[0])
+
+    def test_every_package_install_is_held_to_the_pinned_constraints(self):
+        for script, constraints in (("setup.sh", "constraints/codec.txt"),
+                                    ("VibroAgent-Gemma/setup.sh", "VibroAgent-Gemma/constraints/gemma.txt")):
+            with self.subTest(script=script):
+                self.trace.unlink(missing_ok=True)
+                result = self.run_script(script, "--offline")
+                self.assertEqual(result.returncode, 0, result.stdout)
+                installs = [json.loads(call) for call in self.calls()
+                            if call.startswith('["uv", "pip", "install"')]
+                self.assertGreaterEqual(len(installs), 3, installs)
+                for call in installs:
+                    self.assertIn("--constraint", call, call)
+                    self.assertEqual(call[call.index("--constraint") + 1], str(self.repo / constraints), call)
+                    # The PyTorch index may only ever supply the torch wheel itself.
+                    if any("download.pytorch.org" in argument for argument in call):
+                        self.assertIn("--no-deps", call, call)
+                        self.assertIn("--index-url", call, call)
+
+    def test_codec_geniex_runtime_is_installed_at_an_exact_version(self):
+        for override, expected in (({}, "geniex==0.3.16"), ({"GENIEX_VERSION": "9.9.9"}, "geniex==9.9.9")):
+            with self.subTest(override=override):
+                self.trace.unlink(missing_ok=True)
+                result = self.run_script("setup_geniex.sh", env=override)
+                self.assertEqual(result.returncode, 0, result.stdout)
+                installs = [json.loads(call) for call in self.calls()
+                            if call.startswith('["uv", "pip", "install"')]
+                self.assertEqual(len(installs), 1, installs)
+                self.assertEqual(installs[0][-1], expected)
+
+    def test_uv_cache_defaults_to_the_private_run_directory(self):
+        script = (ROOT / "VibroAgent-Gemma/setup_geniex.sh").read_text()
+        cache_lines = [line for line in script.splitlines() if line.startswith("export UV_CACHE_DIR=")]
+        self.assertEqual(cache_lines, ['export UV_CACHE_DIR="${VIBROGEMMA_UV_CACHE:-$RUN/uv-cache}"'])
+        shared = self.base / "shared-cache"
+        shared.mkdir()
+        shared.chmod(0o777)
+        result = self.run_script("VibroAgent-Gemma/setup_geniex.sh", env={"VIBROGEMMA_UV_CACHE": str(shared)})
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("refusing uv cache", result.stdout)
+        self.assertEqual(self.calls(), [])
 
 
 class LauncherTests(InstallerFixture):
@@ -503,7 +577,7 @@ class PatchSeriesTests(InstallerFixture):
     def setUp(self):
         super().setUp()
         self.prepare_setup()
-        self.geniex = self.repo / "VibroAgent-Gemma/vibrodiag_mcp_prototype/.run/GenieX-v0.4.0"
+        self.geniex = self.repo / "VibroAgent-Gemma/vibrodiag_mcp_prototype/.run/GenieX-v0.10.0"
         self.geniex.mkdir(parents=True)
         self.patchdir = self.repo / "VibroAgent-Gemma/vibrodiag_mcp_prototype/patches"
         self.patchdir.mkdir()
@@ -527,6 +601,22 @@ class PatchSeriesTests(InstallerFixture):
         # This reset is confined to the synthetic repository created above.
         self.git("reset", "--hard", "HEAD")
         self.stub("git", 'if [ "${3:-}" = submodule ]; then exit 0; fi\nexec /usr/bin/git "$@"\n')
+        # The synthetic repository stands in for the pinned GenieX release commit.
+        self.env["VIBROGEMMA_GENIEX_COMMIT"] = self.git("rev-parse", "HEAD").stdout.strip()
+
+    def test_checkout_at_another_commit_is_refused_before_patching(self):
+        pinned_in_script = dict(self.env)
+        pinned_in_script.pop("VIBROGEMMA_GENIEX_COMMIT")
+        for label, environment in (("commit pinned in the script", pinned_in_script),
+                                   ("explicit other commit", self.env | {"VIBROGEMMA_GENIEX_COMMIT": "0" * 40})):
+            with self.subTest(label):
+                result = subprocess.run([str(self.repo / "VibroAgent-Gemma/setup_geniex.sh")], cwd=self.base,
+                                        env=environment, stdin=subprocess.DEVNULL, text=True,
+                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=15)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn("refusing to build", result.stdout)
+                self.assertEqual(self.source.read_text(), "header\nbase\ntail\n")
+                self.assertEqual([call for call in self.calls() if call.startswith('["uv"')], [])
 
     def git(self, *args):
         return subprocess.run(["/usr/bin/git", "-C", str(self.geniex), *args],
@@ -723,6 +813,10 @@ shift; echo 'broken archive' > "$1"
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("falling back to Hugging Face", result.stdout)
         self.assertTrue(any('"tool", "run"' in call for call in self.calls()), result.stdout)
+        tool_runs = [json.loads(call) for call in self.calls() if '"tool", "run"' in call]
+        for call in tool_runs:
+            # The download tool is resolved against the pinned constraints, not the newest release.
+            self.assertEqual(call[call.index("--constraints") + 1], str(self.repo / "constraints/hf-cli.txt"), call)
 
 
 if __name__ == "__main__":

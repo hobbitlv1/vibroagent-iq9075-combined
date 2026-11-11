@@ -1,0 +1,43 @@
+# Top-level requirements of the VibroAgent-Gemma environment (vibrodiag_mcp_prototype/.run/vibrogemma-venv).
+# constraints/gemma.txt is compiled from this file and pins the full dependency closure, so a
+# fresh install resolves to the same versions every time instead of whatever is newest that day.
+#
+# numpy is resolved here but not emitted: setup_geniex.sh installs numpy==2.2.6 for the encoder,
+# and the live/offline modes then install the STDATALOG pin numpy==2.3.4. Both are exact already.
+#
+# Regenerate (then re-run the test suite before committing):
+#   uv pip compile VibroAgent-Gemma/constraints/gemma.in --universal --python-version 3.12 \
+#       --no-header --no-emit-package numpy \
+#       -o VibroAgent-Gemma/constraints/gemma.txt
+
+# --- setup_geniex.sh ---
+numpy
+scipy>=1.12
+onnxruntime>=1.17
+tokenizers>=0.22
+pyyaml>=6
+jsonschema>=4
+cmake
+ninja
+pytest>=8
+geniex==0.10.0
+geniex-llama-cpp==0.10.0
+torch==2.11.0
+
+# --- vibrodiag_mcp_prototype[qwen] ---
+pydantic>=2.0
+# mcp 2.x removed mcp.server.fastmcp, which mcp_server.py imports; stay on the 1.x line.
+mcp[cli]>=1.2.0,<2
+openai>=1.0.0
+
+# --- STDATALOG-PYSDK v1.3.0 install_requires (live and offline modes) ---
+pyserial==3.5
+pandas==2.3.3
+h5py==3.15.0
+colorama==0.4.6
+click==8.3.0
+setuptools<81
+dask==2025.11.0
+pyarrow==22.0.0
+plotly_resampler==0.11.0
+python-statemachine==2.5.0

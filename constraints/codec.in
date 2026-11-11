@@ -1,0 +1,39 @@
+# Top-level requirements of every environment the VibroAgent-Codec setup scripts create.
+# constraints/codec.txt is compiled from this file and pins the full dependency closure, so a
+# fresh install resolves to the same versions every time instead of whatever is newest that day.
+#
+# Regenerate (then re-run the test suites and examples/selftest.py before committing):
+#   uv pip compile constraints/codec.in --universal --python-version 3.11 \
+#       --no-header --no-emit-package geniex \
+#       -o constraints/codec.txt
+
+# --- app environment (./vibroagent-venv): vibrodiag_mcp_prototype[dev,qwen] ---
+numpy>=1.24
+pydantic>=2.0
+mcp[cli]>=1.27,<2
+openai>=1.0.0
+pytest>=8.0
+
+# --- STDATALOG-PYSDK v1.3.0 install_requires (stdatalog_core at the commit pinned in setup_sdk.sh) ---
+numpy==2.3.4
+pyserial==3.5
+pandas==2.3.3
+h5py==3.15.0
+colorama==0.4.6
+click==8.3.0
+setuptools<81
+dask==2025.11.0
+pyarrow==22.0.0
+plotly_resampler==0.11.0
+python-statemachine==2.5.0
+
+# --- codec worker environment (~/codec-cpu-venv) ---
+# torch 2.11.0 reproduces examples/golden_codes.json byte-for-byte (examples/selftest.py).
+scipy
+torch==2.11.0
+
+# --- GenieX runtime environment (~/geniex-venv) ---
+# Resolved here so its dependencies are pinned, but not emitted: setup_geniex.sh installs an
+# exact geniex release itself (0.3.16 by default, the one geniex_openai_server.py was written
+# against), keeps an already-installed release, and honours GENIEX_VERSION.
+geniex==0.3.16

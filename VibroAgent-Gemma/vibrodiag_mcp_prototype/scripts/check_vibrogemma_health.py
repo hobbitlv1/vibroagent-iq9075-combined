@@ -39,7 +39,7 @@ def validate_health(
         "model": model_name,
         "model_sha256": model_sha256.lower(),
         "bundle_manifest_sha256": manifest_sha256.lower(),
-        "geniex_version": "0.4.0",
+        "geniex_version": "0.10.0",
         "device_map": device_map,
         "n_ctx": n_ctx,
         "external_embeddings": True,

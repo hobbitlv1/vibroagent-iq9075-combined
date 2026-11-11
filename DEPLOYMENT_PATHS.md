@@ -12,7 +12,7 @@ For an interactive arrow-key selector, run `./install.sh` from the repository ro
 | Model | Fine-tuned Qwen3-4B-Instruct-2507, Q4_0 with q8_0 embeddings | Fine-tuned Gemma 4 E2B, Q8_0 |
 | HTP placement | `llama_cpp:HTP0,HTP1`, two sessions | `llama_cpp:HTP0`, one session |
 | Context | 6,144 tokens | 4,096 tokens |
-| GenieX | Stock packaged runtime | GenieX 0.4.0 plus the included external-embedding and state-logit patches |
+| GenieX | Stock packaged runtime | GenieX 0.10.0 plus the included external-embedding and state-logit patches |
 | Decision method | One grammar-constrained JSON generation using the trained codes prompt | Binary global decision plus a joint five-target set read from selected model logits |
 | Model labels | Four relative sensor labels and five network labels | `normal` or `unknown_anomaly`; deterministic quality label `data_invalid`; severities `none` or `advisory` |
 | Localization | `affected_sensor_ids` generated in the model response | Exactly five target records; each target is independently affected or normal, so global and local states are not conflated |

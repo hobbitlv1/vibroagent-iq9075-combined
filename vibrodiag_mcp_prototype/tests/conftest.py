@@ -1,3 +1,13 @@
+import tempfile
+
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _allow_tmp_sensor_config_dirs(monkeypatch):
+    """Tests write sensor registries under the pytest tmp tree. Production trusts only the
+    project tree unless VIBRO_ALLOWED_SENSOR_CONFIG_DIR names more directories."""
+    monkeypatch.setenv("VIBRO_ALLOWED_SENSOR_CONFIG_DIR", tempfile.gettempdir())
 
 
 def pytest_collection_modifyitems(config, items):
@@ -6,7 +16,6 @@ def pytest_collection_modifyitems(config, items):
     not distributed with this repository. Skip them cleanly when it is absent;
     the asset itself is still exercised by every other codes test."""
     import pathlib
-    import pytest
     train = pathlib.Path(__file__).resolve().parents[1] / "data" / "codes_sft_v3" / "train.jsonl"
     if train.is_file():
         return

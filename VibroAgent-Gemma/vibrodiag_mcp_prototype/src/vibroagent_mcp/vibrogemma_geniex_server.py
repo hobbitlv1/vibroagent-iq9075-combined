@@ -1,4 +1,4 @@
-"""OpenAI-compatible VibroGemma endpoint backed by patched GenieX 0.4.0."""
+"""OpenAI-compatible VibroGemma endpoint backed by patched GenieX 0.10.0."""
 
 from __future__ import annotations
 
@@ -37,6 +37,9 @@ _LINE = re.compile(r"^T([1-5])\|([01])\|([a-z_]+)\|([a-z_]+)$")
 _GLOBAL_LINE = re.compile(r"^G\|([a-z_]+)\|([a-z_]+)$")
 STRUCTURED_DECISION_MODE = "parallel_binary_global_plus_joint_target_set_v1"
 DEPLOYMENT_CONTRACT_VERSION = "vibrogemma-geniex-live-v2"
+# The stateful decode, generate-from-state and state-logits calls come from the patch series in
+# patches/, which is written against exactly this release (see setup_geniex.sh).
+REQUIRED_GENIEX_VERSION = "0.10.0"
 REQUIRED_BUNDLE_ARTIFACTS = (
     "vibrogemma_config.json",
     "tokenizer/tokenizer.json",
@@ -51,6 +54,34 @@ def _installed_geniex_version() -> str | None:
         return version("geniex")
     except PackageNotFoundError:
         return None
+
+
+def _inference_thread_count() -> int:
+    """CPU threads for the runtime: VIBROGEMMA_N_THREADS, else the cores this process may use.
+
+    GenieX sizes its thread pool from the machine's core count and ignores the CPU set the launcher
+    pins this server to. GenieX 0.4.0 tolerated that, but the 0.10.0 CPU backend waits by spinning:
+    8 threads on 4 pinned cores took 113 s per window on the IQ-9075, against 26 s for 4 threads.
+
+    The thread count also changes the floating-point results. Logits are reproducible for one count;
+    between 4 and 8 threads the global answer's logits stayed identical on the bundled LUMO windows
+    and the five target answers moved by up to 1.3 logits, with no answer changing. GenieX 0.4.0 and
+    0.10.0 agree bit for bit at the same count. 0.4.0 ran 8 threads on the CPU backend, so
+    VIBROGEMMA_N_THREADS=8 with all 8 cores reproduces its numbers exactly.
+    """
+    raw = os.environ.get("VIBROGEMMA_N_THREADS", "").strip()
+    if raw:
+        try:
+            requested = int(raw)
+        except ValueError:
+            requested = 0
+        if requested < 1:
+            raise RuntimeError(f"VIBROGEMMA_N_THREADS must be a positive integer, got {raw!r}")
+        return requested
+    try:
+        return max(1, len(os.sched_getaffinity(0)))
+    except (AttributeError, OSError):
+        return max(1, os.cpu_count() or 1)
 
 
 def _choice_strings(
@@ -750,6 +781,7 @@ class VibroGemmaRuntime:
         self.device_map = device_map
         self.n_ctx = n_ctx
         self.n_batch = n_batch
+        self.n_threads = _inference_thread_count()
         self.model = None
         self.tokenizer = None
         self.runtime_probe: dict[str, Any] = {
@@ -798,9 +830,10 @@ class VibroGemmaRuntime:
         from geniex import AutoModelForCausalLM
         from tokenizers import Tokenizer
 
-        if self.geniex_version != "0.4.0":
+        if self.geniex_version != REQUIRED_GENIEX_VERSION:
             raise RuntimeError(
-                f"VibroGemma requires GenieX 0.4.0, found {self.geniex_version or 'not installed'}"
+                f"VibroGemma requires GenieX {REQUIRED_GENIEX_VERSION}, "
+                f"found {self.geniex_version or 'not installed'}"
             )
         self.tokenizer = Tokenizer.from_file(str(self.bundle / "tokenizer" / "tokenizer.json"))
         self.model = AutoModelForCausalLM.from_pretrained(
@@ -808,6 +841,8 @@ class VibroGemmaRuntime:
             device_map=self.device_map,
             n_ctx=self.n_ctx,
             n_batch=self.n_batch,
+            n_threads=self.n_threads,
+            n_threads_batch=self.n_threads,
         )
         self.runtime_probe = self._probe_loaded_runtime()
 
@@ -886,6 +921,7 @@ class VibroGemmaRuntime:
             "geniex_version": self.geniex_version,
             "device_map": self.device_map,
             "n_ctx": self.n_ctx,
+            "n_threads": getattr(self, "n_threads", None),
             "encoder": str(self.bundle / "vibration_encoder_projector.onnx"),
             "external_embeddings": True,
             "factorized_kv_cache_reuse": _factorized_kv_cache_enabled(),
@@ -1463,7 +1499,19 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _refused(self) -> bool:
+        """Refuse rebinding hosts and browser-originated requests before any model work."""
+        from .request_guard import local_service_refusal
+
+        reason = local_service_refusal(self.headers)
+        if reason is None:
+            return False
+        self._json(403, {"error": {"message": reason, "type": "forbidden"}})
+        return True
+
     def do_GET(self) -> None:  # noqa: N802
+        if self._refused():
+            return
         runtime: VibroGemmaRuntime = self.server.runtime  # type: ignore[attr-defined]
         if self.path.rstrip("/") == "/health":
             self._json(200, runtime.health())
@@ -1473,6 +1521,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(404, {"error": {"message": "not found"}})
 
     def do_POST(self) -> None:  # noqa: N802
+        if self._refused():
+            return
         if self.path.rstrip("/") != "/v1/chat/completions":
             self._json(404, {"error": {"message": "not found"}})
             return
@@ -1529,7 +1579,11 @@ def main() -> int:
                 )
 
         threading.Thread(target=watchdog, name="vibrogemma-watchdog", daemon=True).start()
-    print(f"Serving VibroAgent-Gemma/GenieX 0.4.0 at http://{args.host}:{args.port}/v1", flush=True)
+    print(
+        f"Serving VibroAgent-Gemma/GenieX {REQUIRED_GENIEX_VERSION} at http://{args.host}:{args.port}/v1 "
+        f"with {runtime.n_threads} CPU threads",
+        flush=True,
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

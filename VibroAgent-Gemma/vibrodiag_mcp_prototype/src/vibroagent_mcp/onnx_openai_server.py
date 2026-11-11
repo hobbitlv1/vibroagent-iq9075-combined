@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from .request_guard import local_service_refusal
+
 
 DEFAULT_ONNX_MODEL_ID = "Qwen/Qwen3.5-4B"
 DEFAULT_ONNX_HOST = "127.0.0.1"
@@ -311,7 +313,20 @@ class OnnxGenAIModel:
 class OnnxOpenAIHandler(BaseHTTPRequestHandler):
     server_version = "VibroAgentOnnxOpenAI/0.1"
 
+    def _refused(self) -> bool:
+        """Refuse rebinding hosts and browser-originated requests before any model work."""
+        reason = local_service_refusal(self.headers)
+        if reason is None:
+            return False
+        self._write_json(
+            {"error": {"message": reason, "type": "forbidden"}},
+            status=HTTPStatus.FORBIDDEN,
+        )
+        return True
+
     def do_GET(self) -> None:  # noqa: N802
+        if self._refused():
+            return
         path = urlparse(self.path).path.rstrip("/") or "/"
         backend: OnnxGenAIModel = self.server.onnx_backend  # type: ignore[attr-defined]
         if path == "/health":
@@ -335,6 +350,8 @@ class OnnxOpenAIHandler(BaseHTTPRequestHandler):
         self.send_error(HTTPStatus.NOT_FOUND, "not found")
 
     def do_POST(self) -> None:  # noqa: N802
+        if self._refused():
+            return
         path = urlparse(self.path).path.rstrip("/") or "/"
         if path not in {"/v1/chat/completions", "/chat/completions"}:
             self.send_error(HTTPStatus.NOT_FOUND, "not found")

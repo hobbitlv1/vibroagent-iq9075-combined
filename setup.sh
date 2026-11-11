@@ -30,10 +30,14 @@ done
 echo "==== data-source mode: $MODE ===="
 
 if ! command -v uv >/dev/null 2>&1; then
-    echo "==== installing uv (https://astral.sh/uv) ===="
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    echo "==== installing uv (pinned release, checksum-verified) ===="
+    "$REPO/setup_uv.sh"
     export PATH="$HOME/.local/bin:$PATH"
 fi
+
+# Every Python install below is held to the pinned dependency closure in constraints/codec.txt
+# (compiled from constraints/codec.in), so a fresh install gets the same versions every time.
+CONSTRAINTS="${VIBRO_CONSTRAINTS:-$REPO/constraints/codec.txt}"
 
 if [ "$MODE" = "offline" ]; then
     echo "==== [1/6] Linux USB prerequisites — SKIPPED (offline mode, no boards) ===="
@@ -52,7 +56,7 @@ if [ ! -x "$APP_VENV/bin/python" ]; then
 fi
 # qwen extra = the OpenAI-compatible client the webchat/agent use to talk to
 # the model server — required by the default stack, not optional in practice.
-uv pip install --quiet --python "$APP_VENV/bin/python" \
+uv pip install --quiet --python "$APP_VENV/bin/python" --constraint "$CONSTRAINTS" \
     -e "$REPO/vibrodiag_mcp_prototype[dev,qwen]"
 # The ST SDK is imported from the source trees via PYTHONPATH (the launchers
 # insist on THIS tree's packages), so it is never pip-installed — install its
@@ -60,7 +64,7 @@ uv pip install --quiet --python "$APP_VENV/bin/python" \
 SDK_DEPS="$(sed -n '/install_requires=\[/,/\]/p' "$REPO/stdatalog_core/setup.py" \
     | grep -oE '"[^"]+"' | tr -d '"' | grep -v '^stdatalog_')"
 # shellcheck disable=SC2086
-uv pip install --quiet --python "$APP_VENV/bin/python" $SDK_DEPS
+uv pip install --quiet --python "$APP_VENV/bin/python" --constraint "$CONSTRAINTS" $SDK_DEPS
 # Make the patched SDK importable from the venv WITHOUT the launchers'
 # PYTHONPATH: a .pth file appends the four source trees to sys.path.
 # PYTHONPATH entries still precede site-packages, so the launchers behave
@@ -79,9 +83,12 @@ CODEC_VENV="${VIBRO_CODEC_VENV:-$HOME/codec-cpu-venv}"
 if [ ! -x "$CODEC_VENV/bin/python" ]; then
     uv venv "$CODEC_VENV"
 fi
-uv pip install --quiet --python "$CODEC_VENV/bin/python" numpy scipy
-uv pip install --quiet --python "$CODEC_VENV/bin/python" \
+uv pip install --quiet --python "$CODEC_VENV/bin/python" --constraint "$CONSTRAINTS" numpy scipy
+# Only the torch wheel itself comes from the PyTorch CPU index (--no-deps). The second
+# command keeps that wheel and installs its dependencies from PyPI at the pinned versions.
+uv pip install --quiet --python "$CODEC_VENV/bin/python" --constraint "$CONSTRAINTS" --no-deps \
     torch --index-url https://download.pytorch.org/whl/cpu
+uv pip install --quiet --python "$CODEC_VENV/bin/python" --constraint "$CONSTRAINTS" torch
 echo "codec venv ready: $("$CODEC_VENV/bin/python" --version) at $CODEC_VENV"
 
 echo "==== [5/6] GenieX runtime ===="

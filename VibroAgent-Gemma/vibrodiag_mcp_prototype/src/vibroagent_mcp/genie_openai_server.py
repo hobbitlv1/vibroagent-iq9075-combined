@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from .request_guard import local_service_refusal
+
 QAIRT_VERSION = "2.46.0.260424"
 SDK_RELATIVE_PATH = Path(f"v{QAIRT_VERSION}") / "qairt" / QAIRT_VERSION
 AARCH64_TARGET = "aarch64-oe-linux-gcc11.2"
@@ -810,7 +812,17 @@ def _usage_payload(result: GeniePromptResult, prompt: str, content: str) -> dict
 class GenieOpenAIHandler(BaseHTTPRequestHandler):
     server_version = "VibroAgentGenieOpenAI/0.1"
 
+    def _refused(self) -> bool:
+        """Refuse rebinding hosts and browser-originated requests before any model work."""
+        reason = local_service_refusal(self.headers)
+        if reason is None:
+            return False
+        self._send_json(HTTPStatus.FORBIDDEN, {"error": {"message": reason, "type": "forbidden"}})
+        return True
+
     def do_GET(self) -> None:  # noqa: N802 - stdlib handler API
+        if self._refused():
+            return
         path = urlparse(self.path).path.rstrip("/")
         if path == "/v1/models":
             self._send_json(
@@ -831,6 +843,8 @@ class GenieOpenAIHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.NOT_FOUND, {"error": {"message": "not found", "type": "not_found"}})
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib handler API
+        if self._refused():
+            return
         path = urlparse(self.path).path.rstrip("/")
         if path != "/v1/chat/completions":
             self._send_json(HTTPStatus.NOT_FOUND, {"error": {"message": "not found", "type": "not_found"}})

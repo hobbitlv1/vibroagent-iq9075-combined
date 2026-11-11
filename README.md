@@ -82,6 +82,8 @@ Animated installation rows explicitly reset their cursor column, so they do not 
 
 The installer accepts exactly one deployment selection. Re-running a selection is safe: the underlying setup scripts verify and reuse valid repositories, environments, recordings, and model artifacts.
 
+Installs are pinned end to end. `setup_uv.sh` installs one fixed uv release from an installer whose SHA-256 is checked before it runs. Every Python package is held to a compiled constraints file (`constraints/codec.txt`, `constraints/hf-cli.txt`, and `VibroAgent-Gemma/constraints/gemma.txt`), so the same versions are installed every time; re-running setup moves an existing environment to those versions. Only the `torch` wheel comes from the PyTorch CPU index, and its dependencies come from PyPI. The GenieX source for VibroAgent-Gemma must be at the reviewed `v0.10.0` commit before it is compiled. To change a version, edit the matching `.in` file, recompile it with the `uv pip compile` command in its header, and re-run the tests and `examples/selftest.py`.
+
 ## Choose the implementation
 
 | Property | VibroAgent-Codec | VibroAgent-Gemma |
@@ -95,7 +97,7 @@ The installer accepts exactly one deployment selection. Re-running a selection i
 | How vibration enters | Code symbols in a text prompt | Projected embeddings inside the model sequence |
 | Context | 6,144 | 4,096 |
 | HTP placement | HTP0 + HTP1 | HTP0 |
-| Runtime | Packaged GenieX path | GenieX v0.4.0 plus included stateful embedding/logit bridge patches |
+| Runtime | Packaged GenieX path | GenieX v0.10.0 plus included stateful embedding/logit bridge patches |
 | Output contract | Grammar-constrained JSON | Global binary state plus joint five-target set logits, validated as JSON |
 | Operational classes | Legacy fine-grained set | `normal`, `unknown_anomaly`, deterministic `data_invalid` |
 | Localization | Model verdict under Codec contract | Five simultaneous target decisions; source-zone labels, not largest-response labels |
@@ -181,7 +183,7 @@ Run `./setup.sh` again to switch to live sensors. Run `./setup.sh --offline` aga
 2. `setup_sdk.sh` fetches the four STDATALOG-PYSDK v1.3.0 repositories at pinned commits and applies the path-preserving `sdk_patches/overlay/`.
 3. It creates `./vibroagent-venv` and installs the `vibroagent_mcp` application plus its runtime and test dependencies.
 4. It creates `~/codec-cpu-venv` with NumPy, SciPy, and CPU-only PyTorch for deterministic codec inference.
-5. `setup_geniex.sh` creates `~/geniex-venv` and installs the Qualcomm GenieX runtime.
+5. `setup_geniex.sh` creates `~/geniex-venv` and installs the Qualcomm GenieX runtime at an exact release: `GENIEX_VERSION` when set, otherwise the release already installed, otherwise `0.3.16`.
 6. `setup_models.sh` downloads and verifies the fine-tuned `codes_v3` GGUF.
 7. In recorded mode, `setup_recordings.sh` also downloads and verifies the five-minute, six-channel recording set.
 
@@ -287,6 +289,8 @@ http://<iq-9075-lan-ip>:7860
 The graph page is available at `/graph`. Set `WEB_HOST=127.0.0.1` before launch for local-only access, or `WEB_HOST=0.0.0.0` to bind every interface.
 
 Every page and `/api` route except `/health` requires a per-installation access token. The launcher generates it once into `.run/web_token` (mode 0600), passes it to the web process as `VIBRO_WEB_TOKEN`, and prints a sign-in URL of the form `http://<ip>:7860/?token=...`. Opening that URL once stores the token in a browser cookie and redirects to the plain page; `./vibroagent.sh status` prints it again. Scripts send `Authorization: Bearer <token>` or `X-Vibro-Token: <token>`. Set `VIBRO_WEB_AUTH=0` to disable the check for local-only use. The token travels over plain HTTP, so keep the service on a trusted network and do not expose port `7860` directly to the internet; put it behind a TLS reverse proxy if it must leave the LAN.
+
+Requests are also refused unless their `Host` header names this machine by IP address, `localhost`, or its own hostname. This blocks DNS-rebinding pages from reaching the service through a browser on the LAN. If you reach the UI through another name, such as a reverse proxy or VPN hostname, list it in `VIBRO_ALLOWED_WEB_HOSTS`. The local model servers apply the same check and additionally refuse any request a browser marks with an `Origin` header.
 
 ### 2.3 Recorded-data mode
 
@@ -584,6 +588,11 @@ The baseline serial is also checked by `vibroagent.sh` before acquisition begins
 | `VIBRO_WEB_MAX_ACTIVE_REQUESTS` | `32` | Simultaneous web connections; further connections receive HTTP 503 |
 | `VIBRO_ALLOW_REQUEST_MODEL_OVERRIDES` | `0` | Set `1` to let chat requests supply their own model `base_url` and `api_key` (development only) |
 | `VIBRO_EXPORT_ROOT` | `vibrodiag_mcp_prototype/validation_exports` | Only directory tree the model-callable validation export may write into |
+| `VIBRO_ALLOWED_SENSOR_CONFIG_DIR` | Unset | Extra directories (`:`-separated) a sensor registry may be loaded from, besides the project tree and the directory of `VIBRO_BUILDING_SENSOR_CONFIG` |
+| `VIBRO_ALLOWED_WEB_HOSTS` | Unset | Extra host names (comma-separated) accepted in the `Host` header, besides IP addresses, `localhost`, and this machine's hostname; needed behind a reverse proxy or VPN name |
+| `GENIEX_VERSION` | Installed release, else `0.3.16` | Exact GenieX release `setup_geniex.sh` installs |
+| `VIBRO_CONSTRAINTS` | `constraints/codec.txt` | Pinned dependency versions applied to every Codec `uv pip install` |
+| `VIBRO_UV_VERSION`, `VIBRO_UV_INSTALLER_SHA256` | `0.12.3` and its installer checksum | uv release `setup_uv.sh` installs when uv is missing; change both together |
 | `EXPECTED_BOARDS` | `6` | Native probe fleet size |
 | `VIBRO_BOARD_READER_PROCESSES` | Enabled by live UI requests | Override per-board process readers |
 | `VIBRO_BOARD_READER_TIMEOUT_S` | `30` | Normal read timeout |
@@ -609,7 +618,9 @@ vibroagent-iq9075-combined/
 ├── setup.sh                         Codec live or recorded-data installation
 ├── setup_usb.sh                     libusb, udev rules, and hsdatalog group
 ├── setup_sdk.sh                     Pinned STDATALOG-PYSDK plus local overlay
-├── setup_geniex.sh                  Dedicated GenieX environment
+├── setup_uv.sh                      Pinned, checksum-verified uv bootstrap
+├── setup_geniex.sh                  Dedicated GenieX environment (exact release)
+├── constraints/                     Pinned Python dependency closures (.in sources, compiled .txt)
 ├── setup_models.sh                  Hash-verified codes_v3 GGUF download
 ├── setup_recordings.sh              Hash-verified immutable replay set
 ├── vibroagent.sh                    Current service lifecycle entry point
@@ -845,7 +856,7 @@ flowchart LR
     D --> Q[Deterministic quality gates]
     Q --> E[ONNX vibration encoder]
     E --> F[84 x 1536 continuous rows]
-    F --> G[Patched GenieX 0.4.0 stateful prefill]
+    F --> G[Patched GenieX 0.10.0 stateful prefill]
     G --> H[Gemma 4 E2B Q8 on HTP0]
     H --> I[Global binary logits]
     H --> J[Joint five-target set logits]
@@ -956,9 +967,9 @@ The profile applies only when episode provenance matches its fitted keys. Global
 
 For a new building, a defensible profile requires a reviewed healthy-baseline campaign, fixed locations/orientations, stable acquisition settings, representative ambient and operational conditions, and held-out acceptance data. Fitting it does not retrain the checkpoint or solve localization. Do not remove or substitute it merely to make alerts appear.
 
-### 11. GenieX 0.4.0 modifications
+### 11. GenieX 0.10.0 modifications
 
-`VibroAgent-Gemma/setup_geniex.sh` clones Qualcomm GenieX tag `v0.4.0`, initializes its pinned `llama.cpp` submodule, applies the two reviewable patches under `VibroAgent-Gemma/vibrodiag_mcp_prototype/patches/`, and builds only the necessary plugin and bridge pieces.
+`VibroAgent-Gemma/setup_geniex.sh` clones Qualcomm GenieX tag `v0.10.0`, refuses to continue unless the checkout is commit `071f609995470bdb0e0769ab964754adfaab7e47` (override with `VIBROGEMMA_GENIEX_COMMIT` after reviewing an upstream change), initializes its pinned `llama.cpp` submodule, applies the three reviewable patches under `VibroAgent-Gemma/vibrodiag_mcp_prototype/patches/`, and builds only the necessary plugin and bridge pieces.
 
 #### Patch 1: stateful external-embedding prefill
 
@@ -970,7 +981,13 @@ The interface bounds row counts and shapes and keeps native ownership explicit. 
 
 `0002-feat-read-state-logits.patch` exposes selected logits from the latest stateful decode without sampling or changing the state. VibroAgent-Gemma compares the two global choice logits and the joint target-set choice logits at their exact query positions.
 
-This avoids parsing a creative completion into target states and preserves the trained structured-choice interface. The build retains stock GenieX 0.4.0 shared libraries, rebuilds the patched plugin, and adds `libgeniex_stateful.so` as a compatibility bridge. Startup requires external-embedding and state-logit probes to pass before the web service starts. GenieX-derived changes retain Qualcomm's BSD 3-Clause licence in the patch directory.
+This avoids parsing a creative completion into target states and preserves the trained structured-choice interface. The build retains stock GenieX 0.10.0 shared libraries, rebuilds the patched plugin, and adds `libgeniex_stateful.so` as a compatibility bridge. Startup requires external-embedding and state-logit probes to pass before the web service starts. GenieX-derived changes retain Qualcomm's BSD 3-Clause licence in the patch directory.
+
+#### Thread count and reproducibility
+
+The model server passes GenieX an explicit thread count: `VIBROGEMMA_N_THREADS`, or by default one thread per core in `VIBROGEMMA_INFERENCE_CPUS`. GenieX 0.10.0 would otherwise start one thread per machine core, and its CPU backend waits by spinning, so 8 threads on 4 pinned cores took 113 s per window on the IQ-9075 against 26 s for 4 threads.
+
+Decision logits are reproducible for one thread count and differ between counts. On the bundled LUMO windows, 4 and 8 threads give identical logits for the global answer and target logits up to 1.3 apart, with no answer changing. At the same thread count the patched 0.10.0 runtime reproduces the patched 0.4.0 runtime bit for bit on the CPU backend. GenieX 0.4.0 ran 8 CPU threads, so `VIBROGEMMA_N_THREADS=8 VIBROGEMMA_INFERENCE_CPUS=0-7` reproduces its numbers exactly. The recorded reference logits and the comparison command are described in `VibroAgent-Gemma/vibrodiag_mcp_prototype/patches/README.md`.
 
 ### 12. Shared STDATALOG-PYSDK modifications
 
@@ -1058,6 +1075,8 @@ The launchers provide reviewed defaults. Common operator overrides are:
 | `GENIEX_PORT` | Loopback adapter port; default 18181 |
 | `GENIEX_N_CTX` | Context size; reviewed default 4096 |
 | `GENIEX_DEVICE_MAP` | Device placement; reviewed default HTP0 map |
+| `VIBROGEMMA_INFERENCE_CPUS` | Cores the Gemma model server is pinned to; default `6-7` |
+| `VIBROGEMMA_N_THREADS` | Gemma model-server CPU threads; default one per pinned core. Changing it shifts decision logits (section 11) |
 | `VIBRO_CURRENT_FILE_MAX_AGE_S` | Maximum accepted live-file age |
 | `VIBRO_LIVE_DEVICE_MANIFEST` | Logical-slot-to-device mapping |
 | `VIBRO_REQUIRE_DEVICE_IDENTITY` | Enforce physical device identity |
@@ -1190,7 +1209,8 @@ VibroAgent-Gemma/
 ├── README.md
 ├── setup.sh                         Mode/environment setup
 ├── setup_models.sh                  Download, reconstruction, SHA gates
-├── setup_geniex.sh                  GenieX v0.4.0 patch and build
+├── setup_geniex.sh                  GenieX v0.10.0 patch and build (commit-pinned)
+├── constraints/                     Pinned Python dependency closure (gemma.in, gemma.txt)
 ├── vibroagent.sh                    Start/stop/status/demo entry point
 ├── models/gemma_release_assets_manifest.json
 ├── demo/

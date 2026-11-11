@@ -8,7 +8,7 @@
 #   ./vibroagent.sh [start|stop|restart|status|start-model|stop-model|demo]
 #   stop-npu / restart-webchat leave the logger (and its USB boards) untouched.
 #
-# Patched GenieX 0.4.0 serves Gemma on HTP0 (:18181) and the live monitor
+# Patched GenieX 0.10.0 serves Gemma on HTP0 (:18181) and the live monitor
 # injects the ONNX encoder's continuous rows.
 # Axis sweep: VIBRO_CODES_AXES=x,y,z judges each axis separately and combines
 # by max severity (~3x NPU time per poll). Default: the per-sensor config axis.
@@ -30,7 +30,7 @@ RUN_DIR="$REPO/.run"
 mkdir -p "$RUN_DIR"
 
 # ---- config (override via environment if needed) ---------------------------
-# Gemma 4 plus the VibroAgent-Gemma encoder on patched GenieX 0.4.0.
+# Gemma 4 plus the VibroAgent-Gemma encoder on patched GenieX 0.10.0.
 # VIBRO_STACK=codes: finetuned codes_v3 GGUF on geniex
 #   llama_cpp:HTP0,HTP1 with a 6K context (:18181) + codec-v1 codes monitor
 #   (VIBRO_MONITOR_DECISION_MODE=codes).
@@ -65,8 +65,8 @@ VIBRO_CURRENT_FILE_MAX_AGE_S="${VIBRO_CURRENT_FILE_MAX_AGE_S:-3}"
 VIBRO_LIVE_DEVICE_MANIFEST="${VIBRO_LIVE_DEVICE_MANIFEST:-$EX/vibroagent_live_devices.json}"
 VIBRO_REQUIRE_DEVICE_IDENTITY="${VIBRO_REQUIRE_DEVICE_IDENTITY:-1}"
 VIBROGEMMA_PYTHON="${VIBROGEMMA_PYTHON:-$PROTO/.run/vibrogemma-venv/bin/python}"
-VIBROGEMMA_GENIEX_SOURCE="${VIBROGEMMA_GENIEX_SOURCE:-$PROTO/.run/GenieX-v0.4.0}"
-VIBROGEMMA_GENIEX_LIB="${VIBROGEMMA_GENIEX_LIB:-$PROTO/.run/geniex-v0.4.0-vibrogemma}"
+VIBROGEMMA_GENIEX_SOURCE="${VIBROGEMMA_GENIEX_SOURCE:-$PROTO/.run/GenieX-v0.10.0}"
+VIBROGEMMA_GENIEX_LIB="${VIBROGEMMA_GENIEX_LIB:-$PROTO/.run/geniex-v0.10.0-vibrogemma}"
 CODES_GGUF="${CODES_GGUF:-/media/ubuntu/Drive/downloads_heavy/qwen3_4b_codes_v3_Q4_0_embq8.gguf}"
 CODES_GGUF_SHA256="${CODES_GGUF_SHA256:-3a18c057e47d8032cb771140e54ed7bbfcf8cf1d58c6d990f579800f149a90c2}"
 # Split the pure-attention Qwen3-4B across two Hexagon sessions so its 6144-token
@@ -261,7 +261,7 @@ start_geniex() {
     fi
   fi
   if [ "$STACK" = "gemma" ]; then
-    say "Starting VibroAgent-Gemma on GenieX 0.4.0 :$GENIEX_PORT ($(basename "$VIBROGEMMA_GGUF"), $device_map) ..."
+    say "Starting VibroAgent-Gemma on GenieX 0.10.0 :$GENIEX_PORT ($(basename "$VIBROGEMMA_GGUF"), $device_map) ..."
   else
     say "Starting geniex codes server on :$GENIEX_PORT ($(basename "$CODES_GGUF"), $device_map, n_ctx=$n_ctx) ..."
   fi

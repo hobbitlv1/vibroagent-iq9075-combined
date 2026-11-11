@@ -14,7 +14,7 @@ def _model_health():
         "model": "model.gguf",
         "model_sha256": "a" * 64,
         "bundle_manifest_sha256": "b" * 64,
-        "geniex_version": "0.4.0",
+        "geniex_version": "0.10.0",
         "device_map": "llama_cpp:HTP0",
         "n_ctx": 4096,
         "external_embeddings": True,

@@ -1,0 +1,10 @@
+# The Hugging Face download tool that setup_models.sh and setup_recordings.sh run through
+# `uv tool run` when the GitHub release assets are unavailable. It gets its own isolated
+# environment, so it is pinned separately from the application environments: sharing their
+# constraints would tie it to the STDATALOG pins and select a release whose CLI cannot start.
+#
+# Regenerate (then check `uv tool run --constraints constraints/hf-cli.txt --from huggingface_hub hf version`):
+#   uv pip compile constraints/hf-cli.in --universal --python-version 3.10 \
+#       --no-header -o constraints/hf-cli.txt
+
+huggingface_hub

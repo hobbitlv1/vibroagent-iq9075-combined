@@ -807,6 +807,23 @@ def export_building_validation_dataset_service(
     }
 
 
+def allowed_sensor_config_roots() -> list[Path]:
+    """Directories a sensor registry config may be loaded from.
+
+    The project tree, the directory holding ``VIBRO_BUILDING_SENSOR_CONFIG``, and every entry of
+    ``VIBRO_ALLOWED_SENSOR_CONFIG_DIR`` (``os.pathsep``-separated). Every MCP tool takes a
+    ``config_path`` that the chat model chooses, so the path is never trusted beyond these roots.
+    """
+    roots: list[Path] = [Path(__file__).resolve().parents[2]]
+    env_config = os.environ.get("VIBRO_BUILDING_SENSOR_CONFIG")
+    if env_config:
+        roots.append(Path(env_config).expanduser().resolve().parent)
+    for item in os.environ.get("VIBRO_ALLOWED_SENSOR_CONFIG_DIR", "").split(os.pathsep):
+        if item.strip():
+            roots.append(Path(item.strip()).expanduser().resolve())
+    return list(dict.fromkeys(roots))
+
+
 def _resolve_building_sensor_config(config_path: str | None = DEFAULT_BUILDING_SENSOR_CONFIG) -> Path:
     raw = str(config_path or DEFAULT_BUILDING_SENSOR_CONFIG).strip() or DEFAULT_BUILDING_SENSOR_CONFIG
     env_path = os.environ.get("VIBRO_BUILDING_SENSOR_CONFIG")
@@ -824,11 +841,22 @@ def _resolve_building_sensor_config(config_path: str | None = DEFAULT_BUILDING_S
     elif requested.name == "sensors.live.yaml":
         candidates.append((Path(__file__).resolve().parents[2] / DEFAULT_BUILDING_SENSOR_CONFIG).resolve())
 
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate.resolve()
-
-    return candidates[0].resolve()
+    resolved = next(
+        (candidate.resolve() for candidate in candidates if candidate.exists()),
+        candidates[0].resolve(),
+    )
+    for root in allowed_sensor_config_roots():
+        try:
+            resolved.relative_to(root)
+        except ValueError:
+            continue
+        return resolved
+    # Same wording whether or not the file exists: the refusal must not become a probe for
+    # which files are present outside the allowed directories.
+    raise ValueError(
+        f"config_path {raw!r} is not inside an allowed sensor config directory. "
+        "Use a registry under the project tree or add its directory to VIBRO_ALLOWED_SENSOR_CONFIG_DIR."
+    )
 
 
 def _normalize_sensor_ids(sensor_ids: list[str] | str | None) -> list[str] | None:

@@ -5,7 +5,7 @@ This package contains the six-board live web application and model bridge used b
 The runtime-specific modules are:
 
 - `vibrogemma_live.py`: synchronized six-board capture, deterministic quality checks, encoder handoff, response validation, and optional test-only LUMO overlay;
-- `vibrogemma_geniex_server.py`: loopback OpenAI-compatible endpoint for the patched GenieX 0.4.0 external-embedding path;
+- `vibrogemma_geniex_server.py`: loopback OpenAI-compatible endpoint for the patched GenieX 0.10.0 external-embedding path;
 - `vibrogemma_webchat.py`: desktop live monitor, spectrum, replay, chat, target-state display, and popup coordination;
 - `scripts/live_vibrogemma_worker.py`: manifest-verified ONNX encoder worker producing exactly `84 × 1536` continuous embeddings;
 - `board_reader_process.py` and `sdk_vibrometer.py`: isolated live STDATALOG readers;
