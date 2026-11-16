@@ -69,9 +69,9 @@ fsspec==2026.9.0
     #   dask
     #   huggingface-hub
     #   torch
-geniex==0.10.0
+geniex==0.11.0
     # via -r VibroAgent-Gemma/constraints/gemma.in
-geniex-llama-cpp==0.10.0
+geniex-llama-cpp==0.11.0
     # via -r VibroAgent-Gemma/constraints/gemma.in
 h11==0.16.0
     # via

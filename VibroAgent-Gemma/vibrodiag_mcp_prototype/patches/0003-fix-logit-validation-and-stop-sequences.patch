@@ -45,9 +45,18 @@ index 1a74346..3f04b79 100644
              input_ids=cast(ids, POINTER(c_int32)),
              input_ids_count=n,
 diff --git a/bindings/python/tests/unit/test_stateful_decode.py b/bindings/python/tests/unit/test_stateful_decode.py
-index dcec3e8..7d3a34b 100644
+index dcec3e8..65fd587 100644
 --- a/bindings/python/tests/unit/test_stateful_decode.py
 +++ b/bindings/python/tests/unit/test_stateful_decode.py
+@@ -14,7 +14,7 @@ from geniex.modeling import GenieXLLM
+ 
+ def test_stateful_embedding_decode_and_generation(monkeypatch):
+     assert sizeof(geniex_LlmBatch) == 64
+-    assert sizeof(geniex_LlmDecodeOutput) == 104
++    assert sizeof(geniex_LlmDecodeOutput) == 112
+     assert sizeof(geniex_LlmGenerateFromStateInput) == 40
+     payload = create_string_buffer(b" continued")
+     seen = {}
 @@ -63,3 +63,47 @@ def test_stateful_embedding_decode_rejects_invalid_rows(rows):
      with pytest.raises(ValueError):
          model.decode(input_embd=rows)
@@ -167,10 +176,10 @@ index 0000000..7b0c55f
 +
 +}  // namespace geniex
 diff --git a/sdk/plugins/llama_cpp/src/llm.cpp b/sdk/plugins/llama_cpp/src/llm.cpp
-index 8fe8892..385bac6 100644
+index 95219c3..5f4f395 100644
 --- a/sdk/plugins/llama_cpp/src/llm.cpp
 +++ b/sdk/plugins/llama_cpp/src/llm.cpp
-@@ -18,6 +18,7 @@
+@@ -19,6 +19,7 @@
  #include "logging.h"
  #include "params.h"
  #include "profiler.h"
@@ -178,7 +187,7 @@ index 8fe8892..385bac6 100644
  
  namespace geniex {
  
-@@ -265,6 +266,7 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
+@@ -276,6 +277,7 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
          return GENIEX_ERROR_COMMON_INVALID_INPUT;  // error: none of input_embd, input_ids, prompt_utf8 provided
  
      geniex_GenerationConfig cfg = input->config ? *input->config : geniex_GenerationConfig{};
@@ -186,7 +195,7 @@ index 8fe8892..385bac6 100644
      cfg.max_tokens              = cfg.max_tokens > 0 ? cfg.max_tokens : 128;
  
      // Initialzie resources
-@@ -495,7 +497,7 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
+@@ -506,7 +508,7 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
  
      bool                     first_token_generated = false;
      std::vector<llama_token> generated_tokens;
@@ -195,7 +204,7 @@ index 8fe8892..385bac6 100644
  
      // Emit one sampled token: records TTFT, applies EOS / stop-sequence / user
      // callback checks, and appends to the output. Returns false when generation
-@@ -512,29 +514,8 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
+@@ -523,29 +525,8 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
              return false;
          }
  
@@ -226,7 +235,7 @@ index 8fe8892..385bac6 100644
          return true;
      };
  
-@@ -554,8 +535,14 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
+@@ -565,8 +546,14 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
          }
      }
  
@@ -243,7 +252,7 @@ index 8fe8892..385bac6 100644
          GENIEX_LOG_WARN("LLM generate: context window ({}) exhausted; truncating", n_ctx);
          profiler.set_stop_reason(common::StopReason::GENIEX_STOP_REASON_LENGTH);
      } else if ((int)generated_tokens.size() >= cfg.max_tokens) {
-@@ -564,7 +551,7 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
+@@ -575,7 +562,7 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
      profiler.decode_end();
      profiler.update_generated_tokens(generated_tokens.size());
      profiler.to_profile_data(output->profile_data);
@@ -252,7 +261,7 @@ index 8fe8892..385bac6 100644
  
      // update past record
      if (has_input_embd) {
-@@ -781,7 +768,7 @@ int32_t LlamaLlm::generate_from_state(
+@@ -795,7 +782,7 @@ int32_t LlamaLlm::generate_from_state(
      int32_t sample_index = logits_it->second;
      bool first_token_generated = false;
      std::vector<llama_token> generated_tokens;
@@ -261,7 +270,7 @@ index 8fe8892..385bac6 100644
  
      while (res == GENIEX_SUCCESS && static_cast<int32_t>(generated_tokens.size()) < cfg.max_tokens) {
          const llama_token id = common_sampler_sample(this->sampler, this->ctx, sample_index);
-@@ -795,27 +782,8 @@ int32_t LlamaLlm::generate_from_state(
+@@ -809,27 +796,8 @@ int32_t LlamaLlm::generate_from_state(
              break;
          }
  
@@ -290,7 +299,7 @@ index 8fe8892..385bac6 100644
  
          llama_token token = id;
          llama_pos position = next_position;
-@@ -845,14 +813,19 @@ int32_t LlamaLlm::generate_from_state(
+@@ -859,14 +827,19 @@ int32_t LlamaLlm::generate_from_state(
          if (input->sequence_id == 0) this->n_past = static_cast<int>(next_position);
      }
  

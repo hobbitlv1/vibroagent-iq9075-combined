@@ -90,7 +90,7 @@ index b936a78..7a43bdf 100644
      lib.geniex_llm_get_model_info.restype = c_int32
  
 diff --git a/bindings/python/geniex/_ffi/_types.py b/bindings/python/geniex/_ffi/_types.py
-index aedb073..5dc579c 100644
+index c92ee5a..55efa55 100644
 --- a/bindings/python/geniex/_ffi/_types.py
 +++ b/bindings/python/geniex/_ffi/_types.py
 @@ -11,6 +11,7 @@ from ctypes import (
@@ -101,7 +101,7 @@ index aedb073..5dc579c 100644
      c_int32,
      c_int64,
      c_uint32,
-@@ -208,6 +209,41 @@ class geniex_LlmGenerateOutput(Structure):
+@@ -209,6 +210,41 @@ class geniex_LlmGenerateOutput(Structure):
      ]
  
  
@@ -144,10 +144,10 @@ index aedb073..5dc579c 100644
      _fields_ = [
          ('vocab_size', c_int32),
 diff --git a/bindings/python/geniex/generation/output.py b/bindings/python/geniex/generation/output.py
-index 5a34a2b..9904a71 100644
+index bab36c8..5524f34 100644
 --- a/bindings/python/geniex/generation/output.py
 +++ b/bindings/python/geniex/generation/output.py
-@@ -90,3 +90,10 @@ class GenerateOutput:
+@@ -93,3 +93,10 @@ class GenerateOutput:
              thinking = m.group(1).strip()
              text = _THINK_RE.sub('', full_text).strip()
          return cls(text=text, thinking=thinking, profile=profile)
@@ -480,10 +480,10 @@ index 0000000..8a55ee6
 +    }
 +}
 diff --git a/sdk/include/geniex.h b/sdk/include/geniex.h
-index 28beb99..4dd23d5 100644
+index cb0f273..8f18ace 100644
 --- a/sdk/include/geniex.h
 +++ b/sdk/include/geniex.h
-@@ -741,6 +741,47 @@ typedef struct {
+@@ -742,6 +742,47 @@ typedef struct {
  GENIEX_API int32_t geniex_llm_generate(
      geniex_LLM* handle, const geniex_LlmGenerateInput* input, geniex_LlmGenerateOutput* output);
  
@@ -602,7 +602,7 @@ index db78fc9..6ec7b20 100644
      void set_sampler(const geniex_SamplerConfig* cfg);
  
 diff --git a/sdk/plugins/llama_cpp/src/llm.cpp b/sdk/plugins/llama_cpp/src/llm.cpp
-index a468f29..d324705 100644
+index 4c8aa20..b79d363 100644
 --- a/sdk/plugins/llama_cpp/src/llm.cpp
 +++ b/sdk/plugins/llama_cpp/src/llm.cpp
 @@ -8,6 +8,7 @@
@@ -613,7 +613,7 @@ index a468f29..d324705 100644
  #include <sstream>
  #include <vector>
  
-@@ -141,6 +142,11 @@ int32_t LlamaLlm::reset() {
+@@ -146,6 +147,11 @@ int32_t LlamaLlm::reset() {
      this->n_past_global = 0;
      this->n_past        = 0;
      this->past_prompt_tokens.clear();
@@ -624,8 +624,8 @@ index a468f29..d324705 100644
 +    if (this->sampler) common_sampler_reset(this->sampler);
  
      llama_memory_clear(llama_get_memory(this->ctx), /*clear data=*/true);
- 
-@@ -168,6 +174,9 @@ int32_t LlamaLlm::load_kv_cache(const geniex_KvCacheLoadInput* input, geniex_KvC
+     if (this->draft_ctx) {
+@@ -176,6 +182,9 @@ int32_t LlamaLlm::load_kv_cache(const geniex_KvCacheLoadInput* input, geniex_KvC
      this->n_past        = n_past;
      this->n_past_global = 0;
      this->past_prompt_tokens.clear();
@@ -635,9 +635,9 @@ index a468f29..d324705 100644
  
      return ret ? GENIEX_SUCCESS : GENIEX_ERROR_COMMON_UNKNOWN;
  }
-@@ -241,6 +250,13 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
-     // Validate input
-     if (!input) return GENIEX_ERROR_COMMON_INVALID_INPUT;
+@@ -252,6 +261,13 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
+     // Autoregressive sampling requires persistent sequence state.
+     if (!llama_get_memory(this->ctx)) return GENIEX_ERROR_COMMON_PARAM_NOT_SUPPORTED;
  
 +    // The one-shot API owns its prompt/KV lifecycle; never append it to a
 +    // low-level mixed token/embedding sequence.
@@ -649,7 +649,7 @@ index a468f29..d324705 100644
      bool has_input_embd  = input->input_embd != nullptr && input->input_embd_count > 0;
      bool has_input_ids   = input->input_ids != nullptr && input->input_ids_count > 0;
      bool has_prompt_utf8 = input->prompt_utf8 != nullptr;
-@@ -570,6 +586,276 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
+@@ -578,6 +594,282 @@ int32_t LlamaLlm::generate(const geniex_LlmGenerateInput* input, geniex_LlmGener
      return res;
  }
  
@@ -659,6 +659,8 @@ index a468f29..d324705 100644
 +        return GENIEX_ERROR_COMMON_INVALID_INPUT;
 +    }
 +    if (!this->ctx || !this->model) return GENIEX_ERROR_COMMON_NOT_INITIALIZED;
++    // The stateful API continues from retained KV state, which a cache-less context does not have.
++    if (!llama_get_memory(this->ctx)) return GENIEX_ERROR_COMMON_PARAM_NOT_SUPPORTED;
 +
 +    std::memset(output, 0, sizeof(*output));
 +    output->struct_size   = sizeof(*output);
@@ -801,6 +803,7 @@ index a468f29..d324705 100644
 +    output->n_decoded = input->n_tokens;
 +    output->next_position = pos_max >= 0 ? static_cast<int32_t>(pos_max + 1) : -1;
 +    profiler.update_prompt_tokens(static_cast<uint32_t>(input->n_tokens));
++    profiler.update_total_prompt_tokens(static_cast<uint32_t>(this->n_past));
 +    profiler.set_stop_reason(::common::StopReason::GENIEX_STOP_REASON_COMPLETED);
 +    profiler.to_profile_data(output->profile_data);
 +    return GENIEX_SUCCESS;
@@ -812,6 +815,8 @@ index a468f29..d324705 100644
 +        return GENIEX_ERROR_COMMON_INVALID_INPUT;
 +    }
 +    if (!this->ctx || !this->model) return GENIEX_ERROR_COMMON_NOT_INITIALIZED;
++    // The stateful API continues from retained KV state, which a cache-less context does not have.
++    if (!llama_get_memory(this->ctx)) return GENIEX_ERROR_COMMON_PARAM_NOT_SUPPORTED;
 +    std::memset(output, 0, sizeof(*output));
 +
 +    if (!this->stateful_mode || input->sequence_id < 0 ||
@@ -843,6 +848,7 @@ index a468f29..d324705 100644
 +
 +    const llama_vocab* vocab = llama_model_get_vocab(this->model);
 +    ::common::Profiler profiler;
++    profiler.update_total_prompt_tokens(static_cast<uint32_t>(next_position));
 +    profiler.decode_start();
 +    int32_t res = GENIEX_SUCCESS;
 +    int32_t sample_index = logits_it->second;

@@ -6,8 +6,8 @@ answer matches the reference and how far the choice logits moved. Use it after c
 release, the device (CPU or NPU), or the thread count:
 
     check_geniex_parity.py --list
-    check_geniex_parity.py --reference geniex-0.4.0-cpu-8-threads --bundle <bundle dir>
-    check_geniex_parity.py --reference geniex-0.4.0-npu --bundle <bundle dir> --record geniex-0.10.0-npu
+    check_geniex_parity.py --reference geniex-0.11.0-cpu-4-threads --bundle <bundle dir>
+    check_geniex_parity.py --reference geniex-0.11.0-npu-2-threads --bundle <bundle dir> --record <new name>
 
 --record stores the observed logits as a new reference entry, with the GenieX version, device and
 thread count the server reports. The exit status is 0 when every answer matches the reference

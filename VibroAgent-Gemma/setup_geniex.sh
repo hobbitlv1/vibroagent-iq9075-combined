@@ -10,7 +10,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROTO="$ROOT/vibrodiag_mcp_prototype"
 RUN="$PROTO/.run"
 # One release everywhere: source tag, runtime wheels, and the server's required version.
-GENIEX_VERSION="0.10.0"
+GENIEX_VERSION="0.11.0"
 GENIEX_TAG="v$GENIEX_VERSION"
 GENIEX="$RUN/GenieX-$GENIEX_TAG"
 VENV="$RUN/vibrogemma-venv"
@@ -22,7 +22,7 @@ PATCHES=(
 )
 # The release is a tag, and a tag can be moved. This source is compiled into the library the
 # model server loads, so the checkout must be the exact commit the patch series was written for.
-GENIEX_COMMIT="${VIBROGEMMA_GENIEX_COMMIT:-071f609995470bdb0e0769ab964754adfaab7e47}"
+GENIEX_COMMIT="${VIBROGEMMA_GENIEX_COMMIT:-ae375185109277a2a019b37c037f65bd6e47578c}"
 # Pinned versions of the full Python dependency closure (compiled from constraints/gemma.in).
 CONSTRAINTS="${VIBROGEMMA_CONSTRAINTS:-$ROOT/constraints/gemma.txt}"
 # uv installs whatever its cache hands it, so the cache has to belong to this user alone. A
@@ -97,7 +97,7 @@ OBJECTS="$RUN/geniex-$GENIEX_TAG-plugin-objects"
 mkdir -p "$OVERLAY" "$OBJECTS"
 cp -a "$SITE/." "$OVERLAY/"
 # Every source of the upstream plugin target (sdk/plugins/llama_cpp/src/*.cpp).
-for source_name in decision htp_session llm params plugin profiler threadpool vlm; do
+for source_name in decision htp_session liquid-decision llm params plugin profiler threadpool vlm; do
     g++ -DGENIEX_SHARED -DGGML_BACKEND_SHARED -DGGML_SHARED -DGGML_USE_CPU -DLLAMA_SHARED -DLLAMA_SUBPROCESS \
       -DPROJECT_SOURCE_DIR=\"$GENIEX/sdk\" -Dgeniex_llama_cpp_EXPORTS \
       -I"$GENIEX/sdk/include" -I"$GENIEX/sdk/plugins/llama_cpp/include" \
