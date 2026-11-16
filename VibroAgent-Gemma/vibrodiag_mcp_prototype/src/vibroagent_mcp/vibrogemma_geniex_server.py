@@ -1,4 +1,4 @@
-"""OpenAI-compatible VibroGemma endpoint backed by patched GenieX 0.10.0."""
+"""OpenAI-compatible VibroGemma endpoint backed by patched GenieX 0.11.0."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ STRUCTURED_DECISION_MODE = "parallel_binary_global_plus_joint_target_set_v1"
 DEPLOYMENT_CONTRACT_VERSION = "vibrogemma-geniex-live-v2"
 # The stateful decode, generate-from-state and state-logits calls come from the patch series in
 # patches/, which is written against exactly this release (see setup_geniex.sh).
-REQUIRED_GENIEX_VERSION = "0.10.0"
+REQUIRED_GENIEX_VERSION = "0.11.0"
 REQUIRED_BUNDLE_ARTIFACTS = (
     "vibrogemma_config.json",
     "tokenizer/tokenizer.json",
@@ -61,14 +61,12 @@ def _inference_thread_count() -> int:
     """CPU threads for the runtime: VIBROGEMMA_N_THREADS, else the cores this process may use.
 
     GenieX sizes its thread pool from the machine's core count and ignores the CPU set the launcher
-    pins this server to. GenieX 0.4.0 tolerated that, but the 0.10.0 CPU backend waits by spinning:
-    8 threads on 4 pinned cores took 113 s per window on the IQ-9075, against 26 s for 4 threads.
+    pins this server to, and its CPU backend waits by spinning. On GenieX 0.11.0, 8 threads on 4
+    pinned cores took 105 s per window on the IQ-9075, against 17 s for 4 threads.
 
-    The thread count also changes the floating-point results. Logits are reproducible for one count;
-    between 4 and 8 threads the global answer's logits stayed identical on the bundled LUMO windows
-    and the five target answers moved by up to 1.3 logits, with no answer changing. GenieX 0.4.0 and
-    0.10.0 agree bit for bit at the same count. 0.4.0 ran 8 threads on the CPU backend, so
-    VIBROGEMMA_N_THREADS=8 with all 8 cores reproduces its numbers exactly.
+    The thread count also changes the floating-point results slightly. Logits are reproducible for
+    one count; between 4 and 8 threads they moved by up to 0.4 on the bundled LUMO windows, with no
+    answer changing.
     """
     raw = os.environ.get("VIBROGEMMA_N_THREADS", "").strip()
     if raw:
@@ -83,6 +81,18 @@ def _inference_thread_count() -> int:
         return max(1, len(os.sched_getaffinity(0)))
     except (AttributeError, OSError):
         return max(1, os.cpu_count() or 1)
+
+
+def _apply_npu_backend_defaults() -> None:
+    """Keep the NPU backend mapping the model in small pieces, unless the operator chose otherwise.
+
+    GenieX 0.11.0 turns on the Hexagon backend's host buffers, which hand the NPU the model as one
+    buffer of several gigabytes. The IQ-9075 cannot map that ("possibly out of IOVA space" in the
+    runtime log, "failed to map buffer" in the kernel log) and the load fails. With host buffers
+    off the model is mapped in 64 MiB pieces, as it was in 0.10.0. The backend reads the variable
+    once, when GenieX registers it, so this has to run before geniex is imported.
+    """
+    os.environ.setdefault("GGML_HEXAGON_HOSTBUF", "0")
 
 
 def _choice_strings(
@@ -828,6 +838,7 @@ class VibroGemmaRuntime:
             raise RuntimeError(f"VibroGemma GGUF sha256 mismatch: {self.model_sha256} != {expected}")
 
     def load(self) -> None:
+        _apply_npu_backend_defaults()
         from geniex import AutoModelForCausalLM
         from tokenizers import Tokenizer
 

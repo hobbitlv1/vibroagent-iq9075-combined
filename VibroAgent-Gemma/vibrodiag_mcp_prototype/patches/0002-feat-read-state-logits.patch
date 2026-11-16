@@ -36,10 +36,10 @@ index 7a43bdf..b330fa1 100644
      lib = load_library()
  
 diff --git a/bindings/python/geniex/_ffi/_types.py b/bindings/python/geniex/_ffi/_types.py
-index 5dc579c..e751de5 100644
+index 55efa55..ed11bbd 100644
 --- a/bindings/python/geniex/_ffi/_types.py
 +++ b/bindings/python/geniex/_ffi/_types.py
-@@ -244,6 +244,23 @@ class geniex_LlmGenerateFromStateInput(Structure):
+@@ -245,6 +245,23 @@ class geniex_LlmGenerateFromStateInput(Structure):
      ]
  
  
@@ -139,10 +139,10 @@ index 8a55ee6..e92b8a8 100644
 +    }
 +}
 diff --git a/sdk/include/geniex.h b/sdk/include/geniex.h
-index 4dd23d5..cf751f9 100644
+index 8f18ace..3706e52 100644
 --- a/sdk/include/geniex.h
 +++ b/sdk/include/geniex.h
-@@ -782,6 +782,24 @@ typedef struct {
+@@ -783,6 +783,24 @@ typedef struct {
  GENIEX_API int32_t geniex_llm_generate_from_state(geniex_LLM* handle,
      const geniex_LlmGenerateFromStateInput* input, geniex_LlmGenerateOutput* output);
  
@@ -198,10 +198,10 @@ index 6ec7b20..0ba7449 100644
      void set_sampler(const geniex_SamplerConfig* cfg);
  
 diff --git a/sdk/plugins/llama_cpp/src/llm.cpp b/sdk/plugins/llama_cpp/src/llm.cpp
-index d324705..8fe8892 100644
+index b79d363..95219c3 100644
 --- a/sdk/plugins/llama_cpp/src/llm.cpp
 +++ b/sdk/plugins/llama_cpp/src/llm.cpp
-@@ -856,6 +856,41 @@ int32_t LlamaLlm::generate_from_state(
+@@ -870,6 +870,41 @@ int32_t LlamaLlm::generate_from_state(
      return output->full_text ? res : GENIEX_ERROR_COMMON_MEMORY_ALLOCATION;
  }
  

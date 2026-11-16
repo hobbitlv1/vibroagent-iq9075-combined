@@ -94,3 +94,14 @@ def test_recording_needs_both_windows():
 
     with pytest.raises(ValueError, match="both bundled windows"):
         reference_entry(health, {"target_3": _window([[1.0, 2.0]] * 6)}, "")
+
+
+def test_0_11_0_keeps_every_answer_of_0_10_0_on_the_recorded_windows():
+    references = json.loads(DEFAULT_REFERENCE_FILE.read_text())["references"]
+
+    for setting in ("cpu-4-threads", "cpu-8-threads", "npu-2-threads"):
+        for window in WINDOWS:
+            old = references[f"geniex-0.10.0-{setting}"]["windows"][window]
+            new = references[f"geniex-0.11.0-{setting}"]["windows"][window]
+            outcome = compare_window(old, new)
+            assert outcome["same_input"] and outcome["answers_match"], (setting, window)

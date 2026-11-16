@@ -577,7 +577,7 @@ class PatchSeriesTests(InstallerFixture):
     def setUp(self):
         super().setUp()
         self.prepare_setup()
-        self.geniex = self.repo / "VibroAgent-Gemma/vibrodiag_mcp_prototype/.run/GenieX-v0.10.0"
+        self.geniex = self.repo / "VibroAgent-Gemma/vibrodiag_mcp_prototype/.run/GenieX-v0.11.0"
         self.geniex.mkdir(parents=True)
         self.patchdir = self.repo / "VibroAgent-Gemma/vibrodiag_mcp_prototype/patches"
         self.patchdir.mkdir()

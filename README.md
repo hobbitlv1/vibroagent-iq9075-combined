@@ -82,7 +82,7 @@ Animated installation rows explicitly reset their cursor column, so they do not 
 
 The installer accepts exactly one deployment selection. Re-running a selection is safe: the underlying setup scripts verify and reuse valid repositories, environments, recordings, and model artifacts.
 
-Installs are pinned end to end. `setup_uv.sh` installs one fixed uv release from an installer whose SHA-256 is checked before it runs. Every Python package is held to a compiled constraints file (`constraints/codec.txt`, `constraints/hf-cli.txt`, and `VibroAgent-Gemma/constraints/gemma.txt`), so the same versions are installed every time; re-running setup moves an existing environment to those versions. Only the `torch` wheel comes from the PyTorch CPU index, and its dependencies come from PyPI. The GenieX source for VibroAgent-Gemma must be at the reviewed `v0.10.0` commit before it is compiled. To change a version, edit the matching `.in` file, recompile it with the `uv pip compile` command in its header, and re-run the tests and `examples/selftest.py`.
+Installs are pinned end to end. `setup_uv.sh` installs one fixed uv release from an installer whose SHA-256 is checked before it runs. Every Python package is held to a compiled constraints file (`constraints/codec.txt`, `constraints/hf-cli.txt`, and `VibroAgent-Gemma/constraints/gemma.txt`), so the same versions are installed every time; re-running setup moves an existing environment to those versions. Only the `torch` wheel comes from the PyTorch CPU index, and its dependencies come from PyPI. The GenieX source for VibroAgent-Gemma must be at the reviewed `v0.11.0` commit before it is compiled. To change a version, edit the matching `.in` file, recompile it with the `uv pip compile` command in its header, and re-run the tests and `examples/selftest.py`.
 
 ## Choose the implementation
 
@@ -97,7 +97,7 @@ Installs are pinned end to end. `setup_uv.sh` installs one fixed uv release from
 | How vibration enters | Code symbols in a text prompt | Projected embeddings inside the model sequence |
 | Context | 6,144 | 4,096 |
 | HTP placement | HTP0 + HTP1 | HTP0 |
-| Runtime | Packaged GenieX path | GenieX v0.10.0 plus included stateful embedding/logit bridge patches |
+| Runtime | Packaged GenieX path | GenieX v0.11.0 plus included stateful embedding/logit bridge patches |
 | Output contract | Grammar-constrained JSON | Global binary state plus joint five-target set logits, validated as JSON |
 | Operational classes | Legacy fine-grained set | `normal`, `unknown_anomaly`, deterministic `data_invalid` |
 | Localization | Model verdict under Codec contract | Five simultaneous target decisions; source-zone labels, not largest-response labels |
@@ -856,7 +856,7 @@ flowchart LR
     D --> Q[Deterministic quality gates]
     Q --> E[ONNX vibration encoder]
     E --> F[84 x 1536 continuous rows]
-    F --> G[Patched GenieX 0.10.0 stateful prefill]
+    F --> G[Patched GenieX 0.11.0 stateful prefill]
     G --> H[Gemma 4 E2B Q8 on HTP0]
     H --> I[Global binary logits]
     H --> J[Joint five-target set logits]
@@ -967,9 +967,9 @@ The profile applies only when episode provenance matches its fitted keys. Global
 
 For a new building, a defensible profile requires a reviewed healthy-baseline campaign, fixed locations/orientations, stable acquisition settings, representative ambient and operational conditions, and held-out acceptance data. Fitting it does not retrain the checkpoint or solve localization. Do not remove or substitute it merely to make alerts appear.
 
-### 11. GenieX 0.10.0 modifications
+### 11. GenieX 0.11.0 modifications
 
-`VibroAgent-Gemma/setup_geniex.sh` clones Qualcomm GenieX tag `v0.10.0`, refuses to continue unless the checkout is commit `071f609995470bdb0e0769ab964754adfaab7e47` (override with `VIBROGEMMA_GENIEX_COMMIT` after reviewing an upstream change), initializes its pinned `llama.cpp` submodule, applies the three reviewable patches under `VibroAgent-Gemma/vibrodiag_mcp_prototype/patches/`, and builds only the necessary plugin and bridge pieces.
+`VibroAgent-Gemma/setup_geniex.sh` clones Qualcomm GenieX tag `v0.11.0`, refuses to continue unless the checkout is commit `ae375185109277a2a019b37c037f65bd6e47578c` (override with `VIBROGEMMA_GENIEX_COMMIT` after reviewing an upstream change), initializes its pinned `llama.cpp` submodule, applies the three reviewable patches under `VibroAgent-Gemma/vibrodiag_mcp_prototype/patches/`, and builds only the necessary plugin and bridge pieces.
 
 #### Patch 1: stateful external-embedding prefill
 
@@ -981,13 +981,15 @@ The interface bounds row counts and shapes and keeps native ownership explicit. 
 
 `0002-feat-read-state-logits.patch` exposes selected logits from the latest stateful decode without sampling or changing the state. VibroAgent-Gemma compares the two global choice logits and the joint target-set choice logits at their exact query positions.
 
-This avoids parsing a creative completion into target states and preserves the trained structured-choice interface. The build retains stock GenieX 0.10.0 shared libraries, rebuilds the patched plugin, and adds `libgeniex_stateful.so` as a compatibility bridge. Startup requires external-embedding and state-logit probes to pass before the web service starts. GenieX-derived changes retain Qualcomm's BSD 3-Clause licence in the patch directory.
+This avoids parsing a creative completion into target states and preserves the trained structured-choice interface. The build retains stock GenieX 0.11.0 shared libraries, rebuilds the patched plugin, and adds `libgeniex_stateful.so` as a compatibility bridge. Startup requires external-embedding and state-logit probes to pass before the web service starts. GenieX-derived changes retain Qualcomm's BSD 3-Clause licence in the patch directory.
 
 #### Thread count and reproducibility
 
-The model server passes GenieX an explicit thread count: `VIBROGEMMA_N_THREADS`, or by default one thread per core in `VIBROGEMMA_INFERENCE_CPUS`. GenieX 0.10.0 would otherwise start one thread per machine core, and its CPU backend waits by spinning, so 8 threads on 4 pinned cores took 113 s per window on the IQ-9075 against 26 s for 4 threads.
+The model server passes GenieX an explicit thread count: `VIBROGEMMA_N_THREADS`, or by default one thread per core in `VIBROGEMMA_INFERENCE_CPUS`. GenieX would otherwise start one thread per machine core, and its CPU backend waits by spinning, so on 0.11.0 8 threads on 4 pinned cores took 105 s per window on the IQ-9075 against 17 s for 4 threads.
 
-Decision logits are reproducible for one thread count and differ between counts. On the bundled LUMO windows, 4 and 8 threads give identical logits for the global answer and target logits up to 1.3 apart, with no answer changing. At the same thread count the patched 0.10.0 runtime reproduces the patched 0.4.0 runtime bit for bit on the CPU backend. GenieX 0.4.0 ran 8 CPU threads, so `VIBROGEMMA_N_THREADS=8 VIBROGEMMA_INFERENCE_CPUS=0-7` reproduces its numbers exactly. The recorded reference logits and the comparison command are described in `VibroAgent-Gemma/vibrodiag_mcp_prototype/patches/README.md`.
+Decision logits are reproducible for one thread count and differ slightly between counts: on the bundled LUMO windows, 4 and 8 threads are at most 0.4 apart, with no answer changing. GenieX 0.11.0 does not reproduce the logits of 0.10.0 and 0.4.0, which agreed with each other bit for bit on the CPU. Its llama.cpp evaluates Gemma 4 differently and more than twice as fast; on the bundled windows every answer is unchanged and the logits move by up to 2.2 on the CPU and 0.7 on the NPU. The recorded reference logits and the comparison command are described in `VibroAgent-Gemma/vibrodiag_mcp_prototype/patches/README.md`.
+
+GenieX 0.11.0 also turns on the NPU backend's host buffers, which the IQ-9075 cannot map for a model of this size. The model server sets `GGML_HEXAGON_HOSTBUF=0` before loading GenieX unless the variable is already set; the patch README explains the failure.
 
 ### 12. Shared STDATALOG-PYSDK modifications
 
@@ -1079,6 +1081,7 @@ The launchers provide reviewed defaults. Common operator overrides are:
 | `VIBROGEMMA_N_THREADS` | Gemma model-server CPU threads; default one per pinned core. Changing it shifts decision logits (section 11) |
 | `VIBROGEMMA_STOP_WAIT_S` | How long a stopping Gemma model server waits for a request in flight before it exits; default 20 |
 | `GENIEX_STOP_WAIT_S` | The same wait for the codec stack's GenieX model server; default 20 |
+| `GGML_HEXAGON_HOSTBUF` | NPU host buffers; the Gemma model server defaults it to `0` because the IQ-9075 cannot map the model as one buffer (section 11) |
 | `VIBRO_CURRENT_FILE_MAX_AGE_S` | Maximum accepted live-file age |
 | `VIBRO_LIVE_DEVICE_MANIFEST` | Logical-slot-to-device mapping |
 | `VIBRO_REQUIRE_DEVICE_IDENTITY` | Enforce physical device identity |
@@ -1212,7 +1215,7 @@ VibroAgent-Gemma/
 ├── README.md
 ├── setup.sh                         Mode/environment setup
 ├── setup_models.sh                  Download, reconstruction, SHA gates
-├── setup_geniex.sh                  GenieX v0.10.0 patch and build (commit-pinned)
+├── setup_geniex.sh                  GenieX v0.11.0 patch and build (commit-pinned)
 ├── constraints/                     Pinned Python dependency closure (gemma.in, gemma.txt)
 ├── vibroagent.sh                    Start/stop/status/demo entry point
 ├── models/gemma_release_assets_manifest.json
