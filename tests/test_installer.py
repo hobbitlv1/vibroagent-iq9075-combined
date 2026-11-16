@@ -439,6 +439,40 @@ class SetupTests(InstallerFixture):
         for path in files:
             self.assertEqual(path.read_text().splitlines(), expected)
 
+    def geniex_install_call(self):
+        """The one recorded uv call that installs the GenieX runtime packages."""
+        calls = [json.loads(call) for call in self.calls() if call.startswith('["uv"')]
+        installs = [call for call in calls if any(argument.startswith("geniex==") for argument in call)]
+        self.assertEqual(len(installs), 1, calls)
+        return installs[0]
+
+    def test_geniex_setup_alone_installs_the_encoder_numpy(self):
+        result = self.run_script("VibroAgent-Gemma/setup_geniex.sh")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("numpy==2.2.6", self.geniex_install_call())
+
+    def test_geniex_setup_keeps_the_numpy_requirement_of_an_installed_sdk(self):
+        result = self.run_script("VibroAgent-Gemma/setup.sh", "--offline")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        (self.repo / "stdatalog_core/setup.py").write_text(
+            'install_requires=[\n"numpydoc==1.0",\n"numpy==2.3.4",\n"pandas==2.3.3",\n"stdatalog_pnpl",\n]\n')
+        self.trace.unlink()
+        again = self.run_script("VibroAgent-Gemma/setup_geniex.sh")
+        self.assertEqual(again.returncode, 0, again.stdout)
+        install = self.geniex_install_call()
+        self.assertIn("numpy==2.3.4", install)
+        self.assertNotIn("numpy==2.2.6", install)
+        self.assertNotIn("numpydoc==1.0", install)
+
+    def test_geniex_setup_installs_the_encoder_numpy_when_the_sdk_source_is_gone(self):
+        result = self.run_script("VibroAgent-Gemma/setup.sh", "--offline")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        shutil.rmtree(self.repo / "stdatalog_core")
+        self.trace.unlink()
+        again = self.run_script("VibroAgent-Gemma/setup_geniex.sh")
+        self.assertEqual(again.returncode, 0, again.stdout)
+        self.assertIn("numpy==2.2.6", self.geniex_install_call())
+
     UV_INSTALLER_DOUBLE = ('mkdir -p "$HOME/.local/bin"\n'
                            'cp "$SAVED_UV" "$HOME/.local/bin/uv"\n'
                            'chmod +x "$HOME/.local/bin/uv"\n')
@@ -598,6 +632,10 @@ class PatchSeriesTests(InstallerFixture):
         self.source.write_text("header\nthird patch\ntail\n")
         self.third = self.patchdir / "0003-fix-logit-validation-and-stop-sequences.patch"
         self.third.write_text(self.git("diff").stdout)
+        self.git("add", ".")
+        self.source.write_text("header\nfourth patch\ntail\n")
+        self.fourth = self.patchdir / "0004-feat-decode-without-logits.patch"
+        self.fourth.write_text(self.git("diff").stdout)
         # This reset is confined to the synthetic repository created above.
         self.git("reset", "--hard", "HEAD")
         self.stub("git", 'if [ "${3:-}" = submodule ]; then exit 0; fi\nexec /usr/bin/git "$@"\n')
@@ -626,7 +664,7 @@ class PatchSeriesTests(InstallerFixture):
         for attempt in range(2):
             result = self.run_script("VibroAgent-Gemma/setup_geniex.sh")
             self.assertEqual(result.returncode, 0, result.stdout)
-            self.assertEqual(self.source.read_text(), "header\nthird patch\ntail\n")
+            self.assertEqual(self.source.read_text(), "header\nfourth patch\ntail\n")
             if attempt:
                 self.assertIn("patch series already applied", result.stdout)
         self.assertEqual(list(self.geniex.parent.glob(".patch-check.*")), [])
@@ -635,7 +673,7 @@ class PatchSeriesTests(InstallerFixture):
         self.git("apply", str(self.first))
         result = self.run_script("VibroAgent-Gemma/setup_geniex.sh")
         self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertEqual(self.source.read_text(), "header\nthird patch\ntail\n")
+        self.assertEqual(self.source.read_text(), "header\nfourth patch\ntail\n")
 
     def test_unexpected_source_edit_is_preserved_and_rejected(self):
         self.source.write_text("unrelated local edit\n")
@@ -643,11 +681,16 @@ class PatchSeriesTests(InstallerFixture):
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertEqual(self.source.read_text(), "unrelated local edit\n")
 
-    def test_existing_two_patch_installation_receives_third_patch(self):
-        self.git("apply", str(self.first), str(self.second))
-        result = self.run_script("VibroAgent-Gemma/setup_geniex.sh")
-        self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertEqual(self.source.read_text(), "header\nthird patch\ntail\n")
+    def test_existing_installation_with_fewer_patches_receives_the_rest(self):
+        series = [self.first, self.second, self.third]
+        for applied in (2, 3):
+            with self.subTest(patches_already_applied=applied):
+                # Confined to the synthetic repository: back to the unpatched source.
+                self.git("checkout", "--", ".")
+                self.git("apply", *(str(patch) for patch in series[:applied]))
+                result = self.run_script("VibroAgent-Gemma/setup_geniex.sh")
+                self.assertEqual(result.returncode, 0, result.stdout)
+                self.assertEqual(self.source.read_text(), "header\nfourth patch\ntail\n")
 
 
 class SdkTests(InstallerFixture):

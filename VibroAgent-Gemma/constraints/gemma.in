@@ -4,6 +4,7 @@
 #
 # numpy is resolved here but not emitted: setup_geniex.sh installs numpy==2.2.6 for the encoder,
 # and the live/offline modes then install the STDATALOG pin numpy==2.3.4. Both are exact already.
+# Where STDATALOG is already installed, setup_geniex.sh asks for its numpy pin instead of 2.2.6.
 #
 # Regenerate (then re-run the test suite before committing):
 #   uv pip compile VibroAgent-Gemma/constraints/gemma.in --universal --python-version 3.12 \

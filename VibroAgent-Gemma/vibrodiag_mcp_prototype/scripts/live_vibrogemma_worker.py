@@ -17,6 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
+from vibroagent_mcp.cpu_threads import thread_count
 from vibroagent_mcp.vibration_quality import raw_window_quality
 
 SLOTS = ("baseline", "target_1", "target_2", "target_3", "target_4", "target_5")
@@ -501,7 +502,11 @@ def _encoder_session(bundle_text: str, _artifact_cache_key: str):
 
     bundle = Path(bundle_text)
     options = ort.SessionOptions()
-    options.intra_op_num_threads = 2
+    # The encoder returns the same bits at every thread count (checked from 1 to 8 on the IQ-9075),
+    # so the count only trades cores for time: 2.4 s per window on 2 cores, 1.5 s on 4. It follows
+    # the cores the calling thread may use, which in the web process are the model server's cores
+    # (VIBROGEMMA_INFERENCE_CPUS), unless VIBROGEMMA_ENCODER_THREADS says otherwise.
+    options.intra_op_num_threads = thread_count("VIBROGEMMA_ENCODER_THREADS")
     options.inter_op_num_threads = 1
     return ort.InferenceSession(
         str(bundle / "vibration_encoder_projector.onnx"),

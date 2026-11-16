@@ -1,0 +1,108 @@
+diff --git a/bindings/python/geniex/modeling.py b/bindings/python/geniex/modeling.py
+index 3f04b79..7eaeda9 100644
+--- a/bindings/python/geniex/modeling.py
++++ b/bindings/python/geniex/modeling.py
+@@ -11,6 +11,7 @@ from ctypes import (
+     byref,
+     c_char_p,
+     c_float,
++    c_int8,
+     c_int32,
+     c_void_p,
+     cast,
+@@ -528,10 +529,17 @@ class GenieXLLM:
+         streamer.start(_run)
+         return streamer
+ 
+-    def decode(self, *, input_ids=None, input_embd=None) -> DecodeOutput:
+-        """Append one token or raw-embedding batch to the retained KV state."""
++    def decode(self, *, input_ids=None, input_embd=None, logits: bool = True) -> DecodeOutput:
++        """Append one token or raw-embedding batch to the retained KV state.
++
++        By default the batch's last row gets logits. With ``logits=False`` the batch
++        only extends the state: no row is projected onto the vocabulary, and reading
++        logits or generating needs a later decode that computes them.
++        """
+         if (input_ids is None) == (input_embd is None):
+             raise ValueError('decode requires exactly one of input_ids or input_embd')
++        if not isinstance(logits, bool):
++            raise TypeError('logits must be a bool')
+ 
+         token_arr = None
+         embd_arr = None
+@@ -550,6 +558,10 @@ class GenieXLLM:
+             batch.token = token_arr
+         if embd_arr is not None:
+             batch.embd = embd_arr
++        if not logits:
++            # A flag array of zeros asks for no output row; NULL would mean the last row.
++            no_output_rows = (c_int8 * n_tokens)()
++            batch.logits = no_output_rows
+         out = geniex_LlmDecodeOutput(struct_size=sizeof(geniex_LlmDecodeOutput))
+         _check(get_llm_decode_function()(self._handle, byref(batch), byref(out)))
+         profile = _apply_meta(ProfileData.from_c(out.profile_data), self._meta)
+diff --git a/bindings/python/tests/unit/test_stateful_decode.py b/bindings/python/tests/unit/test_stateful_decode.py
+index 65fd587..f07e41b 100644
+--- a/bindings/python/tests/unit/test_stateful_decode.py
++++ b/bindings/python/tests/unit/test_stateful_decode.py
+@@ -65,6 +65,47 @@ def test_stateful_embedding_decode_rejects_invalid_rows(rows):
+     model._handle = None
+ 
+ 
++@pytest.mark.parametrize(
++    "arguments, expected_flags",
++    [
++        ({"input_ids": [5, 6, 7]}, None),
++        ({"input_ids": [5, 6, 7], "logits": True}, None),
++        ({"input_ids": [5, 6, 7], "logits": False}, [0, 0, 0]),
++        ({"input_embd": [[1.0, 2.0], [3.0, 4.0]], "logits": False}, [0, 0]),
++    ],
++)
++def test_decode_asks_for_no_output_row_only_when_logits_are_declined(monkeypatch, arguments, expected_flags):
++    seen = {}
++
++    def native_decode(_handle, batch_ptr, _output_ptr):
++        batch = cast(batch_ptr, POINTER(geniex_LlmBatch)).contents
++        seen["flags"] = list(batch.logits[: batch.n_tokens]) if batch.logits else None
++        return 0
++
++    monkeypatch.setattr(modeling, "get_llm_decode_function", lambda: native_decode)
++    model = GenieXLLM(c_void_p(123))
++    try:
++        model.decode(**arguments)
++    finally:
++        model._handle = None
++
++    assert seen == {"flags": expected_flags}
++
++
++@pytest.mark.parametrize("logits", [0, 1, None, "no", [False]])
++def test_decode_logits_switch_is_rejected_before_ffi_unless_a_bool(monkeypatch, logits):
++    def unexpected_call():
++        pytest.fail("an invalid logits switch reached the native API")
++
++    monkeypatch.setattr(modeling, "get_llm_decode_function", unexpected_call)
++    model = GenieXLLM(c_void_p(123))
++    try:
++        with pytest.raises(TypeError):
++            model.decode(input_ids=[1], logits=logits)
++    finally:
++        model._handle = None
++
++
+ @pytest.mark.parametrize("method", ["state_logits", "forward_logits"])
+ @pytest.mark.parametrize("ids", [[], [-1], [2**31], [236771 + 2**32], [1.5], ["1"]])
+ def test_logit_ids_are_rejected_before_ffi(monkeypatch, method, ids):
+diff --git a/sdk/include/geniex.h b/sdk/include/geniex.h
+index 3706e52..dff26b1 100644
+--- a/sdk/include/geniex.h
++++ b/sdk/include/geniex.h
+@@ -755,7 +755,7 @@ typedef struct {
+     const int32_t*        pos;
+     const int32_t*        n_seq_id;
+     const int32_t* const* seq_id;
+-    const int8_t*         logits;
++    const int8_t*         logits; /** Per-row output flags. NULL: last row only. All zero: no row. */
+ } geniex_LlmBatch;
+ 
+ typedef struct {
