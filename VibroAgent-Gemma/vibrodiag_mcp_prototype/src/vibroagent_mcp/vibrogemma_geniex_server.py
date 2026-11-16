@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import inspect
 import json
 import math
 import os
@@ -19,6 +20,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
+
+from .cpu_threads import thread_count
 
 CLASSES = (
     "normal",
@@ -68,19 +71,19 @@ def _inference_thread_count() -> int:
     one count; between 4 and 8 threads they moved by up to 0.4 on the bundled LUMO windows, with no
     answer changing.
     """
-    raw = os.environ.get("VIBROGEMMA_N_THREADS", "").strip()
-    if raw:
-        try:
-            requested = int(raw)
-        except ValueError:
-            requested = 0
-        if requested < 1:
-            raise RuntimeError(f"VIBROGEMMA_N_THREADS must be a positive integer, got {raw!r}")
-        return requested
+    return thread_count("VIBROGEMMA_N_THREADS")
+
+
+def _decode_can_skip_logits(model) -> bool:
+    """Whether this runtime's decode() can extend the state without computing logits.
+
+    The switch comes with patch 0004. A runtime built from the earlier series still works; it
+    computes logits on every call, as before.
+    """
     try:
-        return max(1, len(os.sched_getaffinity(0)))
-    except (AttributeError, OSError):
-        return max(1, os.cpu_count() or 1)
+        return "logits" in inspect.signature(model.decode).parameters
+    except (AttributeError, TypeError, ValueError):
+        return False
 
 
 def _apply_npu_backend_defaults() -> None:
@@ -857,6 +860,12 @@ class VibroGemmaRuntime:
             n_threads_batch=self.n_threads,
         )
         self.runtime_probe = self._probe_loaded_runtime()
+        if not self.runtime_probe["decode_without_logits"]:
+            print(
+                "VibroAgent-Gemma: this GenieX build computes logits on every decode call; "
+                "run setup_geniex.sh for the faster runtime",
+                flush=True,
+            )
 
     def _probe_loaded_runtime(self) -> dict[str, Any]:
         """Exercise the patched token, external-embedding and logits APIs once."""
@@ -898,8 +907,8 @@ class VibroGemmaRuntime:
             raise RuntimeError("packaged tokenizer returned no deployment-probe tokens")
         try:
             self.model.reset()
-            for offset in range(0, len(probe_ids), self.n_batch):
-                self.model.decode(input_ids=probe_ids[offset : offset + self.n_batch])
+            # More input follows these tokens, so they need no logits; this also exercises the switch.
+            self._decode_segments([("tokens", probe_ids)], logits=False)
             self.model.decode(input_embd=[[0.0] * SHAPE[1]])
             selected_logits = None
             if self.structured_set_decoding:
@@ -915,6 +924,7 @@ class VibroGemmaRuntime:
             "external_embedding_decode": True,
             "state_logits": bool(self.structured_set_decoding),
             "generate_from_state": not self.structured_set_decoding,
+            "decode_without_logits": _decode_can_skip_logits(self.model),
             "choice_token_ids": choice_ids,
         }
 
@@ -1051,15 +1061,30 @@ class VibroGemmaRuntime:
             },
         }
 
-    def _decode_segments(self, segments: list[tuple[str, Any]]) -> None:
+    def _decode_segments(self, segments: list[tuple[str, Any]], *, logits: bool = True) -> None:
+        """Append the segments to the model state, computing logits for the last runtime call at most.
+
+        Logits are a projection onto the whole vocabulary, about 75 ms per call on the CPU, and only
+        those of the latest call can be read. The earlier calls therefore skip them. Pass logits=False
+        when nothing reads logits before more input is appended; then the last call skips them too.
+        """
+        calls: list[dict[str, Any]] = []
         for kind, values in segments:
             if not len(values):
                 continue
             if kind == "embeddings":
-                self.model.decode(input_embd=values)
+                calls.append({"input_embd": values})
             else:
-                for offset in range(0, len(values), self.n_batch):
-                    self.model.decode(input_ids=values[offset : offset + self.n_batch])
+                calls.extend(
+                    {"input_ids": values[offset : offset + self.n_batch]}
+                    for offset in range(0, len(values), self.n_batch)
+                )
+        can_skip = _decode_can_skip_logits(self.model)
+        for index, arguments in enumerate(calls):
+            if can_skip and not (logits and index == len(calls) - 1):
+                self.model.decode(**arguments, logits=False)
+            else:
+                self.model.decode(**arguments)
 
     def _state_logits_at_positions(
         self,
@@ -1084,7 +1109,7 @@ class VibroGemmaRuntime:
                 position_index += 1
             if position_index == len(positions):
                 break
-            self._decode_segments([(kind, values[local:])])
+            self._decode_segments([(kind, values[local:])], logits=False)
             absolute += length
         if len(rows) != len(positions):
             raise ValueError("structured decision positions fall outside the mixed prompt")
@@ -1602,6 +1627,8 @@ def main() -> int:
     # (see VibroGemmaRuntime.close).
     signal.signal(signal.SIGTERM, request_stop)
     server = None
+    restart = threading.Event()
+    stop_requests: list[int] = []
     try:
         runtime.load()
         server = ThreadingHTTPServer((args.host, args.port), Handler)
@@ -1616,10 +1643,12 @@ def main() -> int:
                         continue
                     age_s, label = stuck
                     print(f"VIBROGEMMA WATCHDOG: {label} stuck for {age_s:.0f}s; restarting", flush=True)
-                    os.execv(
-                        sys.executable,
-                        [sys.executable, "-u", "-m", "vibroagent_mcp.vibrogemma_geniex_server", *sys.argv[1:]],
-                    )
+                    # The main thread destroys the model before it starts the server again.
+                    # Replacing the process from this thread would leave the model's device buffers
+                    # mapped, and on the NPU the next load would then fail until reboot.
+                    restart.set()
+                    server.shutdown()
+                    return
 
             threading.Thread(target=watchdog, name="vibrogemma-watchdog", daemon=True).start()
         print(
@@ -1629,12 +1658,29 @@ def main() -> int:
         )
         server.serve_forever()
     except KeyboardInterrupt:
-        pass
+        stop_requests.append(signal.SIGINT)
     finally:
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        # A stop that arrives from here on must not interrupt the release. Any stop cancels a restart.
+        signal.signal(signal.SIGTERM, lambda signum, frame: stop_requests.append(signum))
         if server is not None:
             server.server_close()
-        if not runtime.close(stop_wait_s):
+        released = runtime.close(stop_wait_s)
+        if restart.is_set() and not stop_requests:
+            if released:
+                print("VibroAgent-Gemma: model released, restarting", flush=True)
+            else:
+                print(
+                    "VibroAgent-Gemma: the stuck request still holds the model; restarting without "
+                    "releasing it. On the NPU the next load fails until the board is rebooted",
+                    flush=True,
+                )
+            # An ignored or handled signal must not carry over: the new process has no model yet.
+            signal.signal(signal.SIGTERM, signal.SIG_DFL)
+            os.execv(
+                sys.executable,
+                [sys.executable, "-u", "-m", "vibroagent_mcp.vibrogemma_geniex_server", *sys.argv[1:]],
+            )
+        if not released:
             print("VibroAgent-Gemma: a request still holds the model; exiting without releasing it", flush=True)
             os._exit(0)
         if server is not None:

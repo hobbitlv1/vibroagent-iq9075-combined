@@ -19,6 +19,7 @@ PATCHES=(
   "$PROTO/patches/0001-feat-add-stateful-external-embedding-prefill.patch"
   "$PROTO/patches/0002-feat-read-state-logits.patch"
   "$PROTO/patches/0003-fix-logit-validation-and-stop-sequences.patch"
+  "$PROTO/patches/0004-feat-decode-without-logits.patch"
 )
 # The release is a tag, and a tag can be moved. This source is compiled into the library the
 # model server loads, so the checkout must be the exact commit the patch series was written for.
@@ -51,7 +52,7 @@ git -C "$GENIEX" submodule update --init --recursive third-party/llama.cpp
 # Later patches can modify the context added by earlier ones, so checking
 # each patch in reverse independently cannot recognize a fully patched tree.
 # Compare every valid patch prefix in a disposable index, so an existing
-# two-patch installation can receive the third without undoing earlier patches.
+# installation with fewer patches can receive the rest without undoing earlier patches.
 applied_patch_count() (
     check_dir="$(mktemp -d "$RUN/.patch-check.XXXXXX")" || return 1
     trap 'rm -rf "$check_dir"' EXIT
@@ -81,8 +82,25 @@ else
 fi
 
 test -x "$VENV/bin/python" || uv venv --python /usr/bin/python3.12 "$VENV"
+# The encoder alone runs on numpy 2.2.6. An environment that also carries the sensor SDK
+# (setup.sh in live or offline mode) runs on the SDK's own numpy requirement, which setup.sh
+# installs after this script. Putting 2.2.6 back there would change how recordings are
+# resampled, by enough to move decision logits, until setup.sh ran again. So this script asks
+# for numpy the way the SDK does, read from the same list setup.sh installs.
+NUMPY_REQUIREMENT='numpy==2.2.6'
+PURELIB="$("$VENV/bin/python" -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
+if [ -f "$PURELIB/vibroagent_sdk.pth" ]; then
+    SDK_NUMPY="$(sed -n '/install_requires=\[/,/\]/p' "$ROOT/../stdatalog_core/setup.py" 2>/dev/null \
+        | grep -oE '"[^"]+"' | tr -d '"' | grep -E '^numpy([^A-Za-z0-9._-]|$)' | head -n 1 || true)"
+    if [ -n "$SDK_NUMPY" ]; then
+        NUMPY_REQUIREMENT="$SDK_NUMPY"
+        echo "== sensor SDK present: keeping its numpy requirement ($NUMPY_REQUIREMENT)"
+    else
+        echo "== sensor SDK path file present, but its numpy requirement is not readable; installing $NUMPY_REQUIREMENT"
+    fi
+fi
 uv pip install --quiet --python "$VENV/bin/python" --constraint "$CONSTRAINTS" \
-    'numpy==2.2.6' 'scipy>=1.12' 'onnxruntime>=1.17' 'tokenizers>=0.22' \
+    "$NUMPY_REQUIREMENT" 'scipy>=1.12' 'onnxruntime>=1.17' 'tokenizers>=0.22' \
     'pyyaml>=6' 'jsonschema>=4' cmake ninja 'pytest>=8' \
     "geniex==$GENIEX_VERSION" "geniex-llama-cpp==$GENIEX_VERSION"
 # Only the torch wheel itself comes from the PyTorch CPU index (--no-deps). The second

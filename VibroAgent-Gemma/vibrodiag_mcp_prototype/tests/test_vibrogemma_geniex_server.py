@@ -579,11 +579,13 @@ def test_loaded_runtime_probe_exercises_external_embeddings_and_state_logits():
             self.decoded_tokens = 0
             self.embedding_rows = 0
             self.reset_count = 0
+            self.logits_computed = []
 
         def reset(self):
             self.reset_count += 1
 
-        def decode(self, *, input_ids=None, input_embd=None):
+        def decode(self, *, input_ids=None, input_embd=None, logits=True):
+            self.logits_computed.append(logits)
             if input_ids is not None:
                 self.decoded_tokens += len(input_ids)
             if input_embd is not None:
@@ -608,10 +610,14 @@ def test_loaded_runtime_probe_exercises_external_embeddings_and_state_logits():
     assert probe["external_embedding_decode"] is True
     assert probe["state_logits"] is True
     assert probe["generate_from_state"] is False
+    assert probe["decode_without_logits"] is True
     assert probe["choice_token_ids"] == [ord("0"), ord("1")]
     assert runtime.model.decoded_tokens > 0
     assert runtime.model.embedding_rows == 1
     assert runtime.model.reset_count == 2
+    # Only the embedding row, whose logits the probe reads, was projected onto the vocabulary.
+    assert len(runtime.model.logits_computed) > 2
+    assert runtime.model.logits_computed == [False] * (len(runtime.model.logits_computed) - 1) + [True]
 
 
 def test_loaded_runtime_probe_accepts_factorized_generation_api():
@@ -642,6 +648,8 @@ def test_loaded_runtime_probe_accepts_factorized_generation_api():
     assert probe["passed"] is True
     assert probe["state_logits"] is False
     assert probe["generate_from_state"] is True
+    # This runtime's decode() has no logits switch, as one built from the three-patch series.
+    assert probe["decode_without_logits"] is False
 
 
 def test_record_explanation_and_watchdog_are_bounded():

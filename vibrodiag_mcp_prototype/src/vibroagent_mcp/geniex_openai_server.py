@@ -25,9 +25,8 @@ when that message's role is ``user``: the SDK's chat template assumes
 prior-turn media lives in the KV cache, but this server resets the KV per
 request, so a historical image part can never be matched to pixel data — a
 follow-up must re-attach the image to its final user message. Decoded images
-become temp files (the SDK takes paths) that are deleted after every request
-and purged before a watchdog re-exec, since ``finally`` does not run across
-``execv``.
+become temp files (the SDK takes paths) that are deleted after every request;
+their per-process directory is removed when the server stops or restarts.
 
 Three board-measured (2026-07-23) constraints shape the vision path. First, an
 image request on any HTP-inclusive device_map SEGFAULTS the whole process (the
@@ -88,6 +87,8 @@ DEFAULT_GENERATION_WATCHDOG_S = 180.0
 # lock is a wedged from_pretrained that would brick the endpoint, so the watchdog
 # re-execs on it like a stuck generation (its own phase, separate limit).
 DEFAULT_RELOAD_WATCHDOG_S = 90.0
+# How often the watchdog looks for a stuck generation or reload.
+WATCHDOG_POLL_S = 5.0
 # After this many consecutive reload failures the runtime trips a breaker and
 # fails requests fast instead of retrying an expensive broken load every time.
 DEFAULT_RELOAD_FAILURE_LIMIT = 3
@@ -1448,8 +1449,8 @@ def main(argv: list[str] | None = None) -> int:
     # A shared per-port dir purged at startup could delete a still-serving older
     # process's files if a new process starts and then fails to bind; a unique
     # per-process dir avoids that overlap. The parent is swept of stale dirs at
-    # startup; this process's dir is removed at exit and before a watchdog execv
-    # (finally does not survive exec).
+    # startup; this process's dir is removed when serving ends, which a watchdog
+    # restart also goes through before it re-execs.
     image_parent = os.path.join(tempfile.gettempdir(), "geniex-openai-images")
     os.makedirs(image_parent, exist_ok=True)
     image_tmpdir = tempfile.mkdtemp(dir=image_parent, prefix=f"p{args.port}-")
@@ -1479,8 +1480,10 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _run_until_stopped(args: argparse.Namespace, runtime: _GenieXRuntime, image_tmpdir: str) -> int:
-    """Load and serve, and destroy the model on every way out, including a stop signal."""
+    """Load and serve, and destroy the model on every way out: a stop signal and a watchdog restart."""
     stop_wait_s = float(_env_str("GENIEX_STOP_WAIT_S", str(DEFAULT_STOP_WAIT_S)))
+    restart = threading.Event()
+    stop_requests: list[int] = []
 
     def request_stop(signum, frame) -> None:  # noqa: ARG001
         raise KeyboardInterrupt
@@ -1489,14 +1492,29 @@ def _run_until_stopped(args: argparse.Namespace, runtime: _GenieXRuntime, image_
     # the runtime gives its NPU session back (see _GenieXRuntime.close) instead of dying with it open.
     signal.signal(signal.SIGTERM, request_stop)
     try:
-        return _load_and_serve(args, runtime, image_tmpdir)
+        return _load_and_serve(args, runtime, image_tmpdir, restart)
     except KeyboardInterrupt:
+        stop_requests.append(signal.SIGINT)
         print("Stopping GenieX adapter", flush=True)
         return 0
     finally:
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        # A stop that arrives from here on must not interrupt the release. Any stop cancels a restart.
+        signal.signal(signal.SIGTERM, lambda signum, frame: stop_requests.append(signum))
         loaded = runtime._model is not None  # noqa: SLF001
-        if not runtime.close(stop_wait_s):
+        released = runtime.close(stop_wait_s)
+        if restart.is_set() and not stop_requests:
+            if released:
+                print("GenieX adapter: model released, restarting", flush=True)
+            else:
+                print(
+                    "GenieX adapter: the stuck call still holds the model; restarting without "
+                    "releasing it. On the NPU the next load fails until the board is rebooted",
+                    flush=True,
+                )
+            # An ignored or handled signal must not carry over: the new process has no model yet.
+            signal.signal(signal.SIGTERM, signal.SIG_DFL)
+            os.execv(sys.executable, _relaunch_argv(args))
+        if not released:
             print("GenieX adapter: a request still holds the model; exiting without releasing it", flush=True)
             sys.stdout.flush()
             os._exit(0)
@@ -1504,7 +1522,43 @@ def _run_until_stopped(args: argparse.Namespace, runtime: _GenieXRuntime, image_
             print("GenieX adapter: model released", flush=True)
 
 
-def _load_and_serve(args: argparse.Namespace, runtime: _GenieXRuntime, image_tmpdir: str) -> int:
+def _relaunch_argv(args: argparse.Namespace) -> list[str]:
+    """The command that starts this server again with the same settings."""
+    return [
+        sys.executable,
+        "-u",
+        "-m",
+        "vibroagent_mcp.geniex_openai_server",
+        "--host", str(args.host),
+        "--port", str(args.port),
+        "--model", str(args.model),
+        "--device-map", str(args.device_map),
+        "--n-ctx", str(args.n_ctx),
+        "--max-output-tokens", str(args.max_output_tokens),
+        "--timeout-s", str(args.timeout_s),
+        "--max-prompt-chars", str(args.max_prompt_chars),
+        "--generation-watchdog-s", str(args.generation_watchdog_s),
+        "--mmproj-path", str(args.mmproj_path),
+        "--model-label", str(args.model_label),
+        "--unsafe-allow-vision-device", str(args.unsafe_allow_vision_device),
+        "--expect-device", str(args.expect_device),
+        "--expect-model-sha256", str(args.expect_model_sha256),
+        "--expect-mmproj-sha256", str(args.expect_mmproj_sha256),
+        "--max-images", str(args.max_images),
+        "--max-image-bytes", str(args.max_image_bytes),
+        "--max-body-bytes", str(args.max_body_bytes),
+        "--image-token-reserve", str(args.image_token_reserve),
+        "--max-concurrent-bodies", str(args.max_concurrent_bodies),
+        "--reload-watchdog-s", str(args.reload_watchdog_s),
+        "--reload-budget", str(args.reload_budget),
+        "--min-mem-available-mib", str(args.min_mem_available_mib),
+        *(["--vision-require-image"] if args.vision_require_image else []),
+    ]
+
+
+def _load_and_serve(
+    args: argparse.Namespace, runtime: _GenieXRuntime, image_tmpdir: str, restart: threading.Event
+) -> int:
     print(f"Loading GenieX model {args.model} (device_map={args.device_map}, n_ctx={args.n_ctx}) ...")
     runtime.load()
 
@@ -1555,40 +1609,13 @@ def _load_and_serve(args: argparse.Namespace, runtime: _GenieXRuntime, image_tmp
         # wedged thread and any queued clients die with a connection reset and
         # the model reloads in seconds. A wedged reload (unbounded from_pretrained)
         # holding the lock is caught the same way, on its own limit.
-        relaunch_argv = [
-            sys.executable,
-            "-u",
-            "-m",
-            "vibroagent_mcp.geniex_openai_server",
-            "--host", str(args.host),
-            "--port", str(args.port),
-            "--model", str(args.model),
-            "--device-map", str(args.device_map),
-            "--n-ctx", str(args.n_ctx),
-            "--max-output-tokens", str(args.max_output_tokens),
-            "--timeout-s", str(args.timeout_s),
-            "--max-prompt-chars", str(args.max_prompt_chars),
-            "--generation-watchdog-s", str(args.generation_watchdog_s),
-            "--mmproj-path", str(args.mmproj_path),
-            "--model-label", str(args.model_label),
-            "--unsafe-allow-vision-device", str(args.unsafe_allow_vision_device),
-            "--expect-device", str(args.expect_device),
-            "--expect-model-sha256", str(args.expect_model_sha256),
-            "--expect-mmproj-sha256", str(args.expect_mmproj_sha256),
-            "--max-images", str(args.max_images),
-            "--max-image-bytes", str(args.max_image_bytes),
-            "--max-body-bytes", str(args.max_body_bytes),
-            "--image-token-reserve", str(args.image_token_reserve),
-            "--max-concurrent-bodies", str(args.max_concurrent_bodies),
-            "--reload-watchdog-s", str(args.reload_watchdog_s),
-            "--reload-budget", str(args.reload_budget),
-            "--min-mem-available-mib", str(args.min_mem_available_mib),
-            *(["--vision-require-image"] if args.vision_require_image else []),
-        ]
+        # The re-exec itself happens in _run_until_stopped, after the model was
+        # destroyed if the stuck call let go of it in time: an exec with the
+        # model still loaded keeps its NPU buffers mapped until reboot.
 
         def _generation_watchdog() -> None:
             while True:
-                time.sleep(5.0)
+                time.sleep(WATCHDOG_POLL_S)
                 stuck = runtime.stuck_generation(watchdog_limit_s)
                 if stuck is None:
                     stuck = runtime.stuck_reload(reload_watchdog_limit_s)
@@ -1600,11 +1627,9 @@ def _load_and_serve(args: argparse.Namespace, runtime: _GenieXRuntime, image_tmp
                     "re-exec'ing the server to recover",
                     flush=True,
                 )
-                # finally blocks die with the exec; reclaim this process's
-                # decoded image files before re-exec (the new process gets a
-                # fresh per-process dir).
-                shutil.rmtree(image_tmpdir, ignore_errors=True)
-                os.execv(sys.executable, relaunch_argv)
+                restart.set()
+                server.shutdown()
+                return
 
         threading.Thread(target=_generation_watchdog, name="geniex-generation-watchdog", daemon=True).start()
         print(f"Generation watchdog armed: re-exec after {watchdog_limit_s:.0f}s of one stuck generation")
@@ -1612,10 +1637,9 @@ def _load_and_serve(args: argparse.Namespace, runtime: _GenieXRuntime, image_tmp
     print(f"Serving GenieX OpenAI-compatible API at http://{args.host}:{args.port}/v1")
     try:
         server.serve_forever()
-    except KeyboardInterrupt:
-        print("Stopping GenieX adapter")
     finally:
         server.server_close()
+        # The new process of a restart gets a fresh per-process image directory.
         shutil.rmtree(image_tmpdir, ignore_errors=True)
     return 0
 

@@ -127,6 +127,8 @@ The complete, reviewable patch series is under `vibrodiag_mcp_prototype/patches/
 
 The model server runs one CPU thread per core it is pinned to (`VIBROGEMMA_INFERENCE_CPUS`); `VIBROGEMMA_N_THREADS` overrides that. Decision logits depend on the thread count, so the patch README records reference logits and the command that compares a running server against them.
 
+The vibration encoder runs on the web process's monitor thread, which is pinned to the same cores, on one thread per core; `VIBROGEMMA_ENCODER_THREADS` overrides that. Its output does not depend on the thread count.
+
 ## Verification
 
 Static and focused runtime checks:

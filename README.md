@@ -969,7 +969,7 @@ For a new building, a defensible profile requires a reviewed healthy-baseline ca
 
 ### 11. GenieX 0.11.0 modifications
 
-`VibroAgent-Gemma/setup_geniex.sh` clones Qualcomm GenieX tag `v0.11.0`, refuses to continue unless the checkout is commit `ae375185109277a2a019b37c037f65bd6e47578c` (override with `VIBROGEMMA_GENIEX_COMMIT` after reviewing an upstream change), initializes its pinned `llama.cpp` submodule, applies the three reviewable patches under `VibroAgent-Gemma/vibrodiag_mcp_prototype/patches/`, and builds only the necessary plugin and bridge pieces.
+`VibroAgent-Gemma/setup_geniex.sh` clones Qualcomm GenieX tag `v0.11.0`, refuses to continue unless the checkout is commit `ae375185109277a2a019b37c037f65bd6e47578c` (override with `VIBROGEMMA_GENIEX_COMMIT` after reviewing an upstream change), initializes its pinned `llama.cpp` submodule, applies the four reviewable patches under `VibroAgent-Gemma/vibrodiag_mcp_prototype/patches/`, and builds only the necessary plugin and bridge pieces.
 
 #### Patch 1: stateful external-embedding prefill
 
@@ -983,11 +983,21 @@ The interface bounds row counts and shapes and keeps native ownership explicit. 
 
 This avoids parsing a creative completion into target states and preserves the trained structured-choice interface. The build retains stock GenieX 0.11.0 shared libraries, rebuilds the patched plugin, and adds `libgeniex_stateful.so` as a compatibility bridge. Startup requires external-embedding and state-logit probes to pass before the web service starts. GenieX-derived changes retain Qualcomm's BSD 3-Clause licence in the patch directory.
 
+#### Patch 3: input validation and stop sequences
+
+`0003-fix-logit-validation-and-stop-sequences.patch` validates token and sequence IDs before they reach the native API and handles stop sequences that span generated tokens.
+
+#### Patch 4: decode without logits
+
+`0004-feat-decode-without-logits.patch` lets a decode call extend the model state without projecting a row onto the vocabulary. A window is 25 decode calls, and only the six that end at an answer position have their logits read. Skipping the other 19 projections cut the model server's time per window from 7.3 s to 5.9 s on the CPU with 4 threads and from 2.2 s to 1.4 s on the NPU, with bit-identical decision logits on both. A runtime built without this patch still works and computes logits on every call; `runtime_probe.decode_without_logits` in the model server's `/health` shows which one is running.
+
 #### Thread count and reproducibility
 
 The model server passes GenieX an explicit thread count: `VIBROGEMMA_N_THREADS`, or by default one thread per core in `VIBROGEMMA_INFERENCE_CPUS`. GenieX would otherwise start one thread per machine core, and its CPU backend waits by spinning, so on 0.11.0 8 threads on 4 pinned cores took 105 s per window on the IQ-9075 against 17 s for 4 threads.
 
 Decision logits are reproducible for one thread count and differ slightly between counts: on the bundled LUMO windows, 4 and 8 threads are at most 0.4 apart, with no answer changing. GenieX 0.11.0 does not reproduce the logits of 0.10.0 and 0.4.0, which agreed with each other bit for bit on the CPU. Its llama.cpp evaluates Gemma 4 differently and more than twice as fast; on the bundled windows every answer is unchanged and the logits move by up to 2.2 on the CPU and 0.7 on the NPU. The recorded reference logits and the comparison command are described in `VibroAgent-Gemma/vibrodiag_mcp_prototype/patches/README.md`.
+
+The vibration encoder sizes its thread pool the same way: `VIBROGEMMA_ENCODER_THREADS`, or by default one thread per core its thread may use. In the web process that thread is the monitor thread, which is pinned to `VIBROGEMMA_INFERENCE_CPUS` like the model server; the two never compute at the same moment for one window. Unlike the model, the encoder's output is bit-identical at every count from 1 to 8, so the count only changes the time. On the IQ-9075 one window takes 2.4 s to encode on 2 cores, 1.5 s on 4 and 1.1 s on 6. With the default `6-7` the encoder therefore still runs on 2 threads, and a wider `VIBROGEMMA_INFERENCE_CPUS` speeds it up.
 
 GenieX 0.11.0 also turns on the NPU backend's host buffers, which the IQ-9075 cannot map for a model of this size. The model server sets `GGML_HEXAGON_HOSTBUF=0` before loading GenieX unless the variable is already set; the patch README explains the failure.
 
@@ -1077,10 +1087,13 @@ The launchers provide reviewed defaults. Common operator overrides are:
 | `GENIEX_PORT` | Loopback adapter port; default 18181 |
 | `GENIEX_N_CTX` | Context size; reviewed default 4096 |
 | `GENIEX_DEVICE_MAP` | Device placement; reviewed default HTP0 map |
-| `VIBROGEMMA_INFERENCE_CPUS` | Cores the Gemma model server is pinned to; default `6-7` |
+| `VIBROGEMMA_INFERENCE_CPUS` | Cores for the Gemma model server and for the web process's monitor thread, which runs the vibration encoder; default `6-7` |
 | `VIBROGEMMA_N_THREADS` | Gemma model-server CPU threads; default one per pinned core. Changing it shifts decision logits (section 11) |
-| `VIBROGEMMA_STOP_WAIT_S` | How long a stopping Gemma model server waits for a request in flight before it exits; default 20 |
+| `VIBROGEMMA_ENCODER_THREADS` | Vibration-encoder threads; default one per core in `VIBROGEMMA_INFERENCE_CPUS`. Changes the encoding time only, not its output (section 11) |
+| `VIBROGEMMA_STOP_WAIT_S` | How long a stopping or restarting Gemma model server waits for a request in flight before it goes on without releasing the model; default 20 |
+| `VIBROGEMMA_GENERATION_WATCHDOG_S` | The Gemma model server restarts itself when one request runs longer than this; default 30, `0` turns it off. It releases the model first, so the NPU can load it again |
 | `GENIEX_STOP_WAIT_S` | The same wait for the codec stack's GenieX model server; default 20 |
+| `GENIEX_GENERATION_WATCHDOG_S` | The codec stack's GenieX model server restarts itself when one generation runs longer than this; default 180, `0` turns it off. It releases the model first if the call ends within `GENIEX_STOP_WAIT_S` |
 | `GGML_HEXAGON_HOSTBUF` | NPU host buffers; the Gemma model server defaults it to `0` because the IQ-9075 cannot map the model as one buffer (section 11) |
 | `VIBRO_CURRENT_FILE_MAX_AGE_S` | Maximum accepted live-file age |
 | `VIBRO_LIVE_DEVICE_MANIFEST` | Logical-slot-to-device mapping |
